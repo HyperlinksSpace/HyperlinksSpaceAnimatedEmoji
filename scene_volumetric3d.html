@@ -626,6 +626,12 @@ function track(mesh, opts) {
     ax: (Math.random() - 0.5) * 2,
     ay: (Math.random() - 0.5) * 2,
     az: (Math.random() - 0.5) * 2,
+    /* Per-layer organism phase (puzzle / living stack) */
+    phase: opts.phase ?? Math.random() * Math.PI * 2,
+    w1: 5.5 + Math.random() * 4.5,
+    w2: 7.0 + Math.random() * 5.0,
+    w3: 4.2 + Math.random() * 3.8,
+    amp: 0.55 + Math.random() * 0.55,
   });
 }
 
@@ -755,6 +761,7 @@ async function build() {
         delay: s.delay,
         spin: s.ang > 1 ? -1.1 : 1.1,
         kind: 'boom',
+        phase: s.ang * 2.1 + s.z,
       });
     }
   }
@@ -799,14 +806,18 @@ function containRoot() {
   brand.nRest = brand.n.position.clone();
   brand.tRest = brand.text.position.clone();
   root.userData.baseScale = root.scale.x;
+  root.userData.basePos = { x: root.position.x, y: root.position.y };
 }
 
 function applyFrame(fr) {
   const t = (fr - 1) / Math.max(1, TOTAL - 1);
-  const boomAmt = trap(t, 0.04, 0.20, 0.52, 0.88);
-  const zoomN = trap(t, 0.10, 0.26, 0.46, 0.76);
-  const zoomT = trap(t, 0.28, 0.44, 0.60, 0.86);
-  const destroy = trap(t, 0.14, 0.32, 0.58, 0.94);
+  const boomAmt = trap(t, 0.08, 0.22, 0.52, 0.88);
+  const zoomN = trap(t, 0.12, 0.28, 0.46, 0.76);
+  const zoomT = trap(t, 0.30, 0.46, 0.60, 0.86);
+  const destroy = trap(t, 0.18, 0.34, 0.58, 0.94);
+  /* Intact organism phase — strong until tear, then fades */
+  const life = Math.max(0, 1 - destroy * 1.65);
+  const lifeSoft = life * life;
 
   /* Wholes punch then shatter into reference-textured chunks */
   const showWhole = destroy < 0.28;
@@ -816,16 +827,34 @@ function applyFrame(fr) {
   if (brand.n && showWhole) {
     const n = brand.n;
     const rp = brand.nRest;
-    n.position.set(rp.x, rp.y + 0.15 * zoomN, rp.z + 0.7 * zoomN + 0.25 * boomAmt);
-    n.rotation.set(-0.08 * zoomN, 0.1 * boomAmt, 0.04 * zoomN);
-    n.scale.setScalar(brand.nScale * (1 + 0.08 * zoomN));
+    const ph = t * Math.PI * 2;
+    n.position.set(
+      rp.x + Math.sin(ph * 2.3) * 0.22 * life + Math.sin(ph * 5.1) * 0.08 * life,
+      rp.y + 0.15 * zoomN + Math.cos(ph * 1.9) * 0.18 * life,
+      rp.z + 0.7 * zoomN + 0.25 * boomAmt + Math.sin(ph * 2.7 + 1.1) * 0.35 * life,
+    );
+    n.rotation.set(
+      -0.08 * zoomN + Math.sin(ph * 3.1) * 0.22 * life + Math.sin(ph * 7.2) * 0.06 * life,
+      0.1 * boomAmt + Math.cos(ph * 2.4) * 0.28 * life + Math.sin(ph * 6.0) * 0.08 * life,
+      0.04 * zoomN + Math.sin(ph * 2.8 + 0.7) * 0.18 * life,
+    );
+    n.scale.setScalar(brand.nScale * (1 + 0.08 * zoomN) * (1 + Math.sin(ph * 4.2) * 0.035 * life));
   }
   if (brand.text && showWhole) {
     const tx = brand.text;
     const rp = brand.tRest;
-    tx.position.set(rp.x, rp.y - 0.08 * zoomT, rp.z + 0.45 * zoomT + 0.15 * boomAmt);
-    tx.rotation.set(0.06 * zoomT, -0.08 * zoomT, 0.04 * zoomT);
-    tx.scale.setScalar(brand.tScale * (1 + 0.06 * zoomT));
+    const ph = t * Math.PI * 2 + 1.7;
+    tx.position.set(
+      rp.x + Math.cos(ph * 2.1) * 0.2 * life + Math.sin(ph * 4.8) * 0.07 * life,
+      rp.y - 0.08 * zoomT + Math.sin(ph * 2.6) * 0.16 * life,
+      rp.z + 0.45 * zoomT + 0.15 * boomAmt + Math.cos(ph * 2.2) * 0.3 * life,
+    );
+    tx.rotation.set(
+      0.06 * zoomT + Math.cos(ph * 2.9) * 0.2 * life,
+      -0.08 * zoomT + Math.sin(ph * 2.2) * 0.26 * life + Math.cos(ph * 5.5) * 0.07 * life,
+      0.04 * zoomT + Math.sin(ph * 3.4 + 0.4) * 0.16 * life,
+    );
+    tx.scale.setScalar(brand.tScale * (1 + 0.06 * zoomT) * (1 + Math.cos(ph * 3.8) * 0.03 * life));
   }
 
   for (const p of pieces) {
@@ -842,31 +871,56 @@ function applyFrame(fr) {
     /* Explode outward + ZOOM OUT so tips never leave the canvas */
     const fly = amt * p.power * (isChunk ? 1.95 : 1.55);
     const shrink = Math.max(0.22, 1 - amt * (isChunk ? 0.58 : 0.48));
+
+    /* Living puzzle: layers breathe / orbit / counter-rotate while intact */
+    const layerLife = isChunk ? 0 : lifeSoft * (1 - Math.min(1, amt * 2.4));
+    const ph = p.phase + t * Math.PI * 2;
+    const a = p.amp * layerLife;
+    const ox = Math.sin(ph * p.w1 * 0.35) * 0.28 * a + Math.sin(ph * p.w2 * 0.55) * 0.12 * a;
+    const oy = Math.cos(ph * p.w2 * 0.32) * 0.24 * a + Math.sin(ph * p.w3 * 0.5) * 0.1 * a;
+    const oz = Math.sin(ph * p.w3 * 0.28 + p.ang) * 0.55 * a + Math.cos(ph * p.w1 * 0.4) * 0.22 * a;
+    const rx = Math.sin(ph * p.w1 * 0.4) * 0.32 * a + Math.sin(ph * 9.5 + p.phase) * 0.08 * a;
+    const ry = Math.cos(ph * p.w2 * 0.38) * 0.4 * a + Math.sin(ph * 7.8 + p.ang) * 0.1 * a;
+    const rz = Math.sin(ph * p.w3 * 0.42 + 1.3) * 0.28 * a;
+
     p.mesh.position.set(
-      p.rest.x + Math.cos(p.ang) * fly,
-      p.rest.y + Math.sin(p.ang) * fly,
-      p.rest.z + amt * (0.5 + 1.0 * p.power),
+      p.rest.x + Math.cos(p.ang) * fly + ox,
+      p.rest.y + Math.sin(p.ang) * fly + oy,
+      p.rest.z + amt * (0.5 + 1.0 * p.power) + oz,
     );
     p.mesh.rotation.set(
-      p.restRot.x + amt * p.spin * 2.4 + d * p.ax * 4.2,
-      p.restRot.y + amt * p.spin * 2.0 + d * p.ay * 4.2,
-      p.restRot.z + amt * p.spin * 2.8 + d * p.az * 4.8,
+      p.restRot.x + amt * p.spin * 2.4 + d * p.ax * 4.2 + rx,
+      p.restRot.y + amt * p.spin * 2.0 + d * p.ay * 4.2 + ry,
+      p.restRot.z + amt * p.spin * 2.8 + d * p.az * 4.8 + rz,
     );
-    p.mesh.scale.setScalar(p.restScale * shrink);
+    const breathe = 1 + Math.sin(ph * p.w1 * 0.45) * 0.04 * layerLife;
+    p.mesh.scale.setScalar(p.restScale * shrink * breathe);
   }
 
   /* Global shrink — keep FX inside canvas */
-  const tear = trap(t, 0.14, 0.20, 0.34, 0.52);
-  const tearFlash = trap(t, 0.15, 0.18, 0.24, 0.32);
+  const tear = trap(t, 0.16, 0.22, 0.34, 0.52);
+  const tearFlash = trap(t, 0.17, 0.20, 0.26, 0.34);
   /* After pieces fly — screen-filling explosion */
-  const fill = trap(t, 0.20, 0.32, 0.58, 0.88);
+  const fill = trap(t, 0.22, 0.34, 0.58, 0.88);
   const contain = 1 - 0.42 * Math.max(boomAmt, destroy) - 0.1 * tear - 0.12 * fill;
-  root.scale.setScalar(root.userData.baseScale * contain);
+
+  /* Whole sign: continuous 3D shake on all axes (stronger while intact) */
+  const shake = 0.35 + 0.65 * life;
+  const wobble = 0.55 + 0.45 * lifeSoft;
+  const sx = Math.sin(t * 11.3) * 0.09 * shake + Math.sin(t * 23.0) * 0.035 * shake;
+  const sy = Math.cos(t * 9.7 + 0.8) * 0.1 * shake + Math.sin(t * 19.5) * 0.03 * shake;
+  const sz = Math.sin(t * 13.1 + 1.4) * 0.08 * shake + Math.cos(t * 17.2) * 0.028 * shake;
+  root.scale.setScalar(root.userData.baseScale * contain * (1 + Math.sin(t * 8.4) * 0.018 * life));
   root.rotation.set(
-    0.04 * boomAmt + 0.1 * destroy,
-    0.08 * boomAmt + 0.14 * destroy + 0.03 * zoomT,
-    0.02 * zoomN + 0.05 * destroy,
+    sx + 0.04 * boomAmt + 0.1 * destroy + Math.sin(t * 6.2) * 0.07 * wobble,
+    sy + 0.08 * boomAmt + 0.14 * destroy + 0.03 * zoomT + Math.cos(t * 5.4) * 0.09 * wobble,
+    sz + 0.02 * zoomN + 0.05 * destroy + Math.sin(t * 7.1 + 0.5) * 0.06 * wobble,
   );
+  const base = root.userData.basePos || { x: 0, y: 0 };
+  root.position.x = base.x + Math.sin(t * 7.3) * 0.22 * shake + Math.sin(t * 15.0) * 0.08 * shake;
+  root.position.y = base.y + Math.cos(t * 6.8) * 0.2 * shake + Math.cos(t * 14.2) * 0.07 * shake;
+  root.position.z = Math.sin(t * 5.9 + 0.3) * 0.35 * life + Math.sin(t * 12.6) * 0.12 * life;
+
   fx.position.copy(root.position);
   fx.rotation.copy(root.rotation);
   fx.scale.setScalar(root.userData.baseScale * (0.95 - 0.04 * destroy + 0.08 * fill));
