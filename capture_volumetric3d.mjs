@@ -54,7 +54,7 @@ function run(cmd, args) {
   });
 }
 
-async function encode(size, name, crf, br) {
+async function encode(size, name, crf, br, maxBytes) {
   const out = join(ROOT, name);
   if (existsSync(out)) rmSync(out);
   const frames = [...Array(TOTAL)].map((_, i) =>
@@ -62,21 +62,26 @@ async function encode(size, name, crf, br) {
   for (const f of frames) {
     if (!existsSync(f)) throw new Error(`Missing frame ${f}`);
   }
+  /* format=yuva420p in -vf is required — bare -pix_fmt often drops alpha to yuv420p */
   const common = [
     '-framerate', '30',
     '-start_number', '1',
     '-i', join(FRAMES, 'frame_%04d.png'),
     '-frames:v', String(TOTAL),
-    '-vf', `scale=${size}:${size}:flags=lanczos`,
+    '-vf', `scale=${size}:${size}:flags=lanczos,format=yuva420p`,
     '-c:v', 'libvpx-vp9', '-pix_fmt', 'yuva420p', '-auto-alt-ref', '0',
+    '-metadata:s:v:0', 'alpha_mode=1',
     '-b:v', br, '-crf', String(crf), '-an', '-r', '30', '-row-mt', '1',
     '-deadline', 'good', '-cpu-used', '2',
   ];
-  /* Two-pass helps keep VP9+alpha under Telegram's 256KB cap */
+  /* Two-pass helps keep VP9+alpha under Telegram caps (sticker 256KB / emoji 64KB) */
   await run(FFMPEG, ['-y', ...common, '-pass', '1', '-f', 'null', process.platform === 'win32' ? 'NUL' : '/dev/null']);
   await run(FFMPEG, ['-y', ...common, '-pass', '2', out]);
-  const kb = statSync(out).size / 1024;
-  console.log(`${name}: ${kb.toFixed(1)} KB ${statSync(out).size <= 256 * 1024 ? 'OK' : 'OVER'}`);
+  const bytes = statSync(out).size;
+  const kb = bytes / 1024;
+  const limit = maxBytes ?? 256 * 1024;
+  console.log(`${name}: ${kb.toFixed(1)} KB ${bytes <= limit ? 'OK' : 'OVER'} (limit ${(limit / 1024).toFixed(0)}KB)`);
+  if (bytes > limit) throw new Error(`${name} exceeds Telegram limit (${kb.toFixed(1)} KB > ${(limit / 1024).toFixed(0)} KB)`);
 }
 
 async function main() {
@@ -121,8 +126,9 @@ async function main() {
   await browser.close();
   server.close();
 
-  await encode(512, 'hyperlinks-space-sticker.webm', 58, '180k');
-  await encode(100, 'hyperlinks-space-emoji.webm', 48, '90k');
+  /* Sticker ≤256KB; custom video emoji ≤64KB */
+  await encode(512, 'hyperlinks-space-sticker.webm', 60, '160k', 256 * 1024);
+  await encode(100, 'hyperlinks-space-emoji.webm', 58, '45k', 64 * 1024);
   console.log('Done');
 }
 
