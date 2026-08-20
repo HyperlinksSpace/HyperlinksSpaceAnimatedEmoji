@@ -1,0 +1,25 @@
+node_modules/
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db
+
+# Capture / encode intermediates
+render_frames/
+ffmpeg2pass-0.log
+*.log
+bash.exe.stackdump
+
+# Local debug previews
+_preview_*.png
+_dbg_*.png
+
+# Blender autosaves
+*.blend1
+*.blend2
+
+# Env / secrets
+.env
+.env.*
+*.pem
+credentials.json

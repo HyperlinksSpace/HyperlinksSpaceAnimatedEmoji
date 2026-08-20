@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Hyperlinks.SPACE — Exact reference</title>
+  <style>
+    html, body { margin: 0; background: transparent; overflow: hidden; }
+    canvas { display: block; width: 512px; height: 512px; background: transparent; }
+  </style>
+</head>
+<body>
+<script type="importmap">
+{
+  "imports": {
+    "three": "./node_modules/three/build/three.module.js",
+    "three/addons/": "./node_modules/three/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+
+const W = 512, H = 512, TOTAL = 90;
+const WORLD = 20;
+/* Rest inset leaves room for boom; tips must never leave the canvas */
+const REST_SCALE = 0.84;
+const BOOM_FLY = 0.42;
+
+const renderer = new THREE.WebGLRenderer({
+  antialias: true,
+  alpha: true,
+  preserveDrawingBuffer: true,
+  powerPreference: 'high-performance',
+});
+renderer.setSize(W, H, false);
+renderer.setPixelRatio(1);
+renderer.setClearColor(0x000000, 0);
+renderer.autoClear = true;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.NoToneMapping;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const half = WORLD * 0.5;
+const camera = new THREE.OrthographicCamera(-half, half, half, -half, 0.1, 100);
+camera.position.set(0, 0, 40);
+
+const root = new THREE.Group();
+scene.add(root);
+
+function trap(t, a, b, c, d) {
+  if (t <= a || t >= d) return 0;
+  if (t < b) { const u = (t - a) / (b - a); return u * u * (3 - 2 * u); }
+  if (t < c) return 1;
+  const u = (t - c) / (d - c); return 1 - u * u * (3 - 2 * u);
+}
+
+const loader = new THREE.TextureLoader();
+const props = [];
+const brand = {};
+let hero = null;
+
+function loadTex(url) {
+  return new Promise((resolve, reject) => {
+    loader.load(url, (tex) => {
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 4;
+      tex.minFilter = THREE.LinearFilter;
+      tex.magFilter = THREE.LinearFilter;
+      tex.generateMipmaps = false;
+      tex.needsUpdate = true;
+      resolve(tex);
+    }, undefined, reject);
+  });
+}
+
+function makePlate(tex, z, { opacity = 1, depthWrite = true } = {}) {
+  const g = new THREE.Group();
+  const mat = new THREE.MeshBasicMaterial({
+    map: tex,
+    transparent: true,
+    opacity,
+    alphaTest: opacity >= 1 ? 0.02 : 0.0,
+    depthWrite,
+    side: THREE.DoubleSide,
+    toneMapped: false,
+  });
+  g.add(new THREE.Mesh(new THREE.PlaneGeometry(WORLD, WORLD), mat));
+  g.position.z = z;
+  g.userData.mat = mat;
+  root.add(g);
+  return g;
+}
+
+async function build() {
+  /* Exact full artwork — rest pose is pixel-identical to reference */
+  const heroTex = await loadTex(`./layers_exact/hero_512.png?v=${Date.now()}`);
+  hero = makePlate(heroTex, 3.5, { opacity: 1, depthWrite: true });
+  hero.userData.restPos = hero.position.clone();
+
+  const specs = [
+    { file: '00_spikes.png', z: -3.2, kind: 'boom', ang: 0.35, power: 1.0, delay: 0.00 },
+    { file: '08_rest.png', z: -2.8, kind: 'boom', ang: 1.2, power: 0.5, delay: 0.02 },
+    { file: '01_red_squiggle.png', z: -1.6, kind: 'boom', ang: Math.PI * 0.92, power: 0.85, delay: 0.01 },
+    { file: '02_black_squiggle.png', z: -1.3, kind: 'boom', ang: 0.9, power: 0.7, delay: 0.015 },
+    { file: '03_green_swoop.png', z: -0.7, kind: 'boom', ang: 0.2, power: 0.75, delay: 0.012 },
+    { file: '04_red_sphere.png', z: -0.35, kind: 'boom', ang: 0.05, power: 0.8, delay: 0.018 },
+    { file: '05_letter_n.png', z: 0.9, kind: 'n' },
+    { file: '06_text.png', z: 1.6, kind: 'text' },
+  ];
+
+  for (const s of specs) {
+    const tex = await loadTex(`./layers_exact/${s.file}?v=${Date.now()}`);
+    const plate = makePlate(tex, s.z, { opacity: 0, depthWrite: false });
+    plate.userData.restPos = plate.position.clone();
+    plate.userData.restRot = plate.rotation.clone();
+
+    if (s.kind === 'n') brand.n = plate;
+    else if (s.kind === 'text') brand.text = plate;
+    else {
+      props.push({
+        mesh: plate,
+        rest: plate.position.clone(),
+        restRot: plate.rotation.clone(),
+        ang: s.ang,
+        power: s.power,
+        delay: s.delay,
+        spin: (s.ang > 1 ? -1 : 1) * (0.25 + s.power * 0.2),
+      });
+    }
+  }
+}
+
+function containRoot() {
+  root.scale.setScalar(REST_SCALE);
+  root.position.set(0, 0, 0);
+  brand.nRest = brand.n.position.clone();
+  brand.tRest = brand.text.position.clone();
+  hero.userData.restPos = hero.position.clone();
+  for (const p of props) p.rest = p.mesh.position.clone();
+}
+
+function setOpacity(plate, op) {
+  const mat = plate.userData.mat;
+  mat.opacity = op;
+  mat.alphaTest = op > 0.95 ? 0.02 : 0;
+  mat.depthWrite = op > 0.85;
+  mat.needsUpdate = true;
+  plate.visible = op > 0.01;
+}
+
+function applyFrame(fr) {
+  const t = (fr - 1) / Math.max(1, TOTAL - 1);
+  const boomAmt = trap(t, 0.04, 0.20, 0.55, 0.88);
+  const zoomN = trap(t, 0.14, 0.30, 0.50, 0.80);
+  const zoomT = trap(t, 0.32, 0.48, 0.64, 0.90);
+
+  /* Crossfade: exact hero at rest → layered parts during boom (no ghost overlay) */
+  const heroOp = 1 - boomAmt * 0.92;
+  const layerOp = Math.min(1, boomAmt * 1.15 + zoomN * 0.15 + zoomT * 0.1);
+  setOpacity(hero, heroOp);
+
+  if (brand.n) {
+    setOpacity(brand.n, Math.max(layerOp, zoomN * 0.85));
+    const n = brand.n;
+    const rp = brand.nRest;
+    n.position.set(rp.x, rp.y + 0.1 * zoomN, rp.z + 0.5 * zoomN + 0.12 * boomAmt);
+    n.rotation.set(-0.07 * zoomN, 0.08 * boomAmt, 0.03 * zoomN);
+    n.scale.setScalar(1 + 0.07 * zoomN + 0.02 * boomAmt);
+  }
+  if (brand.text) {
+    setOpacity(brand.text, Math.max(layerOp, zoomT * 0.85));
+    const tx = brand.text;
+    const rp = brand.tRest;
+    tx.position.set(rp.x, rp.y - 0.06 * zoomT, rp.z + 0.35 * zoomT + 0.08 * boomAmt);
+    tx.rotation.set(0.05 * zoomT, -0.06 * zoomT, 0.03 * zoomT);
+    tx.scale.setScalar(1 + 0.06 * zoomT + 0.02 * boomAmt);
+  }
+
+  for (const p of props) {
+    const e = trap(t, p.delay, 0.16 + p.delay, 0.52, 0.86);
+    setOpacity(p.mesh, Math.max(layerOp * 0.9, e));
+    const fly = e * p.power * BOOM_FLY;
+    p.mesh.position.set(
+      p.rest.x + Math.cos(p.ang) * fly,
+      p.rest.y + Math.sin(p.ang) * fly,
+      p.rest.z + e * 0.45 * p.power,
+    );
+    p.mesh.rotation.set(
+      p.restRot.x + e * p.spin * 0.35,
+      p.restRot.y + e * p.spin * 0.28,
+      p.restRot.z + e * p.spin * 0.45,
+    );
+    p.mesh.scale.setScalar(1 + e * (0.03 + 0.04 * p.power));
+  }
+
+  /* Shrink as parts fly so tips stay inside canvas */
+  const punch = REST_SCALE * (1 + 0.02 * zoomN + 0.012 * zoomT) * (1 - 0.11 * boomAmt);
+  root.scale.setScalar(punch);
+  root.rotation.set(0.008 * boomAmt, 0.01 * boomAmt + 0.006 * zoomT, 0.004 * zoomN);
+  hero.position.set(
+    hero.userData.restPos.x,
+    hero.userData.restPos.y + 0.03 * zoomN,
+    hero.userData.restPos.z + 0.15 * boomAmt,
+  );
+
+  renderer.clear(true, true, true);
+  renderer.render(scene, camera);
+}
+
+window.setFrame = (fr) => { applyFrame(fr); return fr; };
+window.TOTAL = TOTAL;
+window.ready = false;
+
+(async () => {
+  try {
+    await build();
+    containRoot();
+    applyFrame(1);
+    window.ready = true;
+    console.log('TRUE3D_READY');
+  } catch (e) {
+    console.error('TRUE3D_FAIL', e);
+  }
+})();
+</script>
+</body>
+</html>

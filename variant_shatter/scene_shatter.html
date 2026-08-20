@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Hyperlinks.SPACE — Exact-art 3D reconstruction</title>
+  <style>
+    html, body { margin: 0; background: transparent; overflow: hidden; }
+    canvas { display: block; width: 512px; height: 512px; background: transparent; }
+  </style>
+</head>
+<body>
+<script type="importmap">
+{
+  "imports": {
+    "three": "./node_modules/three/build/three.module.js",
+    "three/addons/": "./node_modules/three/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+/**
+ * 3D reconstruction that keeps the REFERENCE artwork on every face.
+ * Each element is a thick slab (exact layer pixels on front + black depth).
+ * No procedural stand-in geometry that drifts from the art.
+ * Explosion: fly outward + scale down to stay in canvas; N/text break into chunks.
+ */
+import * as THREE from 'three';
+
+const W = 512, H = 512, TOTAL = 90;
+const WORLD = 20;
+const REST_SCALE = 0.92; /* match reference canvas fill */
+const DEPTH = 1.0;
+const CHUNK_DEPTH = 2.4; /* thick blocks so tumble reads as 3D */
+
+const renderer = new THREE.WebGLRenderer({
+  antialias: true,
+  alpha: true,
+  preserveDrawingBuffer: true,
+  powerPreference: 'high-performance',
+});
+renderer.setSize(W, H, false);
+renderer.setPixelRatio(1);
+renderer.setClearColor(0x000000, 0);
+renderer.autoClear = true;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.NoToneMapping;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(28, 1, 0.05, 200);
+camera.position.set(0, 0, 42);
+
+const root = new THREE.Group();
+scene.add(root);
+
+/* Soft studio light so black depth catches shine when pieces rotate */
+const key = new THREE.DirectionalLight(0xffffff, 2.2);
+key.position.set(-6, 10, 16);
+scene.add(key);
+const fill = new THREE.DirectionalLight(0xa8c8ff, 0.9);
+fill.position.set(8, -2, 10);
+scene.add(fill);
+scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+const rim = new THREE.DirectionalLight(0xffffff, 1.1);
+rim.position.set(2, 4, -12);
+scene.add(rim);
+
+function trap(t, a, b, c, d) {
+  if (t <= a || t >= d) return 0;
+  if (t < b) { const u = (t - a) / (b - a); return u * u * (3 - 2 * u); }
+  if (t < c) return 1;
+  const u = (t - c) / (d - c); return 1 - u * u * (3 - 2 * u);
+}
+
+const loader = new THREE.TextureLoader();
+const pieces = [];
+const brand = { nWholes: [], tWholes: [] };
+
+function loadTex(url) {
+  return new Promise((resolve, reject) => {
+    loader.load(url, (tex) => {
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.minFilter = THREE.LinearFilter;
+      tex.magFilter = THREE.LinearFilter;
+      tex.generateMipmaps = false;
+      tex.anisotropy = 4;
+      tex.needsUpdate = true;
+      resolve(tex);
+    }, undefined, reject);
+  });
+}
+
+function faceMat(tex, o = {}) {
+  return new THREE.MeshBasicMaterial({
+    map: tex,
+    transparent: true,
+    opacity: o.opacity ?? 1,
+    alphaTest: o.alphaTest ?? 0.04,
+    depthWrite: o.depthWrite ?? true,
+    side: THREE.DoubleSide,
+    toneMapped: false,
+  });
+}
+
+function depthMat(tex) {
+  return new THREE.MeshPhysicalMaterial({
+    map: tex,
+    color: 0x08080a,
+    transparent: true,
+    alphaTest: 0.06,
+    depthWrite: true,
+    side: THREE.DoubleSide,
+    roughness: 0.12,
+    metalness: 0.88,
+    clearcoat: 1,
+    clearcoatRoughness: 0.04,
+    toneMapped: false,
+  });
+}
+
+/** Thick slab: exact reference pixels on front, glossy black depth stack behind. */
+function makeSlab(tex, z) {
+  const g = new THREE.Group();
+  const geo = new THREE.PlaneGeometry(WORLD, WORLD);
+  const front = new THREE.Mesh(geo, faceMat(tex));
+  front.position.z = DEPTH * 0.5;
+  g.add(front);
+  /* Multi-layer black undercover = readable volume when tumbling */
+  for (let i = 0; i < 5; i++) {
+    const plate = new THREE.Mesh(geo, depthMat(tex));
+    plate.position.z = DEPTH * 0.5 - (i + 1) * (DEPTH / 5);
+    plate.scale.setScalar(1.012 + i * 0.004);
+    g.add(plate);
+  }
+  g.position.z = z;
+  g.userData.front = front;
+  root.add(g);
+  return g;
+}
+
+function track(mesh, opts) {
+  pieces.push({
+    mesh,
+    rest: mesh.position.clone(),
+    restRot: mesh.rotation.clone(),
+    restScale: mesh.scale.x,
+    ang: opts.ang,
+    power: opts.power,
+    delay: opts.delay,
+    spin: opts.spin,
+    kind: opts.kind,
+    ax: (Math.random() - 0.5) * 2,
+    ay: (Math.random() - 0.5) * 2,
+    az: (Math.random() - 0.5) * 2,
+  });
+}
+
+function blackSideMat() {
+  return new THREE.MeshPhysicalMaterial({
+    color: 0x3a3a45,
+    roughness: 0.18,
+    metalness: 0.75,
+    clearcoat: 1,
+    clearcoatRoughness: 0.05,
+    emissive: 0x101018,
+    emissiveIntensity: 0.15,
+    toneMapped: false,
+  });
+}
+
+/** Solid opaque 3D rubble from reference tiles (skip empty UV cells). */
+async function addShatterTiles(tex, parentZ, faceColor, count, kind) {
+  const img = tex.image;
+  const cvs = document.createElement('canvas');
+  const tw = img.width || 512;
+  const th = img.height || 512;
+  cvs.width = tw;
+  cvs.height = th;
+  const ctx = cvs.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(img, 0, 0);
+  const data = ctx.getImageData(0, 0, tw, th).data;
+
+  const cols = Math.ceil(Math.sqrt(count * 1.1));
+  const rows = Math.ceil(count / cols);
+  const tileW = WORLD / cols;
+  const tileH = WORLD / rows;
+  let i = 0;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (i >= count) break;
+      /* Sample alpha coverage in this UV cell */
+      const x0 = Math.floor((c / cols) * tw);
+      const x1 = Math.floor(((c + 1) / cols) * tw);
+      const y0 = Math.floor((r / rows) * th);
+      const y1 = Math.floor(((r + 1) / rows) * th);
+      let opaque = 0;
+      let sr = 0, sg = 0, sb = 0, n = 0;
+      for (let y = y0; y < y1; y += 2) {
+        for (let x = x0; x < x1; x += 2) {
+          const a = data[(y * tw + x) * 4 + 3];
+          if (a > 40) {
+            opaque++;
+            sr += data[(y * tw + x) * 4];
+            sg += data[(y * tw + x) * 4 + 1];
+            sb += data[(y * tw + x) * 4 + 2];
+            n++;
+          }
+        }
+      }
+      const cells = Math.max(1, Math.ceil((x1 - x0) / 2) * Math.ceil((y1 - y0) / 2));
+      if (opaque / cells < 0.08) { i++; continue; }
+
+      const avg = n
+        ? new THREE.Color(sr / n / 255, sg / n / 255, sb / n / 255)
+        : new THREE.Color(faceColor);
+      const w = tileW * (0.55 + 0.35 * (opaque / cells));
+      const h = tileH * (0.55 + 0.35 * (opaque / cells));
+      const d = CHUNK_DEPTH * (0.7 + 0.5 * ((i * 13) % 7) / 7);
+
+      const face = new THREE.MeshPhysicalMaterial({
+        color: avg,
+        roughness: 0.22,
+        metalness: 0.12,
+        clearcoat: 1,
+        clearcoatRoughness: 0.05,
+        emissive: avg,
+        emissiveIntensity: 0.25,
+        toneMapped: false,
+      });
+      const side = blackSideMat();
+      const mats = [side, side, side, side, face, side];
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mats);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+
+      const lx = (c + 0.5) * tileW - WORLD * 0.5;
+      const ly = WORLD * 0.5 - (r + 0.5) * tileH;
+      mesh.position.set(lx, ly, parentZ);
+      mesh.visible = false;
+      root.add(mesh);
+      track(mesh, {
+        ang: Math.atan2(ly, lx || 0.01),
+        power: 0.9 + 0.55 * (i % 5) / 5,
+        delay: 0.008 * (i % 6),
+        spin: i % 2 ? 2.0 : -2.0,
+        kind,
+      });
+      i++;
+    }
+  }
+}
+
+async function build() {
+  const specs = [
+    { file: '00_spikes.png', z: -2.8, kind: 'boom', ang: 0.4, power: 1.0, delay: 0.00 },
+    { file: '08_rest.png', z: -2.4, kind: 'boom', ang: 1.15, power: 0.55, delay: 0.02 },
+    { file: '01_red_squiggle.png', z: -1.4, kind: 'boom', ang: Math.PI * 0.9, power: 0.9, delay: 0.01 },
+    { file: '02_black_squiggle.png', z: -1.1, kind: 'boom', ang: 0.85, power: 0.75, delay: 0.015 },
+    { file: '03_green_swoop.png', z: -0.55, kind: 'boom', ang: 0.2, power: 0.8, delay: 0.012 },
+    { file: '04_red_sphere.png', z: -0.25, kind: 'boom', ang: 0.08, power: 0.85, delay: 0.018 },
+    { file: '05_letter_n.png', z: 0.7, kind: 'n' },
+    { file: '06_text.png', z: 1.4, kind: 'text' },
+  ];
+
+  for (const s of specs) {
+    const tex = await loadTex(`./layers_exact/${s.file}?v=${Date.now()}`);
+    const slab = makeSlab(tex, s.z);
+    slab.userData.kind = s.kind;
+    if (s.kind === 'n') {
+      brand.n = slab;
+      brand.nWholes.push(slab);
+      await addShatterTiles(tex, s.z, 0x00e05a, 16, 'nChunk');
+    } else if (s.kind === 'text') {
+      brand.text = slab;
+      brand.tWholes.push(slab);
+      await addShatterTiles(tex, s.z, 0xffffff, 28, 'tChunk');
+    } else {
+      track(slab, {
+        ang: s.ang,
+        power: s.power,
+        delay: s.delay,
+        spin: s.ang > 1 ? -1.1 : 1.1,
+        kind: 'boom',
+      });
+    }
+  }
+
+  brand.nRest = brand.n.position.clone();
+  brand.tRest = brand.text.position.clone();
+  brand.nScale = brand.n.scale.x;
+  brand.tScale = brand.text.scale.x;
+}
+
+function containRoot() {
+  const hidden = [];
+  for (const p of pieces) {
+    if (p.kind === 'nChunk' || p.kind === 'tChunk') {
+      hidden.push(p.mesh);
+      p.mesh.visible = false;
+      p.mesh.parent?.remove(p.mesh);
+    }
+  }
+  root.scale.setScalar(1);
+  root.position.set(0, 0, 0);
+  root.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(root);
+  const size = box.getSize(new THREE.Vector3());
+  const span = Math.max(size.x, size.y, 1e-6);
+  const viewSpan = 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) * camera.position.z;
+  root.scale.setScalar((viewSpan * REST_SCALE) / span);
+  root.updateMatrixWorld(true);
+  const box2 = new THREE.Box3().setFromObject(root);
+  const c = box2.getCenter(new THREE.Vector3());
+  root.position.x -= c.x;
+  root.position.y -= c.y;
+  for (const m of hidden) root.add(m);
+  for (const p of pieces) {
+    p.rest = p.mesh.position.clone();
+    p.restRot = p.mesh.rotation.clone();
+    p.restScale = p.mesh.scale.x;
+  }
+  brand.nRest = brand.n.position.clone();
+  brand.tRest = brand.text.position.clone();
+  root.userData.baseScale = root.scale.x;
+}
+
+function applyFrame(fr) {
+  const t = (fr - 1) / Math.max(1, TOTAL - 1);
+  const boomAmt = trap(t, 0.04, 0.20, 0.52, 0.88);
+  const zoomN = trap(t, 0.10, 0.26, 0.46, 0.76);
+  const zoomT = trap(t, 0.28, 0.44, 0.60, 0.86);
+  const destroy = trap(t, 0.14, 0.32, 0.58, 0.94);
+
+  /* Wholes punch then shatter into reference-textured chunks */
+  const showWhole = destroy < 0.28;
+  for (const w of brand.nWholes) w.visible = showWhole;
+  for (const w of brand.tWholes) w.visible = showWhole;
+
+  if (brand.n && showWhole) {
+    const n = brand.n;
+    const rp = brand.nRest;
+    n.position.set(rp.x, rp.y + 0.15 * zoomN, rp.z + 0.7 * zoomN + 0.25 * boomAmt);
+    n.rotation.set(-0.08 * zoomN, 0.1 * boomAmt, 0.04 * zoomN);
+    n.scale.setScalar(brand.nScale * (1 + 0.08 * zoomN));
+  }
+  if (brand.text && showWhole) {
+    const tx = brand.text;
+    const rp = brand.tRest;
+    tx.position.set(rp.x, rp.y - 0.08 * zoomT, rp.z + 0.45 * zoomT + 0.15 * boomAmt);
+    tx.rotation.set(0.06 * zoomT, -0.08 * zoomT, 0.04 * zoomT);
+    tx.scale.setScalar(brand.tScale * (1 + 0.06 * zoomT));
+  }
+
+  for (const p of pieces) {
+    const isChunk = p.kind === 'nChunk' || p.kind === 'tChunk';
+    const e = trap(t, p.delay, 0.16 + p.delay, 0.52, 0.9);
+    const d = isChunk ? trap(t, 0.16 + p.delay, 0.32 + p.delay, 0.58, 0.94) : e;
+
+    if (isChunk) {
+      p.mesh.visible = d > 0.02;
+      if (d <= 0.02) continue;
+    }
+
+    const amt = isChunk ? d : Math.max(e, e * boomAmt);
+    /* Explode outward + ZOOM OUT so tips never leave the canvas */
+    const fly = amt * p.power * (isChunk ? 2.6 : 2.0);
+    const shrink = Math.max(0.22, 1 - amt * (isChunk ? 0.58 : 0.48));
+    p.mesh.position.set(
+      p.rest.x + Math.cos(p.ang) * fly,
+      p.rest.y + Math.sin(p.ang) * fly,
+      p.rest.z + amt * (0.5 + 1.0 * p.power),
+    );
+    p.mesh.rotation.set(
+      p.restRot.x + amt * p.spin * 2.4 + d * p.ax * 4.2,
+      p.restRot.y + amt * p.spin * 2.0 + d * p.ay * 4.2,
+      p.restRot.z + amt * p.spin * 2.8 + d * p.az * 4.8,
+    );
+    p.mesh.scale.setScalar(p.restScale * shrink);
+  }
+
+  /* Global shrink during boom — containment belt */
+  const contain = 1 - 0.36 * Math.max(boomAmt, destroy);
+  root.scale.setScalar(root.userData.baseScale * contain);
+  root.rotation.set(
+    0.05 * boomAmt + 0.12 * destroy,
+    0.1 * boomAmt + 0.18 * destroy + 0.04 * zoomT,
+    0.03 * zoomN + 0.06 * destroy,
+  );
+  camera.position.set(
+    0.2 + 2.5 * destroy + 1.2 * boomAmt,
+    0.15 + 1.8 * destroy + 0.8 * boomAmt,
+    42 + 0.5 * boomAmt,
+  );
+  camera.lookAt(0, 0, 0);
+
+  renderer.clear(true, true, true);
+  renderer.render(scene, camera);
+}
+
+window.setFrame = (fr) => { applyFrame(fr); return fr; };
+window.TOTAL = TOTAL;
+window.ready = false;
+
+(async () => {
+  try {
+    await build();
+    containRoot();
+    applyFrame(1);
+    window.ready = true;
+    console.log('TRUE3D_READY');
+  } catch (e) {
+    console.error('TRUE3D_FAIL', e);
+  }
+})();
+</script>
+</body>
+</html>

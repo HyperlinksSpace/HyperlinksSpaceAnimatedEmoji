@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hyperlinks.SPACE Animated Emoji</title>
+  <style>
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: transparent;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+  </style>
+</head>
+<body>
+<script type="importmap">
+{
+  "imports": {
+    "three": "./node_modules/three/build/three.module.js"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+
+const params = new URLSearchParams(location.search);
+const SIZE = Number(params.get('size') || 512);
+const DURATION = 3; // seconds, Telegram max
+const FPS = 30;
+
+document.documentElement.style.width = SIZE + 'px';
+document.documentElement.style.height = SIZE + 'px';
+document.body.style.width = SIZE + 'px';
+document.body.style.height = SIZE + 'px';
+
+const renderer = new THREE.WebGLRenderer({
+  antialias: true,
+  alpha: true,
+  premultipliedAlpha: false,
+  preserveDrawingBuffer: true,
+  powerPreference: 'high-performance',
+});
+renderer.setClearColor(0x000000, 0);
+renderer.setPixelRatio(1);
+renderer.setSize(SIZE, SIZE, false);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.35;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 100);
+camera.position.set(0, 0.15, 6.2);
+
+const amb = new THREE.AmbientLight(0xffffff, 0.55);
+scene.add(amb);
+const key = new THREE.DirectionalLight(0xffffff, 2.2);
+key.position.set(3, 5, 4);
+scene.add(key);
+const fill = new THREE.DirectionalLight(0x88ccff, 0.7);
+fill.position.set(-4, 1, 2);
+scene.add(fill);
+const rim = new THREE.DirectionalLight(0xff66aa, 0.85);
+rim.position.set(0, -2, -3);
+scene.add(rim);
+const greenGlow = new THREE.PointLight(0x39ff14, 2.5, 12);
+greenGlow.position.set(0, 1.4, 1.5);
+scene.add(greenGlow);
+
+const root = new THREE.Group();
+scene.add(root);
+
+const spikes = new THREE.Group();
+root.add(spikes);
+
+const SPIKE_COLORS = [
+  0xffe600, 0xff2d95, 0x00e5ff, 0xff6a00, 0xb8ff00, 0xff4d6d, 0x3dfff0, 0xffd166,
+];
+
+function makeSpikeMaterial(color) {
+  return new THREE.MeshPhysicalMaterial({
+    color,
+    roughness: 0.18,
+    metalness: 0.35,
+    clearcoat: 1,
+    clearcoatRoughness: 0.12,
+    emissive: color,
+    emissiveIntensity: 0.18,
+  });
+}
+
+for (let i = 0; i < 28; i++) {
+  const h = 1.1 + (i % 5) * 0.22;
+  const geo = new THREE.ConeGeometry(0.16 + (i % 3) * 0.04, h, 5);
+  const mesh = new THREE.Mesh(geo, makeSpikeMaterial(SPIKE_COLORS[i % SPIKE_COLORS.length]));
+  const angle = (i / 28) * Math.PI * 2 + (i % 2) * 0.11;
+  const radius = 1.55 + (i % 4) * 0.18;
+  mesh.position.set(Math.cos(angle) * radius, Math.sin(angle) * radius * 0.92, -0.35 - (i % 3) * 0.08);
+  mesh.lookAt(0, 0, -0.2);
+  mesh.rotateX(Math.PI / 2);
+  mesh.userData = { baseAngle: angle, radius, phase: i * 0.37, baseScale: 1 + (i % 3) * 0.05 };
+  spikes.add(mesh);
+}
+
+// Extra inner burst tips
+for (let i = 0; i < 12; i++) {
+  const geo = new THREE.ConeGeometry(0.1, 0.7, 4);
+  const mesh = new THREE.Mesh(geo, makeSpikeMaterial(SPIKE_COLORS[(i + 3) % SPIKE_COLORS.length]));
+  const angle = (i / 12) * Math.PI * 2 + 0.2;
+  mesh.position.set(Math.cos(angle) * 1.15, Math.sin(angle) * 1.05, -0.15);
+  mesh.lookAt(0, 0, 0);
+  mesh.rotateX(Math.PI / 2);
+  mesh.userData = { baseAngle: angle, radius: 1.15, phase: i * 0.5, baseScale: 0.85 };
+  spikes.add(mesh);
+}
+
+function glossy(color, emissive = 0x000000, e = 0) {
+  return new THREE.MeshPhysicalMaterial({
+    color,
+    roughness: 0.22,
+    metalness: 0.15,
+    clearcoat: 1,
+    clearcoatRoughness: 0.08,
+    emissive,
+    emissiveIntensity: e,
+  });
+}
+
+function extrudeShape(shape, depth, material, bevel = 0.06) {
+  const geo = new THREE.ExtrudeGeometry(shape, {
+    depth,
+    bevelEnabled: true,
+    bevelThickness: bevel,
+    bevelSize: bevel * 0.85,
+    bevelSegments: 3,
+    curveSegments: 8,
+  });
+  geo.center();
+  return new THREE.Mesh(geo, material);
+}
+
+// Stylized lightning N
+function createN() {
+  const s = new THREE.Shape();
+  // Angular N / lightning bolt hybrid matching the logo vibe
+  s.moveTo(-0.85, -1.05);
+  s.lineTo(-0.35, -1.05);
+  s.lineTo(-0.35, 0.05);
+  s.lineTo(0.25, -1.05);
+  s.lineTo(0.85, -1.05);
+  s.lineTo(0.35, 0.35);
+  s.lineTo(0.85, 0.35);
+  s.lineTo(0.85, 1.05);
+  s.lineTo(0.25, 1.05);
+  s.lineTo(0.25, -0.05);
+  s.lineTo(-0.35, 1.05);
+  s.lineTo(-0.85, 1.05);
+  s.lineTo(-0.25, -0.25);
+  s.lineTo(-0.85, -0.25);
+  s.lineTo(-0.85, -1.05);
+
+  const group = new THREE.Group();
+  const shell = extrudeShape(s, 0.42, glossy(0x0a0a0a), 0.08);
+  shell.scale.set(1.08, 1.08, 1);
+  group.add(shell);
+
+  const face = extrudeShape(s, 0.28, glossy(0x39ff14, 0x22ff55, 0.55), 0.045);
+  face.position.z = 0.12;
+  group.add(face);
+
+  // Specular highlight strip
+  const hi = new THREE.Mesh(
+    new THREE.BoxGeometry(0.18, 1.7, 0.05),
+    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.35 })
+  );
+  hi.position.set(-0.45, 0.05, 0.32);
+  hi.rotation.z = -0.18;
+  group.add(hi);
+
+  group.position.set(0, 1.35, 0.35);
+  group.scale.set(0.78, 0.78, 0.78);
+  group.userData.face = face;
+  return group;
+}
+
+const letterN = createN();
+root.add(letterN);
+
+function roundedRect(w, h, r) {
+  const s = new THREE.Shape();
+  const x = -w / 2, y = -h / 2;
+  s.moveTo(x + r, y);
+  s.lineTo(x + w - r, y);
+  s.quadraticCurveTo(x + w, y, x + w, y + r);
+  s.lineTo(x + w, y + h - r);
+  s.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  s.lineTo(x + r, y + h);
+  s.quadraticCurveTo(x, y + h, x, y + h - r);
+  s.lineTo(x, y + r);
+  s.quadraticCurveTo(x, y, x + r, y);
+  return s;
+}
+
+function makeTextPlane(lines, width, height, opts = {}) {
+  const c = document.createElement('canvas');
+  c.width = 1024;
+  c.height = 512;
+  const ctx = c.getContext('2d');
+  ctx.clearRect(0, 0, c.width, c.height);
+
+  // Black 3D base / drip silhouette
+  ctx.fillStyle = '#050505';
+  ctx.strokeStyle = '#050505';
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+
+  const drawDrippyText = (fill, y, size, text, drip = true) => {
+    ctx.font = `900 ${size}px Impact, Haettenschweiler, Arial Black, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineWidth = size * 0.18;
+    ctx.strokeStyle = '#050505';
+    ctx.strokeText(text, c.width / 2, y);
+    if (drip) {
+      const metrics = ctx.measureText(text);
+      const tw = metrics.width;
+      for (let i = 0; i < 18; i++) {
+        const px = c.width / 2 - tw / 2 + (i / 17) * tw + Math.sin(i * 1.7) * 6;
+        const len = 10 + (i % 5) * 8 + (i % 3) * 4;
+        ctx.beginPath();
+        ctx.moveTo(px, y + size * 0.28);
+        ctx.quadraticCurveTo(px + 4, y + size * 0.28 + len * 0.5, px - 2, y + size * 0.28 + len);
+        ctx.lineWidth = 10 + (i % 3) * 3;
+        ctx.stroke();
+      }
+    }
+    ctx.fillStyle = fill;
+    ctx.fillText(text, c.width / 2, y);
+    // Noise / distress
+    const img = ctx.getImageData(0, Math.floor(y - size * 0.55), c.width, Math.floor(size * 1.4));
+    const d = img.data;
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i + 3] > 40) {
+        const n = (Math.random() - 0.5) * 40;
+        d[i] = Math.min(255, Math.max(0, d[i] + n));
+        d[i + 1] = Math.min(255, Math.max(0, d[i + 1] + n));
+        d[i + 2] = Math.min(255, Math.max(0, d[i + 2] + n));
+        if (Math.random() < 0.02) d[i + 3] = 0;
+      }
+    }
+    ctx.putImageData(img, 0, Math.floor(y - size * 0.55));
+  };
+
+  // Draw black plate first via thick stroke, then white face
+  drawDrippyText('#050505', 190, 150, lines[0], true);
+  drawDrippyText('#ffffff', 190, 118, lines[0], false);
+  drawDrippyText('#050505', 360, 150, lines[1], true);
+  drawDrippyText('#ffffff', 360, 118, lines[1], false);
+
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  const mat = new THREE.MeshPhysicalMaterial({
+    map: tex,
+    transparent: true,
+    roughness: 0.35,
+    metalness: 0.05,
+    clearcoat: 0.8,
+    clearcoatRoughness: 0.2,
+    side: THREE.DoubleSide,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, height), mat);
+  return mesh;
+}
+
+const textBlock = new THREE.Group();
+const textPlane = makeTextPlane(['HYPERLINKS', '.SPACE'], 3.6, 1.8);
+textPlane.position.set(0, -0.35, 0.55);
+textBlock.add(textPlane);
+
+// Thick black backing plate for depth
+const backPlate = new THREE.Mesh(
+  new THREE.BoxGeometry(3.35, 1.55, 0.35),
+  glossy(0x050505)
+);
+backPlate.position.set(0, -0.35, 0.25);
+backPlate.scale.set(1, 1, 1);
+// Hide solid plate — text canvas already has black drip body
+backPlate.visible = false;
+textBlock.add(backPlate);
+root.add(textBlock);
+
+function makeSquiggle(color, side) {
+  const pts = [];
+  for (let i = 0; i <= 40; i++) {
+    const t = i / 40;
+    const y = -1.2 + t * 2.6;
+    const x = side * (1.55 + Math.sin(t * Math.PI * 2.2) * 0.55 + Math.sin(t * Math.PI * 4) * 0.18);
+    const z = 0.1 + Math.cos(t * Math.PI * 2) * 0.2;
+    pts.push(new THREE.Vector3(x, y, z));
+  }
+  const curve = new THREE.CatmullRomCurve3(pts);
+  const geo = new THREE.TubeGeometry(curve, 64, 0.11, 12, false);
+  const mesh = new THREE.Mesh(geo, glossy(color, color, 0.2));
+  mesh.userData.side = side;
+  mesh.userData.color = color;
+  return mesh;
+}
+
+const squiggleL = makeSquiggle(0xff2244, -1);
+const squiggleR = makeSquiggle(0x111111, 1);
+root.add(squiggleL, squiggleR);
+
+// Green swoop + red sphere
+const swoopShape = new THREE.Shape();
+swoopShape.moveTo(0, -0.6);
+swoopShape.bezierCurveTo(0.9, -0.2, 1.1, 0.5, 0.2, 0.85);
+swoopShape.bezierCurveTo(0.55, 0.35, 0.45, -0.1, 0, -0.6);
+const swoop = extrudeShape(swoopShape, 0.22, glossy(0x2bff4a, 0x22ff55, 0.35), 0.04);
+swoop.position.set(1.55, 0.15, 0.45);
+swoop.scale.set(1.1, 1.1, 1);
+root.add(swoop);
+
+const redSphere = new THREE.Mesh(
+  new THREE.SphereGeometry(0.18, 32, 32),
+  glossy(0xff1a3c, 0xff0033, 0.65)
+);
+redSphere.position.set(1.72, 0.35, 0.72);
+root.add(redSphere);
+
+// Soft ground glow (subtle radial feel)
+const glowSpriteMat = new THREE.SpriteMaterial({
+  color: 0x39ff14,
+  transparent: true,
+  opacity: 0.22,
+  depthWrite: false,
+  blending: THREE.AdditiveBlending,
+});
+const glow = new THREE.Sprite(glowSpriteMat);
+glow.scale.set(4.5, 4.5, 1);
+glow.position.set(0, 0.4, -0.5);
+root.add(glow);
+
+const usePhoto = params.get('photo') === '1';
+const sparkles = new THREE.Group();
+root.add(sparkles);
+const sparkleGeo = new THREE.SphereGeometry(0.05, 10, 10);
+for (let i = 0; i < 36; i++) {
+  const col = SPIKE_COLORS[i % SPIKE_COLORS.length];
+  const m = new THREE.Mesh(
+    sparkleGeo,
+    new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.95 })
+  );
+  const a = (i / 36) * Math.PI * 2;
+  const r = 1.9 + (i % 5) * 0.15;
+  m.position.set(Math.cos(a) * r, Math.sin(a) * r * 0.9, 0.6 + (i % 3) * 0.1);
+  m.userData = { a, r, phase: i * 0.4, s: 0.6 + (i % 4) * 0.2 };
+  sparkles.add(m);
+}
+
+function rebuildSquiggle(mesh, time, side, color) {
+  const pts = [];
+  for (let i = 0; i <= 40; i++) {
+    const t = i / 40;
+    const wave = Math.sin(t * Math.PI * 2.2 + time * 3.2) * 0.55
+      + Math.sin(t * Math.PI * 4 + time * 2.1) * 0.2;
+    const y = -1.2 + t * 2.6;
+    const x = side * (1.55 + wave);
+    const z = 0.1 + Math.cos(t * Math.PI * 2 + time * 2.5) * 0.25;
+    pts.push(new THREE.Vector3(x, y, z));
+  }
+  const curve = new THREE.CatmullRomCurve3(pts);
+  const old = mesh.geometry;
+  mesh.geometry = new THREE.TubeGeometry(curve, 64, 0.11, 12, false);
+  old.dispose();
+}
+
+let frameIndex = 0;
+let playing = params.get('play') === '1';
+let photoLogo = null;
+window.__emoji = {
+  SIZE,
+  DURATION,
+  FPS,
+  totalFrames: DURATION * FPS,
+  setFrame(i) {
+    frameIndex = i;
+    renderFrame(i / FPS);
+  },
+  nextFrame() {
+    const i = frameIndex;
+    renderFrame(i / FPS);
+    frameIndex = (frameIndex + 1) % (DURATION * FPS);
+    return i;
+  },
+  canvas: renderer.domElement,
+  ready: false,
+};
+
+// Photo logo for brand-accurate emoji (animated in 3D with accents)
+const loader = new THREE.TextureLoader();
+if (usePhoto) {
+  letterN.visible = false;
+  textBlock.visible = false;
+  squiggleL.visible = false;
+  squiggleR.visible = false;
+  swoop.visible = false;
+  redSphere.visible = false;
+  // Outer animated spike ring — larger than logo so tips orbit beyond the art
+  spikes.children.forEach((c) => {
+    c.userData.radius *= 1.35;
+    c.scale.multiplyScalar(1.25);
+    if (c.material) {
+      c.material.transparent = true;
+      c.material.opacity = 0.92;
+      c.material.emissiveIntensity = 0.35;
+    }
+  });
+  loader.load('./logo_transparent.png', (tex) => {
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const mat = new THREE.MeshPhysicalMaterial({
+      map: tex,
+      transparent: true,
+      roughness: 0.28,
+      metalness: 0.12,
+      clearcoat: 0.85,
+      clearcoatRoughness: 0.15,
+      depthWrite: true,
+    });
+    photoLogo = new THREE.Mesh(new THREE.PlaneGeometry(3.55, 3.55), mat);
+    photoLogo.position.z = 0.95;
+    root.add(photoLogo);
+    renderFrame(0);
+    window.__emoji.ready = true;
+  });
+} else {
+  window.__emoji.ready = true;
+}
+
+function renderFrame(t) {
+  const loop = t % DURATION;
+  const u = loop / DURATION; // 0..1
+  const breath = 1 + Math.sin(u * Math.PI * 2) * 0.045;
+  const pulse = 0.45 + 0.35 * (0.5 + 0.5 * Math.sin(u * Math.PI * 2));
+
+  spikes.rotation.z = u * Math.PI * 2 * 0.35;
+  spikes.children.forEach((mesh, i) => {
+    const { baseAngle, radius, phase, baseScale } = mesh.userData;
+    const pop = 1 + 0.12 * Math.sin(u * Math.PI * 2 * 2 + phase);
+    const r = radius * (1 + 0.06 * Math.sin(u * Math.PI * 2 + phase));
+    mesh.position.x = Math.cos(baseAngle + spikes.rotation.z) * r;
+    mesh.position.y = Math.sin(baseAngle + spikes.rotation.z) * r * 0.92;
+    mesh.scale.setScalar(baseScale * pop);
+    if (mesh.material && mesh.material.emissiveIntensity !== undefined) {
+      mesh.material.emissiveIntensity = 0.12 + 0.2 * (0.5 + 0.5 * Math.sin(u * Math.PI * 4 + phase));
+    }
+  });
+
+  letterN.scale.setScalar(0.78 * breath);
+  letterN.rotation.y = Math.sin(u * Math.PI * 2) * 0.12;
+  letterN.rotation.x = Math.sin(u * Math.PI * 2 + 1) * 0.06;
+  letterN.position.y = 1.35 + Math.sin(u * Math.PI * 2) * 0.05;
+  if (letterN.userData.face) {
+    letterN.userData.face.material.emissiveIntensity = pulse;
+  }
+  greenGlow.intensity = 1.8 + pulse * 2.2;
+
+  textBlock.position.y = Math.sin(u * Math.PI * 2 + 0.4) * 0.06;
+  textBlock.position.z = 0.05 * Math.sin(u * Math.PI * 2);
+  textBlock.rotation.y = Math.sin(u * Math.PI * 2) * 0.08;
+  textBlock.scale.setScalar(1 + Math.sin(u * Math.PI * 2) * 0.03);
+
+  if (!usePhoto) {
+    rebuildSquiggle(squiggleL, loop * 2.2, -1, 0xff2244);
+    rebuildSquiggle(squiggleR, loop * 2.2 + 1.0, 1, 0x111111);
+    squiggleL.rotation.z = Math.sin(u * Math.PI * 2) * 0.08;
+    squiggleR.rotation.z = Math.sin(u * Math.PI * 2 + 1) * -0.08;
+
+    swoop.rotation.z = Math.sin(u * Math.PI * 2) * 0.15;
+    swoop.position.y = 0.15 + Math.sin(u * Math.PI * 2 + 0.5) * 0.08;
+    if (swoop.material) swoop.material.emissiveIntensity = 0.25 + pulse * 0.4;
+
+    redSphere.position.x = 1.72 + Math.sin(u * Math.PI * 2) * 0.08;
+    redSphere.position.y = 0.35 + Math.cos(u * Math.PI * 2) * 0.1;
+    redSphere.scale.setScalar(1 + Math.sin(u * Math.PI * 2 * 2) * 0.15);
+    redSphere.material.emissiveIntensity = 0.4 + pulse * 0.5;
+  }
+
+  glow.material.opacity = 0.14 + pulse * 0.18;
+  glow.scale.setScalar(4.2 + pulse * 1.2);
+
+  sparkles.children.forEach((m) => {
+    const { a, r, phase, s } = m.userData;
+    const ang = a + u * Math.PI * 2;
+    const rr = r * (1 + 0.08 * Math.sin(u * Math.PI * 4 + phase));
+    m.position.x = Math.cos(ang) * rr;
+    m.position.y = Math.sin(ang) * rr * 0.9;
+    m.position.z = 0.55 + Math.sin(u * Math.PI * 2 + phase) * 0.25;
+    const twinkle = 0.45 + 0.55 * Math.max(0, Math.sin(u * Math.PI * 6 + phase));
+    m.scale.setScalar(s * twinkle);
+    m.material.opacity = 0.35 + twinkle * 0.65;
+  });
+
+  if (photoLogo) {
+    photoLogo.scale.setScalar(breath * 1.02);
+    photoLogo.rotation.y = Math.sin(u * Math.PI * 2) * 0.16;
+    photoLogo.rotation.x = Math.sin(u * Math.PI * 2 + 0.8) * 0.1;
+    photoLogo.position.y = Math.sin(u * Math.PI * 2) * 0.06;
+  }
+
+  // Subtle camera orbit for 3D depth
+  const camA = u * Math.PI * 2;
+  camera.position.x = Math.sin(camA) * 0.55;
+  camera.position.y = 0.15 + Math.cos(camA * 0.5) * 0.12;
+  camera.position.z = 6.2;
+  camera.lookAt(0, 0.2, 0);
+
+  root.rotation.y = Math.sin(camA) * 0.08;
+  root.rotation.x = Math.cos(camA) * 0.04;
+
+  renderer.render(scene, camera);
+}
+
+renderFrame(0);
+
+if (playing) {
+  const start = performance.now();
+  function tick(now) {
+    const t = ((now - start) / 1000) % DURATION;
+    renderFrame(t);
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+</script>
+</body>
+</html>

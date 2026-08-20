@@ -1,0 +1,44 @@
+{
+  "layers": [
+    {
+      "name": "rest",
+      "file": "rest.png",
+      "pixels": 147020
+    },
+    {
+      "name": "spikes",
+      "file": "spikes.png",
+      "pixels": 273342
+    },
+    {
+      "name": "red_squiggle",
+      "file": "red_squiggle.png",
+      "pixels": 729
+    },
+    {
+      "name": "black_squiggle",
+      "file": "black_squiggle.png",
+      "pixels": 11438
+    },
+    {
+      "name": "letter_n",
+      "file": "letter_n.png",
+      "pixels": 48001
+    },
+    {
+      "name": "text",
+      "file": "text.png",
+      "pixels": 380330
+    },
+    {
+      "name": "green_swoop",
+      "file": "green_swoop.png",
+      "pixels": 971
+    },
+    {
+      "name": "red_sphere",
+      "file": "red_sphere.png",
+      "pixels": 71
+    }
+  ]
+}

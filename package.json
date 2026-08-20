@@ -1,0 +1,18 @@
+{
+  "name": "hyperlinksspaceanimatedemoji",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "render": "node render.mjs",
+    "preview": "npx --yes serve -p 5173 ."
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "playwright": "^1.49.0",
+    "three": "^0.170.0"
+  }
+}

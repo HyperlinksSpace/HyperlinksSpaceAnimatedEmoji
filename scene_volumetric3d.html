@@ -1,0 +1,1086 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Hyperlinks.SPACE — Exact-art 3D reconstruction</title>
+  <style>
+    html, body { margin: 0; background: transparent; overflow: hidden; }
+    canvas { display: block; width: 512px; height: 512px; background: transparent; }
+  </style>
+</head>
+<body>
+<script type="importmap">
+{
+  "imports": {
+    "three": "./node_modules/three/build/three.module.js",
+    "three/addons/": "./node_modules/three/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+/**
+ * 3D reconstruction that keeps the REFERENCE artwork on every face.
+ * Each element is a thick slab (exact layer pixels on front + black depth).
+ * No procedural stand-in geometry that drifts from the art.
+ * Explosion: fly outward + scale down to stay in canvas; N/text break into chunks.
+ */
+import * as THREE from 'three';
+
+const W = 512, H = 512, TOTAL = 90;
+const WORLD = 20;
+const REST_SCALE = 0.92; /* match reference canvas fill */
+const DEPTH = 1.0;
+const CHUNK_DEPTH = 2.4; /* thick blocks so tumble reads as 3D */
+
+const renderer = new THREE.WebGLRenderer({
+  antialias: true,
+  alpha: true,
+  preserveDrawingBuffer: true,
+  powerPreference: 'high-performance',
+});
+renderer.setSize(W, H, false);
+renderer.setPixelRatio(1);
+renderer.setClearColor(0x000000, 0);
+renderer.autoClear = true;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.NoToneMapping;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(28, 1, 0.05, 200);
+camera.position.set(0, 0, 42);
+
+const root = new THREE.Group();
+scene.add(root);
+const fx = new THREE.Group();
+scene.add(fx); /* outside root so contain-shrink doesn't crush anime tongues */
+
+/* Soft studio light so black depth catches shine when pieces rotate */
+const key = new THREE.DirectionalLight(0xffffff, 2.2);
+key.position.set(-6, 10, 16);
+scene.add(key);
+const fill = new THREE.DirectionalLight(0xa8c8ff, 0.9);
+fill.position.set(8, -2, 10);
+scene.add(fill);
+scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+const rim = new THREE.DirectionalLight(0xffffff, 1.1);
+rim.position.set(2, 4, -12);
+scene.add(rim);
+
+/* Fire-bomb lights — bloom the shatter from within */
+const fireLight = new THREE.PointLight(0xff6a12, 0, 28, 1.6);
+fireLight.position.set(0, 0, 2);
+root.add(fireLight);
+const fireLight2 = new THREE.PointLight(0xffee66, 0, 18, 2);
+fireLight2.position.set(1, 1.5, 3);
+root.add(fireLight2);
+const boltLight = new THREE.PointLight(0xaad8ff, 0, 22, 1.8);
+boltLight.position.set(0, 0, 4);
+root.add(boltLight);
+
+function trap(t, a, b, c, d) {
+  if (t <= a || t >= d) return 0;
+  if (t < b) { const u = (t - a) / (b - a); return u * u * (3 - 2 * u); }
+  if (t < c) return 1;
+  const u = (t - c) / (d - c); return 1 - u * u * (3 - 2 * u);
+}
+
+const loader = new THREE.TextureLoader();
+const pieces = [];
+const brand = { nWholes: [], tWholes: [] };
+const tongues = [];
+const bolts = [];
+const boltBranches = [];
+const camTongues = [];
+const camBolts = [];
+let screenBurst = null;
+const camFx = new THREE.Group();
+camera.add(camFx);
+const _tmpA = new THREE.Vector3();
+const _tmpB = new THREE.Vector3();
+const _tmpC = new THREE.Vector3();
+
+function seeded(seed) {
+  let s = (seed | 0) % 2147483647;
+  if (s <= 0) s += 2147483646;
+  return () => {
+    s = (s * 16807) % 2147483647;
+    return (s - 1) / 2147483646;
+  };
+}
+
+/* Strict-geometry winding flame sheet (S-tongues, sharp tips, layered bands) */
+function makeWindingFlameTexture(seed) {
+  const c = document.createElement('canvas');
+  c.width = 256;
+  c.height = 768;
+  const g = c.getContext('2d');
+  g.clearRect(0, 0, 256, 768);
+  const rnd = seeded(seed * 97 + 13);
+  const cx = 128;
+
+  const tongue = (ox, sway, wBase, tipY, a, dark) => {
+    const baseY = 750;
+    g.beginPath();
+    g.moveTo(cx + ox, baseY);
+    g.bezierCurveTo(
+      cx + ox - wBase, baseY - 100,
+      cx + ox - wBase * 1.5 + sway * 0.5, baseY - 250,
+      cx + ox + sway * 0.7, baseY - 400,
+    );
+    g.bezierCurveTo(
+      cx + ox + sway * 1.55, tipY + 180,
+      cx + ox + sway * 1.7, tipY + 80,
+      cx + ox + sway * 0.85, tipY,
+    );
+    g.lineTo(cx + ox + sway * 0.65, tipY - 14);
+    g.bezierCurveTo(
+      cx + ox + sway * 0.05, tipY + 90,
+      cx + ox - sway * 0.55, tipY + 220,
+      cx + ox - sway * 0.2, baseY - 380,
+    );
+    g.bezierCurveTo(
+      cx + ox + wBase * 1.05, baseY - 220,
+      cx + ox + wBase * 0.6, baseY - 90,
+      cx + ox, baseY,
+    );
+    g.closePath();
+    const grd = g.createLinearGradient(cx + ox, baseY, cx + ox + sway * 0.7, tipY);
+    if (dark) {
+      grd.addColorStop(0.0, `rgba(255,160,40,${a * 0.7})`);
+      grd.addColorStop(0.35, `rgba(220,70,0,${a})`);
+      grd.addColorStop(0.7, `rgba(160,20,0,${a})`);
+      grd.addColorStop(1.0, `rgba(80,0,0,0)`);
+    } else {
+      grd.addColorStop(0.0, `rgba(255,250,180,${a})`);
+      grd.addColorStop(0.15, `rgba(255,220,50,${a})`);
+      grd.addColorStop(0.4, `rgba(255,140,15,${a})`);
+      grd.addColorStop(0.65, `rgba(255,75,0,${a})`);
+      grd.addColorStop(0.88, `rgba(190,20,0,${a * 0.95})`);
+      grd.addColorStop(1.0, `rgba(100,0,0,0)`);
+    }
+    g.fillStyle = grd;
+    g.fill();
+    g.strokeStyle = `rgba(40,0,0,${a * 0.55})`;
+    g.lineWidth = 2.2;
+    g.stroke();
+  };
+
+  tongue(-10, 88 + rnd() * 28, 54, 30 + rnd() * 25, 0.78, true);
+  tongue(16, -96 - rnd() * 22, 48, 55 + rnd() * 20, 0.72, true);
+  tongue(-4, 72, 62, 12, 0.95, false);
+  tongue(10, -78, 52, 40, 0.9, false);
+  tongue(0, 48 + rnd() * 18, 38, 4, 1, false);
+  tongue(-28, 110, 26, 160, 0.7, false);
+  tongue(34, -118, 24, 190, 0.65, false);
+
+  g.globalCompositeOperation = 'lighter';
+  const rib = g.createLinearGradient(cx - 16, 720, cx + 24, 40);
+  rib.addColorStop(0, 'rgba(255,255,220,0)');
+  rib.addColorStop(0.3, 'rgba(255,255,210,0.65)');
+  rib.addColorStop(0.6, 'rgba(255,230,110,0.4)');
+  rib.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = rib;
+  g.beginPath();
+  g.moveTo(cx - 6, 730);
+  g.bezierCurveTo(cx - 22, 480, cx + 36, 240, cx + 14, 20);
+  g.bezierCurveTo(cx + 4, 100, cx - 4, 380, cx + 2, 730);
+  g.closePath();
+  g.fill();
+  g.globalCompositeOperation = 'source-over';
+
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+/** Camera-facing ribbon along S-curve — anime tongue silhouette, not plastic tube */
+function buildRibbonGeometry(curve, halfW0, segs = 28, camPos = null) {
+  const view = camPos ? camPos.clone() : new THREE.Vector3(0, 0, 40);
+  const pos = new Float32Array((segs + 1) * 2 * 3);
+  const uv = new Float32Array((segs + 1) * 2 * 2);
+  const idx = [];
+  let prevSide = new THREE.Vector3(1, 0, 0);
+  for (let i = 0; i <= segs; i++) {
+    const u = i / segs;
+    const p = curve.getPointAt(u);
+    const tang = curve.getTangentAt(u).normalize();
+    const toCam = new THREE.Vector3().subVectors(view, p);
+    let side = new THREE.Vector3().crossVectors(tang, toCam);
+    if (side.lengthSq() < 1e-8) side.copy(prevSide);
+    else side.normalize();
+    if (side.dot(prevSide) < 0) side.negate();
+    prevSide.copy(side);
+    const taper = Math.pow(1 - u, 0.62) * (0.5 + 0.5 * Math.sin(Math.max(0.01, u) * Math.PI));
+    const hw = halfW0 * Math.max(0.035, taper);
+    const i2 = i * 2;
+    pos[i2 * 3] = p.x - side.x * hw;
+    pos[i2 * 3 + 1] = p.y - side.y * hw;
+    pos[i2 * 3 + 2] = p.z - side.z * hw;
+    pos[(i2 + 1) * 3] = p.x + side.x * hw;
+    pos[(i2 + 1) * 3 + 1] = p.y + side.y * hw;
+    pos[(i2 + 1) * 3 + 2] = p.z + side.z * hw;
+    uv[i2 * 2] = 0.08;
+    uv[i2 * 2 + 1] = 1 - u;
+    uv[(i2 + 1) * 2] = 0.92;
+    uv[(i2 + 1) * 2 + 1] = 1 - u;
+    if (i < segs) {
+      const a = i * 2;
+      idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  return geo;
+}
+
+function windingPathPoints(origin, dir, len, bend, twist, phase, seed) {
+  const rnd = seeded(seed);
+  const side = new THREE.Vector3(dir.y, -dir.x, 0.15).normalize();
+  if (side.lengthSq() < 0.01) side.set(1, 0, 0);
+  const bin = new THREE.Vector3().crossVectors(dir, side).normalize();
+  const pts = [];
+  const n = 6;
+  for (let i = 0; i <= n; i++) {
+    const u = i / n;
+    const p = origin.clone().addScaledVector(dir, u * len);
+    /* Dual-frequency S + helical twist for 3D depth */
+    const s1 = Math.sin(u * Math.PI * 2.2 + phase) * bend * len * 0.22 * (0.35 + u);
+    const s2 = Math.sin(u * Math.PI * 3.6 + phase * 1.7 + seed) * bend * len * 0.1 * u;
+    const h = Math.sin(u * Math.PI * 1.6 + twist) * bend * len * 0.16 * u;
+    const wob = (rnd() - 0.5) * bend * len * 0.04 * u;
+    p.addScaledVector(side, s1 + s2 + wob);
+    p.addScaledVector(bin, h + Math.cos(u * Math.PI * 2.8 + phase) * bend * len * 0.12 * u);
+    pts.push(p);
+  }
+  return pts;
+}
+
+function animeBoltPoints(a, b, segs, rnd) {
+  const pts = [];
+  const dist = Math.max(0.01, a.distanceTo(b));
+  const side = new THREE.Vector3().subVectors(b, a).normalize();
+  const up = Math.abs(side.y) < 0.85 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0);
+  const n = new THREE.Vector3().crossVectors(side, up).normalize();
+  const n2 = new THREE.Vector3().crossVectors(side, n).normalize();
+  for (let i = 0; i <= segs; i++) {
+    const u = i / segs;
+    const p = new THREE.Vector3().lerpVectors(a, b, u);
+    if (i > 0 && i < segs) {
+      const amp = dist * (0.055 + rnd() * 0.07);
+      const fine = dist * (0.02 + rnd() * 0.03);
+      p.addScaledVector(n, ((i % 2) * 2 - 1) * amp + Math.sin(i * 2.7) * fine);
+      p.addScaledVector(n2, ((i % 3) - 1) * amp * 0.22 + ((i % 5) - 2) * fine * 0.4);
+    }
+    pts.push(p);
+  }
+  return pts;
+}
+
+function makeTongueGroup(tex, opts) {
+  const group = new THREE.Group();
+  const layers = [];
+  for (let L = 0; L < 3; L++) {
+    const mat = new THREE.MeshBasicMaterial({
+      map: tex,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      alphaTest: 0.05,
+      color: L === 0 ? 0xffffff : (L === 1 ? 0xffcc88 : 0xff6633),
+    });
+    /* High-seg plane so we can bend into an S without looking like a tube */
+    const geo = new THREE.PlaneGeometry(1, 1, 6, 24);
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.z = (1 - L) * 0.12;
+    mesh.scale.set(1 - L * 0.1, 1 - L * 0.05, 1);
+    mesh.renderOrder = 5 + L;
+    group.add(mesh);
+    layers.push({ mesh, mat, geo, bendMul: 1 - L * 0.12 });
+  }
+  fx.add(group);
+  return {
+    group,
+    layers,
+    ang: opts.ang,
+    elev: opts.elev,
+    delay: opts.delay,
+    spin: opts.spin,
+    bend: opts.bend,
+    twist: opts.twist,
+    len: opts.len,
+    wide: opts.wide,
+    zBias: opts.zBias,
+    seed: opts.seed,
+    phase0: opts.phase0 ?? 0,
+  };
+}
+
+/** Bend plane vertices into a sharp S / helix — keeps flame silhouette, adds 3D wind */
+function deformFlamePlane(geo, bend, twist, phase, taper = 0.55) {
+  const pos = geo.attributes.position;
+  if (!geo.userData.base) {
+    const base = new Float32Array(pos.count * 3);
+    for (let i = 0; i < pos.count; i++) {
+      base[i * 3] = pos.getX(i);
+      base[i * 3 + 1] = pos.getY(i);
+      base[i * 3 + 2] = pos.getZ(i);
+    }
+    geo.userData.base = base;
+  }
+  const base = geo.userData.base;
+  for (let i = 0; i < pos.count; i++) {
+    const x0 = base[i * 3];
+    const y0 = base[i * 3 + 1];
+    const u = y0 + 0.5; /* 0 base → 1 tip */
+    const s1 = Math.sin(u * Math.PI * 2.35 + phase) * bend * (0.25 + 0.9 * u);
+    const s2 = Math.sin(u * Math.PI * 3.8 + phase * 1.6) * bend * 0.28 * u;
+    const z1 = Math.sin(u * Math.PI * 1.7 + twist) * bend * 0.55 * u;
+    const z2 = Math.cos(u * Math.PI * 2.6 + phase) * bend * 0.28 * u;
+    const tw = 1 - u * taper;
+    const yaw = twist * u * 0.85;
+    const xr = x0 * Math.cos(yaw) - z1 * Math.sin(yaw);
+    const zr = x0 * Math.sin(yaw) + z1 * Math.cos(yaw);
+    pos.setXYZ(i, xr * tw + s1 + s2, y0, zr + z2);
+  }
+  pos.needsUpdate = true;
+  geo.computeVertexNormals();
+}
+
+function updateTongueRibbon(tongue, origin, dir, len, wide, bend, twist, phase, on) {
+  /* Reuse name: orient group along dir and deform layers */
+  tongue.group.position.copy(origin);
+  const quat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+  tongue.group.quaternion.copy(quat);
+  tongue.group.scale.set(wide, len, 1);
+  for (const L of tongue.layers) {
+    deformFlamePlane(L.geo, bend * L.bendMul, twist, phase + L.bendMul, 0.58);
+    L.mat.opacity = on * (L === tongue.layers[0] ? 1 : L === tongue.layers[1] ? 0.72 : 0.45);
+  }
+  tongue.group.visible = on > 0.03;
+}
+
+async function buildFireBomb() {
+  const refTex = await loadTex('./fx/flame_ref_alpha.png');
+  refTex.premultiplyAlpha = false;
+  const texes = [
+    refTex,
+    makeWindingFlameTexture(3),
+    refTex,
+    makeWindingFlameTexture(11),
+    makeWindingFlameTexture(29),
+  ];
+  /* Flip / tint variants of reference */
+  for (let v = 0; v < 3; v++) {
+    const c = document.createElement('canvas');
+    c.width = refTex.image.width;
+    c.height = refTex.image.height;
+    const g = c.getContext('2d');
+    g.translate(c.width / 2, c.height / 2);
+    g.scale(v % 2 ? -1 : 1, 1);
+    if (v === 2) g.rotate(0.06);
+    g.drawImage(refTex.image, -c.width / 2, -c.height / 2);
+    if (v === 1) {
+      g.globalCompositeOperation = 'source-atop';
+      g.fillStyle = 'rgba(255,120,0,0.22)';
+      g.fillRect(-c.width / 2, -c.height / 2, c.width, c.height);
+    }
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.needsUpdate = true;
+    texes.push(t);
+  }
+
+  /* Irregular angles — avoid even radial “orange slice” fan */
+  const layout = [
+    { ang: 0.55, elev: 0.35, delay: 0.00, spin: 0.55, bend: 1.15, twist: 2.1, len: 5.6, wide: 1.15, zBias: 0.4, phase0: 0.2 },
+    { ang: 2.05, elev: -0.45, delay: 0.025, spin: -0.62, bend: 1.3, twist: -2.3, len: 5.1, wide: 1.05, zBias: 0.9, phase0: 1.1 },
+    { ang: 3.4, elev: 0.55, delay: 0.01, spin: 0.4, bend: 1.1, twist: 1.8, len: 6.0, wide: 1.25, zBias: 0.2, phase0: 2.0 },
+    { ang: 4.75, elev: -0.25, delay: 0.035, spin: -0.5, bend: 1.4, twist: -2.0, len: 4.8, wide: 0.95, zBias: 1.1, phase0: 0.7 },
+    { ang: 5.9, elev: 0.15, delay: 0.015, spin: 0.68, bend: 1.2, twist: 2.4, len: 5.4, wide: 1.1, zBias: 0.55, phase0: 1.6 },
+    { ang: 1.25, elev: 0.7, delay: 0.04, spin: -0.35, bend: 1.05, twist: -1.6, len: 4.5, wide: 0.88, zBias: 1.3, phase0: 2.4 },
+    { ang: 2.7, elev: -0.6, delay: 0.02, spin: 0.48, bend: 1.35, twist: 2.2, len: 5.0, wide: 1.0, zBias: 0.7, phase0: 0.4 },
+    { ang: 0.1, elev: -0.15, delay: 0.045, spin: -0.72, bend: 1.25, twist: -2.5, len: 4.3, wide: 0.82, zBias: 1.5, phase0: 1.9 },
+  ];
+  for (let i = 0; i < layout.length; i++) {
+    const t = makeTongueGroup(texes[i % texes.length], { ...layout[i], seed: i * 17 + 3 });
+    tongues.push(t);
+  }
+
+  for (let i = 0; i < 8; i++) {
+    const mat = new THREE.MeshBasicMaterial({
+      map: texes[i % texes.length],
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      depthTest: false,
+      side: THREE.DoubleSide,
+      alphaTest: 0.05,
+      color: 0xffffff,
+    });
+    const geo = new THREE.PlaneGeometry(1, 1, 6, 24);
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.renderOrder = 22;
+    camFx.add(mesh);
+    camTongues.push({
+      mesh,
+      mat,
+      geo,
+      ang: (i / 8) * Math.PI * 2 + 0.4 + (i % 3) * 0.22,
+      elev: ((i % 3) - 1) * 0.35,
+      delay: 0.012 * i,
+      spin: (i % 2 ? 1 : -1) * (0.55 + (i % 4) * 0.12),
+      bend: 1.05 + (i % 3) * 0.2,
+      twist: (i % 2 ? 1 : -1) * (1.8 + (i % 3) * 0.25),
+      len: 5.0 + (i % 4) * 0.5,
+      wide: 1.05 + (i % 3) * 0.12,
+      seed: i * 23,
+      phase0: i * 0.7,
+    });
+  }
+
+  const burstC = document.createElement('canvas');
+  burstC.width = burstC.height = 256;
+  const bg = burstC.getContext('2d');
+  const grd = bg.createRadialGradient(128, 128, 4, 128, 128, 128);
+  grd.addColorStop(0, 'rgba(255,250,220,1)');
+  grd.addColorStop(0.12, 'rgba(255,200,80,0.85)');
+  grd.addColorStop(0.35, 'rgba(255,100,25,0.55)');
+  grd.addColorStop(0.6, 'rgba(255,40,5,0.22)');
+  grd.addColorStop(1, 'rgba(0,0,0,0)');
+  bg.fillStyle = grd;
+  bg.fillRect(0, 0, 256, 256);
+  const burstTex = new THREE.CanvasTexture(burstC);
+  burstTex.colorSpace = THREE.SRGBColorSpace;
+  screenBurst = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: burstTex,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    depthTest: false,
+    blending: THREE.AdditiveBlending,
+    color: 0xffaa44,
+  }));
+  screenBurst.position.set(0, 0, -6);
+  screenBurst.renderOrder = 8;
+  camFx.add(screenBurst);
+}
+
+function makeBoltPair(isYellow, parent, order) {
+  const curve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(0, 0, 0),
+    new THREE.Vector3(1, 1, 0),
+    new THREE.Vector3(2, 0, 0),
+  ]);
+  const glowMat = new THREE.MeshBasicMaterial({
+    color: isYellow ? 0xff9900 : 0x4488ff,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  });
+  const coreMat = new THREE.MeshBasicMaterial({
+    color: isYellow ? 0xfff6c0 : 0xffffff,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+  });
+  const glow = new THREE.Mesh(new THREE.TubeGeometry(curve, 20, 0.014, 4, false), glowMat);
+  const core = new THREE.Mesh(new THREE.TubeGeometry(curve, 20, 0.005, 3, false), coreMat);
+  glow.visible = false;
+  core.visible = false;
+  glow.renderOrder = order;
+  core.renderOrder = order + 1;
+  parent.add(glow);
+  parent.add(core);
+  return { glow, core, glowMat, coreMat, isYellow, lastKey: -1 };
+}
+
+function buildLightnings() {
+  for (let i = 0; i < 6; i++) {
+    const b = makeBoltPair(i % 2 === 0, fx, 40);
+    b.seed = i * 91 + 5;
+    b.slot = i;
+    bolts.push(b);
+  }
+  /* Thin branch filaments */
+  for (let i = 0; i < 8; i++) {
+    const b = makeBoltPair(i % 2 === 0, fx, 38);
+    b.seed = i * 53 + 11;
+    b.slot = i;
+    b.isBranch = true;
+    boltBranches.push(b);
+  }
+  for (let i = 0; i < 6; i++) {
+    const b = makeBoltPair(i % 2 === 0, camFx, 50);
+    b.glowMat.depthTest = false;
+    b.coreMat.depthTest = false;
+    b.seed = i * 71 + 3;
+    b.slot = i;
+    camBolts.push(b);
+  }
+}
+
+function setBoltGeom(bolt, from, to, frameKey, thickScale) {
+  const rnd = seeded(bolt.seed * 31 + frameKey * 17);
+  const pts = animeBoltPoints(from, to, 14, rnd);
+  const curve = new THREE.CatmullRomCurve3(pts);
+  /* Elegant hairline bolts — bright core, slim glow */
+  const thick = (0.0055 + rnd() * 0.0035) * thickScale;
+  bolt.glow.geometry.dispose();
+  bolt.core.geometry.dispose();
+  bolt.glow.geometry = new THREE.TubeGeometry(curve, 36, thick * 2.2, 4, false);
+  bolt.core.geometry = new THREE.TubeGeometry(curve, 36, thick, 3, false);
+}
+
+function setCamBoltGeom(bolt, fill, frameKey) {
+  const rnd = seeded(bolt.seed * 19 + frameKey * 11);
+  const dirs = [
+    [-1.55, -1.25], [1.6, -1.2], [-1.45, 1.45], [1.5, 1.4],
+    [-1.7, 0.15], [1.7, -0.2],
+  ];
+  const [cx, cy] = dirs[bolt.slot % dirs.length];
+  const a = new THREE.Vector3((rnd() - 0.5) * 0.35, (rnd() - 0.5) * 0.35, -9.4);
+  const b = new THREE.Vector3(cx * (0.75 + 0.25 * fill), cy * (0.75 + 0.25 * fill), -2.4);
+  setBoltGeom(bolt, a, b, frameKey, 0.7 + 0.2 * fill);
+}
+
+function loadTex(url) {
+  return new Promise((resolve, reject) => {
+    loader.load(url, (tex) => {
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.minFilter = THREE.LinearFilter;
+      tex.magFilter = THREE.LinearFilter;
+      tex.generateMipmaps = false;
+      tex.anisotropy = 4;
+      tex.needsUpdate = true;
+      resolve(tex);
+    }, undefined, reject);
+  });
+}
+
+function faceMat(tex, o = {}) {
+  return new THREE.MeshBasicMaterial({
+    map: tex,
+    transparent: true,
+    opacity: o.opacity ?? 1,
+    alphaTest: o.alphaTest ?? 0.04,
+    depthWrite: o.depthWrite ?? true,
+    side: THREE.DoubleSide,
+    toneMapped: false,
+  });
+}
+
+function depthMat(tex) {
+  return new THREE.MeshPhysicalMaterial({
+    map: tex,
+    color: 0x08080a,
+    transparent: true,
+    alphaTest: 0.06,
+    depthWrite: true,
+    side: THREE.DoubleSide,
+    roughness: 0.12,
+    metalness: 0.88,
+    clearcoat: 1,
+    clearcoatRoughness: 0.04,
+    toneMapped: false,
+  });
+}
+
+/** Thick slab: exact reference pixels on front, glossy black depth stack behind. */
+function makeSlab(tex, z) {
+  const g = new THREE.Group();
+  const geo = new THREE.PlaneGeometry(WORLD, WORLD);
+  const front = new THREE.Mesh(geo, faceMat(tex));
+  front.position.z = DEPTH * 0.5;
+  g.add(front);
+  /* Multi-layer black undercover = readable volume when tumbling */
+  for (let i = 0; i < 5; i++) {
+    const plate = new THREE.Mesh(geo, depthMat(tex));
+    plate.position.z = DEPTH * 0.5 - (i + 1) * (DEPTH / 5);
+    plate.scale.setScalar(1.012 + i * 0.004);
+    g.add(plate);
+  }
+  g.position.z = z;
+  g.userData.front = front;
+  root.add(g);
+  return g;
+}
+
+function track(mesh, opts) {
+  pieces.push({
+    mesh,
+    rest: mesh.position.clone(),
+    restRot: mesh.rotation.clone(),
+    restScale: mesh.scale.x,
+    ang: opts.ang,
+    power: opts.power,
+    delay: opts.delay,
+    spin: opts.spin,
+    kind: opts.kind,
+    ax: (Math.random() - 0.5) * 2,
+    ay: (Math.random() - 0.5) * 2,
+    az: (Math.random() - 0.5) * 2,
+  });
+}
+
+function blackSideMat() {
+  return new THREE.MeshPhysicalMaterial({
+    color: 0x3a3a45,
+    roughness: 0.18,
+    metalness: 0.75,
+    clearcoat: 1,
+    clearcoatRoughness: 0.05,
+    emissive: 0x101018,
+    emissiveIntensity: 0.15,
+    toneMapped: false,
+  });
+}
+
+/** Solid opaque 3D rubble from reference tiles (skip empty UV cells). */
+async function addShatterTiles(tex, parentZ, faceColor, count, kind) {
+  const img = tex.image;
+  const cvs = document.createElement('canvas');
+  const tw = img.width || 512;
+  const th = img.height || 512;
+  cvs.width = tw;
+  cvs.height = th;
+  const ctx = cvs.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(img, 0, 0);
+  const data = ctx.getImageData(0, 0, tw, th).data;
+
+  const cols = Math.ceil(Math.sqrt(count * 1.1));
+  const rows = Math.ceil(count / cols);
+  const tileW = WORLD / cols;
+  const tileH = WORLD / rows;
+  let i = 0;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (i >= count) break;
+      /* Sample alpha coverage in this UV cell */
+      const x0 = Math.floor((c / cols) * tw);
+      const x1 = Math.floor(((c + 1) / cols) * tw);
+      const y0 = Math.floor((r / rows) * th);
+      const y1 = Math.floor(((r + 1) / rows) * th);
+      let opaque = 0;
+      let sr = 0, sg = 0, sb = 0, n = 0;
+      for (let y = y0; y < y1; y += 2) {
+        for (let x = x0; x < x1; x += 2) {
+          const a = data[(y * tw + x) * 4 + 3];
+          if (a > 40) {
+            opaque++;
+            sr += data[(y * tw + x) * 4];
+            sg += data[(y * tw + x) * 4 + 1];
+            sb += data[(y * tw + x) * 4 + 2];
+            n++;
+          }
+        }
+      }
+      const cells = Math.max(1, Math.ceil((x1 - x0) / 2) * Math.ceil((y1 - y0) / 2));
+      if (opaque / cells < 0.08) { i++; continue; }
+
+      const avg = n
+        ? new THREE.Color(sr / n / 255, sg / n / 255, sb / n / 255)
+        : new THREE.Color(faceColor);
+      const w = tileW * (0.55 + 0.35 * (opaque / cells));
+      const h = tileH * (0.55 + 0.35 * (opaque / cells));
+      const d = CHUNK_DEPTH * (0.7 + 0.5 * ((i * 13) % 7) / 7);
+
+      const face = new THREE.MeshPhysicalMaterial({
+        color: avg,
+        roughness: 0.22,
+        metalness: 0.12,
+        clearcoat: 1,
+        clearcoatRoughness: 0.05,
+        emissive: avg,
+        emissiveIntensity: 0.25,
+        toneMapped: false,
+      });
+      const side = blackSideMat();
+      const mats = [side, side, side, side, face, side];
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mats);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+
+      const lx = (c + 0.5) * tileW - WORLD * 0.5;
+      const ly = WORLD * 0.5 - (r + 0.5) * tileH;
+      mesh.position.set(lx, ly, parentZ);
+      mesh.visible = false;
+      root.add(mesh);
+      track(mesh, {
+        ang: Math.atan2(ly, lx || 0.01),
+        power: 0.9 + 0.55 * (i % 5) / 5,
+        delay: 0.008 * (i % 6),
+        spin: i % 2 ? 2.0 : -2.0,
+        kind,
+      });
+      i++;
+    }
+  }
+}
+
+async function build() {
+  const specs = [
+    { file: '00_spikes.png', z: -2.8, kind: 'boom', ang: 0.4, power: 1.0, delay: 0.00 },
+    { file: '08_rest.png', z: -2.4, kind: 'boom', ang: 1.15, power: 0.55, delay: 0.02 },
+    { file: '01_red_squiggle.png', z: -1.4, kind: 'boom', ang: Math.PI * 0.9, power: 0.9, delay: 0.01 },
+    { file: '02_black_squiggle.png', z: -1.1, kind: 'boom', ang: 0.85, power: 0.75, delay: 0.015 },
+    { file: '03_green_swoop.png', z: -0.55, kind: 'boom', ang: 0.2, power: 0.8, delay: 0.012 },
+    { file: '04_red_sphere.png', z: -0.25, kind: 'boom', ang: 0.08, power: 0.85, delay: 0.018 },
+    { file: '05_letter_n.png', z: 0.7, kind: 'n' },
+    { file: '06_text.png', z: 1.4, kind: 'text' },
+  ];
+
+  for (const s of specs) {
+    const tex = await loadTex(`./layers_exact/${s.file}?v=${Date.now()}`);
+    const slab = makeSlab(tex, s.z);
+    slab.userData.kind = s.kind;
+    if (s.kind === 'n') {
+      brand.n = slab;
+      brand.nWholes.push(slab);
+      await addShatterTiles(tex, s.z, 0x00e05a, 16, 'nChunk');
+    } else if (s.kind === 'text') {
+      brand.text = slab;
+      brand.tWholes.push(slab);
+      await addShatterTiles(tex, s.z, 0xffffff, 28, 'tChunk');
+    } else {
+      track(slab, {
+        ang: s.ang,
+        power: s.power,
+        delay: s.delay,
+        spin: s.ang > 1 ? -1.1 : 1.1,
+        kind: 'boom',
+      });
+    }
+  }
+
+  brand.nRest = brand.n.position.clone();
+  brand.tRest = brand.text.position.clone();
+  brand.nScale = brand.n.scale.x;
+  brand.tScale = brand.text.scale.x;
+
+  await buildFireBomb();
+  buildLightnings();
+}
+
+function containRoot() {
+  const hidden = [];
+  for (const p of pieces) {
+    if (p.kind === 'nChunk' || p.kind === 'tChunk') {
+      hidden.push(p.mesh);
+      p.mesh.visible = false;
+      p.mesh.parent?.remove(p.mesh);
+    }
+  }
+  root.scale.setScalar(1);
+  root.position.set(0, 0, 0);
+  root.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(root);
+  const size = box.getSize(new THREE.Vector3());
+  const span = Math.max(size.x, size.y, 1e-6);
+  const viewSpan = 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) * camera.position.z;
+  root.scale.setScalar((viewSpan * REST_SCALE) / span);
+  root.updateMatrixWorld(true);
+  const box2 = new THREE.Box3().setFromObject(root);
+  const c = box2.getCenter(new THREE.Vector3());
+  root.position.x -= c.x;
+  root.position.y -= c.y;
+  for (const m of hidden) root.add(m);
+  for (const p of pieces) {
+    p.rest = p.mesh.position.clone();
+    p.restRot = p.mesh.rotation.clone();
+    p.restScale = p.mesh.scale.x;
+  }
+  brand.nRest = brand.n.position.clone();
+  brand.tRest = brand.text.position.clone();
+  root.userData.baseScale = root.scale.x;
+}
+
+function applyFrame(fr) {
+  const t = (fr - 1) / Math.max(1, TOTAL - 1);
+  const boomAmt = trap(t, 0.04, 0.20, 0.52, 0.88);
+  const zoomN = trap(t, 0.10, 0.26, 0.46, 0.76);
+  const zoomT = trap(t, 0.28, 0.44, 0.60, 0.86);
+  const destroy = trap(t, 0.14, 0.32, 0.58, 0.94);
+
+  /* Wholes punch then shatter into reference-textured chunks */
+  const showWhole = destroy < 0.28;
+  for (const w of brand.nWholes) w.visible = showWhole;
+  for (const w of brand.tWholes) w.visible = showWhole;
+
+  if (brand.n && showWhole) {
+    const n = brand.n;
+    const rp = brand.nRest;
+    n.position.set(rp.x, rp.y + 0.15 * zoomN, rp.z + 0.7 * zoomN + 0.25 * boomAmt);
+    n.rotation.set(-0.08 * zoomN, 0.1 * boomAmt, 0.04 * zoomN);
+    n.scale.setScalar(brand.nScale * (1 + 0.08 * zoomN));
+  }
+  if (brand.text && showWhole) {
+    const tx = brand.text;
+    const rp = brand.tRest;
+    tx.position.set(rp.x, rp.y - 0.08 * zoomT, rp.z + 0.45 * zoomT + 0.15 * boomAmt);
+    tx.rotation.set(0.06 * zoomT, -0.08 * zoomT, 0.04 * zoomT);
+    tx.scale.setScalar(brand.tScale * (1 + 0.06 * zoomT));
+  }
+
+  for (const p of pieces) {
+    const isChunk = p.kind === 'nChunk' || p.kind === 'tChunk';
+    const e = trap(t, p.delay, 0.16 + p.delay, 0.52, 0.9);
+    const d = isChunk ? trap(t, 0.16 + p.delay, 0.32 + p.delay, 0.58, 0.94) : e;
+
+    if (isChunk) {
+      p.mesh.visible = d > 0.02;
+      if (d <= 0.02) continue;
+    }
+
+    const amt = isChunk ? d : Math.max(e, e * boomAmt);
+    /* Explode outward + ZOOM OUT so tips never leave the canvas */
+    const fly = amt * p.power * (isChunk ? 1.95 : 1.55);
+    const shrink = Math.max(0.22, 1 - amt * (isChunk ? 0.58 : 0.48));
+    p.mesh.position.set(
+      p.rest.x + Math.cos(p.ang) * fly,
+      p.rest.y + Math.sin(p.ang) * fly,
+      p.rest.z + amt * (0.5 + 1.0 * p.power),
+    );
+    p.mesh.rotation.set(
+      p.restRot.x + amt * p.spin * 2.4 + d * p.ax * 4.2,
+      p.restRot.y + amt * p.spin * 2.0 + d * p.ay * 4.2,
+      p.restRot.z + amt * p.spin * 2.8 + d * p.az * 4.8,
+    );
+    p.mesh.scale.setScalar(p.restScale * shrink);
+  }
+
+  /* Global shrink — keep FX inside canvas */
+  const tear = trap(t, 0.14, 0.20, 0.34, 0.52);
+  const tearFlash = trap(t, 0.15, 0.18, 0.24, 0.32);
+  /* After pieces fly — screen-filling explosion */
+  const fill = trap(t, 0.20, 0.32, 0.58, 0.88);
+  const contain = 1 - 0.42 * Math.max(boomAmt, destroy) - 0.1 * tear - 0.12 * fill;
+  root.scale.setScalar(root.userData.baseScale * contain);
+  root.rotation.set(
+    0.04 * boomAmt + 0.1 * destroy,
+    0.08 * boomAmt + 0.14 * destroy + 0.03 * zoomT,
+    0.02 * zoomN + 0.05 * destroy,
+  );
+  fx.position.copy(root.position);
+  fx.rotation.copy(root.rotation);
+  fx.scale.setScalar(root.userData.baseScale * (0.95 - 0.04 * destroy + 0.08 * fill));
+
+  camera.position.set(
+    0.15 + 2.0 * destroy + 1.0 * boomAmt + Math.sin(t * 55) * 0.15 * tear,
+    0.12 + 1.5 * destroy + 0.6 * boomAmt + Math.cos(t * 48) * 0.12 * tear,
+    42 + 0.4 * boomAmt - 2.2 * tear - 1.0 * fill + 0.6 * tearFlash,
+  );
+  camera.fov = 28 + 3 * tear + 4 * fill;
+  camera.updateProjectionMatrix();
+  camera.lookAt(0, 0, 0);
+
+  const blast = trap(t, 0.10, 0.20, 0.52, 0.9);
+  const flash = trap(t, 0.13, 0.17, 0.22, 0.32);
+
+  fireLight.intensity = 8 + 50 * blast + 25 * flash + 55 * tear + 70 * fill;
+  fireLight2.intensity = 4 + 35 * blast + 35 * tear + 50 * fill;
+  fireLight.color.setHex(0xff5511);
+  fireLight2.color.setHex(0xffcc44);
+  fireLight.position.set(0, 0, 2 + 4 * tear + 3 * fill);
+
+  /* ——— Winding geometric tongues (deformed flame silhouette + irregular pose) ——— */
+  for (const tongue of tongues) {
+    const e = trap(t, 0.10 + tongue.delay, 0.22 + tongue.delay, 0.62, 0.95);
+    if (e < 0.02) {
+      for (const L of tongue.layers) L.mat.opacity = 0;
+      tongue.group.visible = false;
+      continue;
+    }
+    const phase = tongue.phase0 + t * 8.5 + tongue.ang;
+    const wave = Math.sin(t * 9 + tongue.ang * 2.5) * tongue.bend * e;
+    const ang = tongue.ang + e * tongue.spin * 0.7 + wave * 0.35 + fill * 0.18;
+    const elev = tongue.elev + Math.sin(t * 5.5 + tongue.seed) * 0.22 * e;
+    const dir = new THREE.Vector3(
+      Math.cos(ang) * Math.cos(elev),
+      Math.sin(ang) * Math.cos(elev),
+      Math.sin(elev) * 0.9 + 0.2,
+    ).normalize();
+    const origin = new THREE.Vector3(
+      Math.cos(ang) * (0.2 + 0.35 * e),
+      Math.sin(ang) * (0.18 + 0.3 * e),
+      0.35 + tongue.zBias * 0.3 + tear * 0.55 + fill * 0.8,
+    );
+    const len = tongue.len * e * (1.0 + 0.35 * tear + 0.85 * fill) * (0.92 + 0.08 * Math.sin(t * 11 + tongue.ang));
+    const wide = tongue.wide * e * (0.85 + 0.12 * tear + 0.35 * fill);
+    const bend = tongue.bend * (1.0 + 0.55 * e + 0.45 * fill);
+    const twist = tongue.twist * e + wave * 1.1;
+    const on = Math.min(1, e * 1.25) * (1 - 0.08 * destroy);
+    updateTongueRibbon(tongue, origin, dir, len, wide, bend, twist, phase, on);
+  }
+
+  /* Elegant thin yellow/blue lightning + branches */
+  const frameKey = Math.floor(t * 18);
+  const boltOrigins = [
+    [new THREE.Vector3(0, 0, 1), new THREE.Vector3(4.5, 2.8, 2.2)],
+    [new THREE.Vector3(0, 0, 1), new THREE.Vector3(-4.2, -2.6, 2.0)],
+    [new THREE.Vector3(0, 0, 1.1), new THREE.Vector3(3.8, -3.4, 2.6)],
+    [new THREE.Vector3(0, 0, 1), new THREE.Vector3(-3.6, 3.5, 2.4)],
+    [new THREE.Vector3(0, 0, 1.2), new THREE.Vector3(1.2, 4.6, 1.8)],
+    [new THREE.Vector3(0, 0, 1), new THREE.Vector3(-0.8, -4.4, 2.0)],
+  ];
+
+  for (let bi = 0; bi < bolts.length; bi++) {
+    const bolt = bolts[bi];
+    const pulse = trap(t, 0.15 + bi * 0.025, 0.20 + bi * 0.02, 0.4, 0.7);
+    const on = pulse + tear * 0.4 + fill * 0.55;
+    if (on < 0.08) {
+      bolt.glowMat.opacity = 0;
+      bolt.coreMat.opacity = 0;
+      bolt.glow.visible = false;
+      bolt.core.visible = false;
+      continue;
+    }
+    const pair = boltOrigins[bi % boltOrigins.length];
+    _tmpA.copy(pair[0]);
+    _tmpB.copy(pair[1]).multiplyScalar(0.75 + 0.4 * blast + 0.55 * fill);
+    _tmpB.z += tear * 2 + fill * 2.5;
+    if (bolt.lastKey !== frameKey) {
+      setBoltGeom(bolt, _tmpA, _tmpB, frameKey + bi, 0.65 + 0.15 * fill);
+      bolt.lastKey = frameKey;
+    }
+    const flick = Math.sin(t * 100 + bolt.seed) > -0.35 ? 1 : 0.15;
+    bolt.glow.visible = true;
+    bolt.core.visible = true;
+    bolt.glowMat.opacity = Math.min(0.85, on * 0.7) * flick;
+    bolt.coreMat.opacity = Math.min(1, on) * flick;
+    if (bolt.isYellow) {
+      bolt.glowMat.color.setHex(0xff9900);
+      bolt.coreMat.color.setHex(0xfff8d0);
+    } else {
+      bolt.glowMat.color.setHex(0x3377ff);
+      bolt.coreMat.color.setHex(0xffffff);
+    }
+  }
+
+  for (let bi = 0; bi < boltBranches.length; bi++) {
+    const bolt = boltBranches[bi];
+    const on = trap(t, 0.18 + bi * 0.02, 0.24, 0.42, 0.72) * (0.5 + 0.5 * fill + 0.3 * tear);
+    if (on < 0.1) {
+      bolt.glow.visible = false;
+      bolt.core.visible = false;
+      continue;
+    }
+    const main = boltOrigins[bi % boltOrigins.length];
+    const mid = new THREE.Vector3().lerpVectors(main[0], main[1], 0.45 + (bi % 3) * 0.1);
+    mid.multiplyScalar(0.7 + 0.4 * fill);
+    const tip = mid.clone().add(new THREE.Vector3(
+      ((bi % 2) * 2 - 1) * (1.5 + (bi % 3) * 0.4) * (0.8 + fill),
+      ((bi % 3) - 1) * (1.2 + (bi % 2) * 0.5) * (0.8 + fill),
+      1.5 + fill,
+    ));
+    if (bolt.lastKey !== frameKey) {
+      setBoltGeom(bolt, mid, tip, frameKey + bi + 9, 0.55);
+      bolt.lastKey = frameKey;
+    }
+    const flick = Math.sin(t * 130 + bolt.seed) > 0 ? 1 : 0.1;
+    bolt.glow.visible = true;
+    bolt.core.visible = true;
+    bolt.glowMat.opacity = on * 0.55 * flick;
+    bolt.coreMat.opacity = on * 0.85 * flick;
+  }
+  boltLight.intensity = 12 * blast + 25 * tear + 35 * fill;
+  boltLight.color.setHex(Math.sin(t * 28) > 0 ? 0xffcc66 : 0x66aaff);
+  boltLight.position.set(0, 0, 4 + 5 * fill);
+
+  /* Screen-filling explosion after shatter */
+  if (screenBurst) {
+    const w = Math.max(tear * 0.5, fill * 1.05);
+    screenBurst.visible = w > 0.02;
+    screenBurst.material.opacity = Math.min(0.95, w * 1.0);
+    const s = 10 + 22 * fill + 5 * tear;
+    screenBurst.scale.set(s, s, 1);
+  }
+
+  for (const ct of camTongues) {
+    const e = trap(t, 0.14 + ct.delay, 0.24 + ct.delay, 0.6, 0.92);
+    const on = Math.max(e * fill, tear * e * 0.55);
+    if (on < 0.03) {
+      ct.mat.opacity = 0;
+      ct.mesh.visible = false;
+      continue;
+    }
+    ct.mesh.visible = true;
+    const u = Math.max(fill, tear * 0.75) * (0.75 + 0.25 * e);
+    const phase = ct.phase0 + t * 9;
+    const ang = ct.ang + e * ct.spin * 0.65 + Math.sin(t * 7 + ct.ang) * 0.35 * u;
+    const elev = ct.elev + Math.sin(t * 5 + ct.seed) * 0.25 * u;
+    const dir = new THREE.Vector3(
+      Math.cos(ang) * Math.cos(elev),
+      Math.sin(ang) * Math.cos(elev),
+      0.7 + Math.sin(elev) * 0.25,
+    ).normalize();
+    const origin = new THREE.Vector3(
+      Math.cos(ang) * (0.08 + u * 1.05),
+      Math.sin(ang) * (0.06 + u * 0.85),
+      -9.0 + u * 4.6,
+    );
+    const len = ct.len * on * (1.3 + 1.9 * fill);
+    const wide = ct.wide * on * (0.95 + 1.0 * fill);
+    ct.mesh.position.copy(origin);
+    ct.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+    ct.mesh.scale.set(wide, len, 1);
+    deformFlamePlane(ct.geo, ct.bend * (1.15 + 0.6 * u), ct.twist * u, phase, 0.62);
+    ct.mat.opacity = Math.min(1, on * 1.25);
+  }
+
+  for (const cb of camBolts) {
+    const e = trap(t, 0.2 + cb.slot * 0.015, 0.28, 0.55, 0.8);
+    const on = e * Math.max(fill, tear * 0.5);
+    if (on < 0.05) {
+      cb.glowMat.opacity = 0;
+      cb.coreMat.opacity = 0;
+      cb.glow.visible = false;
+      cb.core.visible = false;
+      continue;
+    }
+    if (cb.lastKey !== frameKey) {
+      setCamBoltGeom(cb, Math.max(fill, tear), frameKey + cb.slot);
+      cb.lastKey = frameKey;
+    }
+    const flick = Math.sin(t * 120 + cb.seed) > -0.25 ? 1 : 0.12;
+    cb.glow.visible = true;
+    cb.core.visible = true;
+    cb.glowMat.opacity = Math.min(0.8, on * 0.7) * flick;
+    cb.coreMat.opacity = Math.min(1, on) * flick;
+    if (cb.isYellow) {
+      cb.glowMat.color.setHex(0xff9900);
+      cb.coreMat.color.setHex(0xfff8d0);
+    } else {
+      cb.glowMat.color.setHex(0x4488ff);
+      cb.coreMat.color.setHex(0xffffff);
+    }
+  }
+
+  renderer.clear(true, true, true);
+  renderer.render(scene, camera);
+}
+
+window.setFrame = (fr) => { applyFrame(fr); return fr; };
+window.TOTAL = TOTAL;
+window.ready = false;
+
+(async () => {
+  try {
+    await build();
+    containRoot();
+    applyFrame(1);
+    window.ready = true;
+    console.log('TRUE3D_READY');
+  } catch (e) {
+    console.error('TRUE3D_FAIL', e);
+  }
+})();
+</script>
+</body>
+</html>
