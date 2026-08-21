@@ -209,7 +209,7 @@ function attachGlance(letter, ch) {
   const body = letter.children[0];
   const shape = ch === 'I' ? timesIShape() : timesSShape();
   const geo = new THREE.ShapeGeometry(shape, 72);
-  const mesh = new THREE.Mesh(geo, glanceMat(ch === 'S' ? 2.4 : 1));
+  const mesh = new THREE.Mesh(geo, glanceMat(ch === 'S' ? 0.42 : 1));
   mesh.position.set(body.position.x, body.position.y, 0.50);
   mesh.renderOrder = 4;
   letter.add(mesh);
@@ -731,16 +731,16 @@ function dentedChromeSphere(radius, seed) {
     const y = pos.getY(i);
     const z = pos.getZ(i);
     const n = Math.hypot(x, y, z) || 1;
-    /* Light ripple only — heavy dents read as dark cavities. */
-    const dent = 0.016 * Math.sin(x * 8.2 + y * 6.4)
-      + 0.012 * Math.sin(y * 9.5 + z * 7.1)
-      + 0.008 * Math.sin(z * 11.0 + x * 5.5)
-      + (rnd() - 0.5) * 0.008;
+    const dent = 0.055 * Math.sin(x * 8.2 + y * 6.4)
+      + 0.04 * Math.sin(y * 9.5 + z * 7.1)
+      + 0.028 * Math.sin(z * 11.0 + x * 5.5)
+      + (rnd() - 0.5) * 0.025;
     const s = (1 + dent) * radius / n;
     pos.setXYZ(i, x * s, y * s, z * s);
   }
   geo.computeVertexNormals();
-  return new THREE.Mesh(geo, liquidChromeMat(true));
+  channelChromeGeo(geo, 'dot', null);
+  return new THREE.Mesh(geo, liquidChromeMat(false));
 }
 
 function attachEdgeShadow(mesh, xy = 1.065, z = 1.03) {
@@ -766,16 +766,19 @@ function attachEdgeShadow(mesh, xy = 1.065, z = 1.03) {
 function makeLetter3D(ch) {
   const g = new THREE.Group();
   const isI = ch === 'I';
-  /* S sits farther back — use the brighter chrome so it matches the I. */
-  const chrome = liquidChromeMat(!isI);
+  const chrome = liquidChromeMat(false);
+  if (!isI) {
+    chrome.color.setHex(0xb4bec8);
+    chrome.roughness = 0.08;
+    chrome.envMapIntensity = 1.05;
+  }
   const bodyShapes = [isI ? timesIShape() : timesSShape()];
   const sLine = isI ? null : sCenterlinePts();
 
   const depth = 0.92;
   const geo = new THREE.ExtrudeGeometry(bodyShapes, extrudeOpts(depth));
   geo.translate(0, 0, -depth * 0.5);
-  /* Channel valleys on S read as dark grey; keep them on the I slab only. */
-  if (isI) channelChromeGeo(geo, 'I', sLine);
+  channelChromeGeo(geo, isI ? 'I' : 'S', sLine);
   const body = new THREE.Mesh(geo, chrome);
   g.add(body);
 
@@ -796,10 +799,10 @@ function makeLetter3D(ch) {
   g.userData.dot = dot;
   attachEdgeShadow(body, 1.07, 1.04);
   attachEdgeShadow(dot, 1.045, 1.03);
-  const fill = new THREE.PointLight(0xffffff, isI ? 2.4 : 16, isI ? 10 : 22, 1.1);
+  const fill = new THREE.PointLight(0xffffff, isI ? 2.4 : 0.7, 10, 1.1);
   fill.position.set(0.35, 0.7, 4.2);
   g.add(fill);
-  const dotFill = new THREE.PointLight(0xffffff, 16, 10, 1.15);
+  const dotFill = new THREE.PointLight(0xffffff, isI ? 2.4 : 0.7, 8, 1.15);
   dotFill.position.set(dot.position.x + 0.25, dot.position.y + 0.4, 2.4);
   g.add(dotFill);
   return g;
@@ -1540,8 +1543,8 @@ function applyFrame(fr) {
     spot.intensity = 22 + 8 * (0.5 + 0.5 * Math.sin(ph * 2 + tOff));
   }
   sweepGlance(iSpot, brand.i, 0.0, 7.5);
-  sweepGlance(sSpot, brand.s, 2.094, 7.0);
-  sSpot.intensity *= 1.55;
+  sweepGlance(sSpot, brand.s, 2.094, 7.5);
+  sSpot.intensity *= 0.45;
   sweepGlance(bodySpot, lighterSpin, 4.189, 8.0);
   bodySpot.intensity = 32 + 10 * (0.5 + 0.5 * Math.sin(ph * 2));
 
@@ -1550,8 +1553,8 @@ function applyFrame(fr) {
     iGlance.material.uniforms.uGain.value = 0.92 + 0.08 * (0.5 + 0.5 * Math.sin(ph * 2));
   }
   if (sGlance?.material.uniforms) {
-    sGlance.material.uniforms.uShift.value = Math.sin(ph + 2.094) * 0.36;
-    sGlance.material.uniforms.uGain.value = 1.45 + 0.12 * (0.5 + 0.5 * Math.sin(ph * 2 + 1.2));
+    sGlance.material.uniforms.uShift.value = Math.sin(ph + 2.094) * 0.38;
+    sGlance.material.uniforms.uGain.value = 0.42 + 0.06 * (0.5 + 0.5 * Math.sin(ph * 2 + 2.094));
   }
   if (bodyShine) {
     const u = Math.sin(ph + 4.189);
