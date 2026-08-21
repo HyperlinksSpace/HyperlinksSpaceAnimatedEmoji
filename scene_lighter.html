@@ -1051,45 +1051,48 @@ function buildLighter() {
   body.userData.part = 'body';
   lighterSpin.add(body);
 
-  /* Hard vertical glance along the lacquer body (photo streak). */
-  const shineC = document.createElement('canvas');
-  shineC.width = 64;
-  shineC.height = 512;
-  const sg = shineC.getContext('2d');
-  const sgx = sg.createLinearGradient(0, 0, 64, 0);
-  sgx.addColorStop(0.00, 'rgba(255,255,255,0)');
-  sgx.addColorStop(0.40, 'rgba(255,255,255,0)');
-  sgx.addColorStop(0.46, 'rgba(255,255,255,0.5)');
-  sgx.addColorStop(0.49, 'rgba(255,255,255,1)');
-  sgx.addColorStop(0.51, 'rgba(255,255,255,1)');
-  sgx.addColorStop(0.54, 'rgba(255,255,255,0.5)');
-  sgx.addColorStop(0.60, 'rgba(255,255,255,0)');
-  sgx.addColorStop(1.00, 'rgba(255,255,255,0)');
-  sg.fillStyle = sgx;
-  sg.fillRect(0, 0, 64, 512);
-  const sgy = sg.createLinearGradient(0, 0, 0, 512);
-  sgy.addColorStop(0.00, 'rgba(0,0,0,0.55)');
-  sgy.addColorStop(0.12, 'rgba(0,0,0,0)');
-  sgy.addColorStop(0.88, 'rgba(0,0,0,0)');
-  sgy.addColorStop(1.00, 'rgba(0,0,0,0.55)');
-  sg.fillStyle = sgy;
-  sg.fillRect(0, 0, 64, 512);
-  const shineTex = new THREE.CanvasTexture(shineC);
-  shineTex.colorSpace = THREE.SRGBColorSpace;
+  /* S-like glance on the lacquer: opaque white core, knife edges, wraps the 3D shell. */
   bodyShine = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.52, bodyH * 0.96),
-    new THREE.MeshBasicMaterial({
-      map: shineTex,
+    body.geometry,
+    new THREE.ShaderMaterial({
+      uniforms: {
+        uShift: { value: 0 },
+        uGain: { value: 1 },
+      },
+      vertexShader: `
+        varying float vX;
+        varying float vFacing;
+        void main() {
+          vX = position.x;
+          vec3 n = normalize(normalMatrix * normal);
+          vFacing = clamp(n.z, 0.0, 1.0);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform float uShift;
+        uniform float uGain;
+        varying float vX;
+        varying float vFacing;
+        void main() {
+          float d = abs(vX - uShift);
+          float core = 1.0 - smoothstep(0.18, 0.23, d);
+          float halo = 1.0 - smoothstep(0.23, 0.28, d);
+          float a = max(core, halo * 0.14) * pow(vFacing, 0.25) * uGain;
+          if (a < 0.05) discard;
+          gl_FragColor = vec4(1.0, 1.0, 1.0, a);
+        }
+      `,
       transparent: true,
-      opacity: 0.95,
-      blending: THREE.AdditiveBlending,
       depthWrite: false,
       depthTest: true,
       toneMapped: false,
+      side: THREE.FrontSide,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -2,
     }),
   );
-  bodyShine.position.set(-0.42, 0.06, 0.42);
-  bodyShine.rotation.y = 0.4;
   bodyShine.renderOrder = 3;
   lighterSpin.add(bodyShine);
 
@@ -1707,7 +1710,7 @@ function applyFrame(fr) {
   sweepGlance(iSpot, brand.i, 0.0, 7.5);
   sweepGlance(sSpot, brand.s, 2.094, 7.5);
   sweepGlance(bodySpot, lighterSpin, 4.189, 8.0);
-  bodySpot.intensity = 32 + 10 * (0.5 + 0.5 * Math.sin(ph * 2));
+  bodySpot.intensity = 8 + 3 * (0.5 + 0.5 * Math.sin(ph * 2));
 
   if (iGlance?.material.uniforms) {
     iGlance.material.uniforms.uShift.value = Math.sin(ph) * 0.38;
@@ -1721,11 +1724,10 @@ function applyFrame(fr) {
     sGlance.material.uniforms.uShift.value = sShift;
     sGlance.material.uniforms.uGain.value = sGain;
   }
-  if (bodyShine) {
+  if (bodyShine?.material.uniforms) {
     const u = Math.sin(ph + 4.189);
-    bodyShine.position.set(u * 0.48, 0.04, 0.58);
-    bodyShine.rotation.y = u * 0.12;
-    bodyShine.material.opacity = 0.95 + 0.05 * (0.5 + 0.5 * Math.sin(ph * 2));
+    bodyShine.material.uniforms.uShift.value = u * 0.55;
+    bodyShine.material.uniforms.uGain.value = 1.0;
   }
   if (scene.environmentRotation) {
     scene.environmentRotation.y = ph;
