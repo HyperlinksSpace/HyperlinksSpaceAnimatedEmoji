@@ -306,6 +306,8 @@ let flameGroup = null;
 let flameAnchor = null;
 let lever = null;
 let bodyShine = null;
+let hoodShine = null;
+let chromeShine = null;
 let iGlance = null;
 let sGlance = null;
 const flameParts = [];
@@ -314,6 +316,51 @@ const fx = new THREE.Group();
 scene.add(fx);
 const bolts = [];
 const centerFlames = [];
+
+function insetGlanceMat(bottomWide = 1) {
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      uGain: { value: 1 },
+      uBottomWide: { value: bottomWide },
+    },
+    vertexShader: `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform float uGain;
+      uniform float uBottomWide;
+      varying vec2 vUv;
+      void main() {
+        float widen = mix(uBottomWide, 1.0, vUv.y);
+        float d = abs(vUv.x - 0.5) / max(widen, 0.2);
+        float core = 1.0 - smoothstep(0.18, 0.30, d);
+        float halo = 1.0 - smoothstep(0.30, 0.46, d);
+        float fadeY = smoothstep(0.0, 0.05, vUv.y) * (1.0 - smoothstep(0.93, 1.0, vUv.y));
+        float a = max(core, halo * 0.18) * fadeY * uGain;
+        if (a < 0.04) discard;
+        gl_FragColor = vec4(1.0, 1.0, 1.0, a);
+      }
+    `,
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    toneMapped: false,
+    side: THREE.DoubleSide,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
+  });
+}
+
+function makeInsetGlance(w, h, bottomWide = 1) {
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), insetGlanceMat(bottomWide));
+  mesh.renderOrder = 3;
+  return mesh;
+}
 
 function glanceMat(width = 1) {
   return new THREE.ShaderMaterial({
@@ -1051,49 +1098,10 @@ function buildLighter() {
   body.userData.part = 'body';
   lighterSpin.add(body);
 
-  /* S-like glance on the lacquer: opaque white core, knife edges, wraps the 3D shell. */
-  bodyShine = new THREE.Mesh(
-    body.geometry,
-    new THREE.ShaderMaterial({
-      uniforms: {
-        uShift: { value: 0 },
-        uGain: { value: 1 },
-      },
-      vertexShader: `
-        varying float vX;
-        varying float vFacing;
-        void main() {
-          vX = position.x;
-          vec3 n = normalize(normalMatrix * normal);
-          vFacing = clamp(n.z, 0.0, 1.0);
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        }
-      `,
-      fragmentShader: `
-        uniform float uShift;
-        uniform float uGain;
-        varying float vX;
-        varying float vFacing;
-        void main() {
-          float d = abs(vX - uShift);
-          float core = 1.0 - smoothstep(0.18, 0.23, d);
-          float halo = 1.0 - smoothstep(0.23, 0.28, d);
-          float a = max(core, halo * 0.14) * pow(vFacing, 0.25) * uGain;
-          if (a < 0.05) discard;
-          gl_FragColor = vec4(1.0, 1.0, 1.0, a);
-        }
-      `,
-      transparent: true,
-      depthWrite: false,
-      depthTest: true,
-      toneMapped: false,
-      side: THREE.FrontSide,
-      polygonOffset: true,
-      polygonOffsetFactor: -2,
-      polygonOffsetUnits: -2,
-    }),
-  );
-  bodyShine.renderOrder = 3;
+  /* Nearly full-height red glance, wider toward the bottom, still inset from the sides. */
+  bodyShine = makeInsetGlance(0.62, bodyH * 0.94, 1.55);
+  bodyShine.position.set(-0.12, -0.04, 0.60);
+  bodyShine.rotation.y = 0.10;
   lighterSpin.add(bodyShine);
 
   /* Black plastic collar under the chrome (photo) */
@@ -1102,6 +1110,11 @@ function buildLighter() {
   head.position.y = bodyH * 0.5 + headH * 0.48;
   head.userData.part = 'hood';
   lighterSpin.add(head);
+
+  hoodShine = makeInsetGlance(0.42, headH * 0.78, 1.2);
+  hoodShine.position.set(-0.12, head.position.y, 0.64);
+  hoodShine.rotation.y = 0.10;
+  lighterSpin.add(hoodShine);
 
   const topY = bodyH * 0.5 + headH + 0.38;
   /* Flame on the left of the top; wheel + button on the right of the top. */
@@ -1121,6 +1134,12 @@ function buildLighter() {
   hood.position.set(flameX, topY, flameZ);
   hood.userData.part = 'hood';
   lighterSpin.add(hood);
+
+  chromeShine = makeInsetGlance(0.28, 0.92, 1.15);
+  chromeShine.position.set(flameX, topY, flameZ + 0.58);
+  chromeShine.rotation.y = 0.08;
+  chromeShine.userData.baseX = flameX;
+  lighterSpin.add(chromeShine);
 
   const chimney = new THREE.Mesh(
     new THREE.CylinderGeometry(0.11, 0.13, 0.28, 28),
@@ -1724,10 +1743,19 @@ function applyFrame(fr) {
     sGlance.material.uniforms.uShift.value = sShift;
     sGlance.material.uniforms.uGain.value = sGain;
   }
-  if (bodyShine?.material.uniforms) {
-    const u = Math.sin(ph + 4.189);
-    bodyShine.material.uniforms.uShift.value = u * 0.55;
-    bodyShine.material.uniforms.uGain.value = 1.0;
+  const u = Math.sin(ph + 4.189);
+  const gx = u * 0.34;
+  if (bodyShine) {
+    bodyShine.position.set(gx, -0.04, 0.60);
+    if (bodyShine.material.uniforms) bodyShine.material.uniforms.uGain.value = 1.0;
+  }
+  if (hoodShine) {
+    hoodShine.position.x = gx;
+    if (hoodShine.material.uniforms) hoodShine.material.uniforms.uGain.value = 1.0;
+  }
+  if (chromeShine) {
+    chromeShine.position.x = (chromeShine.userData.baseX || 0) + gx * 0.22;
+    if (chromeShine.material.uniforms) chromeShine.material.uniforms.uGain.value = 1.0;
   }
   if (scene.environmentRotation) {
     scene.environmentRotation.y = ph;
