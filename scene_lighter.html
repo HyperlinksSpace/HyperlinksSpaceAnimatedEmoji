@@ -46,39 +46,37 @@ const pmrem = new THREE.PMREMGenerator(renderer);
 const scene = new THREE.Scene();
 
 function makeStudioEnvTex() {
-  /* Mid-grey studio: chrome stays even; a few windows keep plastic + metal glance. */
+  /* Darker metal form + a hard white window for chrome glances and the red streak. */
   const c = document.createElement('canvas');
   c.width = 1024;
   c.height = 512;
   const g = c.getContext('2d');
   const ambient = g.createLinearGradient(0, 0, 0, 512);
-  ambient.addColorStop(0.00, '#6a7380');
-  ambient.addColorStop(0.40, '#3e4650');
-  ambient.addColorStop(1.00, '#2c333c');
+  ambient.addColorStop(0.00, '#a8b0ba');
+  ambient.addColorStop(0.40, '#6e7682');
+  ambient.addColorStop(1.00, '#5a6270');
   g.fillStyle = ambient;
   g.fillRect(0, 0, 1024, 512);
-  /* Soft primary window — plastic shine without flipping letters black/white */
-  const win = g.createLinearGradient(160, 0, 250, 0);
-  win.addColorStop(0.00, 'rgba(62,70,80,0)');
-  win.addColorStop(0.25, '#f2f4f8');
+  const win = g.createLinearGradient(168, 0, 236, 0);
+  win.addColorStop(0.00, 'rgba(110,118,130,0)');
+  win.addColorStop(0.18, '#ffffff');
   win.addColorStop(0.50, '#ffffff');
-  win.addColorStop(0.75, '#f2f4f8');
-  win.addColorStop(1.00, 'rgba(62,70,80,0)');
+  win.addColorStop(0.82, '#ffffff');
+  win.addColorStop(1.00, 'rgba(110,118,130,0)');
   g.fillStyle = win;
-  g.fillRect(160, 0, 90, 512);
-  /* Thin secondary glance */
-  const win2 = g.createLinearGradient(320, 0, 350, 0);
-  win2.addColorStop(0.00, 'rgba(62,70,80,0)');
-  win2.addColorStop(0.4, '#e8ecf2');
-  win2.addColorStop(0.6, '#e8ecf2');
-  win2.addColorStop(1.00, 'rgba(62,70,80,0)');
+  g.fillRect(168, 0, 68, 512);
+  g.fillStyle = '#ffffff';
+  g.fillRect(192, 0, 16, 512);
+  const win2 = g.createLinearGradient(320, 0, 348, 0);
+  win2.addColorStop(0.00, 'rgba(110,118,130,0)');
+  win2.addColorStop(0.4, '#f4f7fb');
+  win2.addColorStop(0.6, '#f4f7fb');
+  win2.addColorStop(1.00, 'rgba(110,118,130,0)');
   g.fillStyle = win2;
-  g.fillRect(320, 40, 30, 430);
-  /* Opposite fill — mid, not a black hole */
-  g.fillStyle = '#4a525c';
-  g.fillRect(680, 60, 70, 360);
-  /* Floor bounce */
-  g.fillStyle = '#5a626c';
+  g.fillRect(320, 20, 28, 470);
+  g.fillStyle = '#8a929c';
+  g.fillRect(690, 40, 64, 400);
+  g.fillStyle = '#7a828c';
   g.fillRect(0, 430, 1024, 82);
   const tex = new THREE.CanvasTexture(c);
   tex.mapping = THREE.EquirectangularReflectionMapping;
@@ -90,7 +88,7 @@ function makeStudioEnvTex() {
   return tex;
 }
 scene.environment = pmrem.fromEquirectangular(makeStudioEnvTex()).texture;
-scene.environmentIntensity = 2.15;
+scene.environmentIntensity = 2.55;
 
 const camera = new THREE.PerspectiveCamera(28, 1, 0.05, 200);
 camera.position.set(0, 0, 42);
@@ -108,13 +106,20 @@ scene.add(key2);
 const fill = new THREE.DirectionalLight(0xffe8e4, 0.18);
 fill.position.set(10, -4, 8);
 scene.add(fill);
-scene.add(new THREE.AmbientLight(0xfff5f2, 0.08));
+scene.add(new THREE.AmbientLight(0xfff8f4, 0.22));
 const rim = new THREE.DirectionalLight(0xffffff, 0.55);
 rim.position.set(6, 8, -16);
 scene.add(rim);
-const shineSweep = new THREE.DirectionalLight(0xffffff, 1.8);
+const shineSweep = new THREE.DirectionalLight(0xffffff, 2.6);
 shineSweep.position.set(-5, 9, 16);
 scene.add(shineSweep);
+const bodySpot = new THREE.SpotLight(0xffffff, 22, 55, 0.16, 0.22);
+bodySpot.position.set(-10, 7, 18);
+scene.add(bodySpot);
+scene.add(bodySpot.target);
+const camFill = new THREE.DirectionalLight(0xffffff, 2.1);
+camFill.position.set(-2, 3, 28);
+scene.add(camFill);
 const flameLight = new THREE.PointLight(0xff7018, 0, 22, 1.7);
 root.add(flameLight);
 const flameLight2 = new THREE.PointLight(0xfff0a0, 0, 14, 2.1);
@@ -141,6 +146,7 @@ let sparkWheel = null;
 let flameGroup = null;
 let flameAnchor = null;
 let lever = null;
+let bodyShine = null;
 const flameParts = [];
 const sparks = [];
 const fx = new THREE.Group();
@@ -149,19 +155,19 @@ const bolts = [];
 const centerFlames = [];
 
 function plasticRed() {
-  /* Reference candy red — saturated primary, lacquer plastic */
+  /* Reference candy red — lacquer with a hard vertical glance */
   return new THREE.MeshPhysicalMaterial({
-    color: 0xff0505,
-    roughness: 0.012,
+    color: 0xff1c14,
+    roughness: 0.008,
     metalness: 0.0,
     clearcoat: 1,
-    clearcoatRoughness: 0.012,
+    clearcoatRoughness: 0.008,
     ior: 1.55,
     specularIntensity: 1,
     specularColor: new THREE.Color(0xffffff),
-    envMapIntensity: 2.85,
-    emissive: 0xff0000,
-    emissiveIntensity: 0.22,
+    envMapIntensity: 3.55,
+    emissive: 0xff1208,
+    emissiveIntensity: 0.36,
     toneMapped: false,
   });
 }
@@ -191,34 +197,34 @@ function steelMat() {
   });
 }
 
-/** Polished liquid chrome — letters + lighter cap. `light` = slightly brighter cap. */
+/** Polished liquid chrome — bright light metal, readable on dark and green. */
 function liquidChromeMat(light = false) {
   return new THREE.MeshPhysicalMaterial({
-    color: light ? 0xe8eef4 : 0xd2d8e0,
+    color: light ? 0xf7fafd : 0xf2f5fa,
     metalness: 1.0,
-    roughness: light ? 0.18 : 0.22,
+    roughness: light ? 0.038 : 0.042,
     clearcoat: 1.0,
-    clearcoatRoughness: 0.08,
+    clearcoatRoughness: 0.018,
     reflectivity: 1,
     ior: 1.5,
-    envMapIntensity: light ? 2.15 : 1.85,
+    envMapIntensity: light ? 2.85 : 2.7,
     specularIntensity: 1,
     specularColor: new THREE.Color(0xffffff),
     toneMapped: false,
   });
 }
 
-/** Polished chrome windguard — match photo glance / specular */
+/** Polished chrome windguard — hard vertical glance */
 function chromeMat() {
   return new THREE.MeshPhysicalMaterial({
-    color: 0xf2f6fb,
+    color: 0xf6f9fd,
     metalness: 1.0,
-    roughness: 0.08,
+    roughness: 0.045,
     clearcoat: 1.0,
-    clearcoatRoughness: 0.04,
+    clearcoatRoughness: 0.02,
     reflectivity: 1,
     ior: 1.5,
-    envMapIntensity: 2.55,
+    envMapIntensity: 3.05,
     specularIntensity: 1,
     specularColor: new THREE.Color(0xffffff),
     toneMapped: false,
@@ -607,7 +613,7 @@ function channelChromeGeo(geo, kind, centerline) {
   geo.computeVertexNormals();
   const pos = geo.attributes.position;
   const nrm = geo.attributes.normal;
-  const amp = kind === 'dot' ? 0.035 : 0.028;
+  const amp = kind === 'dot' ? 0.04 : 0.038;
   for (let i = 0; i < pos.count; i++) {
     const nz = nrm.getZ(i);
     if (Math.abs(nz) < 0.5) continue;
@@ -687,42 +693,35 @@ function makeLetter3D(ch) {
 
   body.updateMatrixWorld(true);
   const bb = new THREE.Box3().setFromObject(body);
-  const gap = isI ? 0.58 : 0.72;
-  const sphereR = isI ? 0.28 : 0.26;
+  const c = bb.getCenter(new THREE.Vector3());
+  body.position.x -= c.x;
+  body.position.y -= c.y;
+
+  const sphereR = isI ? 0.22 : 0.21;
+  const indent = isI ? 0.22 : 0.26;
   const dot = dentedChromeSphere(sphereR, isI ? 4103 : 7721);
-  if (isI) {
-    dot.position.set(bb.max.x + 0.28, bb.min.y - 0.62, 0);
-  } else {
-    dot.position.set(bb.max.x + gap * 0.55, bb.min.y - gap * 0.85, 0);
-  }
+  /* Same baseline as the letter, gap to the right. */
+  dot.position.set(bb.max.x - c.x + indent + sphereR, bb.min.y - c.y + sphereR, 0);
   g.add(dot);
   g.userData.dot = dot;
-
-  g.updateMatrixWorld(true);
-  const gbb = new THREE.Box3().setFromObject(g);
-  const c = gbb.getCenter(new THREE.Vector3());
-  for (const chld of g.children) {
-    chld.position.x -= c.x;
-    chld.position.y -= c.y;
-  }
   return g;
 }
 
 function buildRedFork() {
   const g = new THREE.Group();
   const red = plasticRed();
-  /* BIC thumb pad — wide, slightly concave, reads at emoji size */
+  /* BIC thumb pad — sits on the TOP, behind the flame */
   const pad = new THREE.Mesh(
-    new RoundedBoxGeometry(1.55, 0.32, 0.78, 6, 0.12),
+    new RoundedBoxGeometry(1.05, 0.18, 0.58, 5, 0.08),
     red,
   );
-  pad.position.set(0, 0.06, 0);
+  pad.position.set(0, 0.04, 0);
   g.add(pad);
   const stem = new THREE.Mesh(
-    new RoundedBoxGeometry(0.62, 0.55, 0.48, 4, 0.1),
+    new RoundedBoxGeometry(0.42, 0.28, 0.36, 4, 0.06),
     red,
   );
-  stem.position.set(0, -0.28, 0.06);
+  stem.position.set(0, -0.14, 0.04);
   g.add(stem);
   return g;
 }
@@ -803,25 +802,72 @@ function buildLighter() {
   const body = bicShell(bodyW, bodyH, bodyD, plasticRed(), bodyR);
   lighterSpin.add(body);
 
+  /* Hard vertical glance along the lacquer body (photo streak). */
+  const shineC = document.createElement('canvas');
+  shineC.width = 64;
+  shineC.height = 512;
+  const sg = shineC.getContext('2d');
+  const sgx = sg.createLinearGradient(0, 0, 64, 0);
+  sgx.addColorStop(0.00, 'rgba(255,255,255,0)');
+  sgx.addColorStop(0.42, 'rgba(255,255,255,0.15)');
+  sgx.addColorStop(0.50, 'rgba(255,255,255,1)');
+  sgx.addColorStop(0.58, 'rgba(255,255,255,0.15)');
+  sgx.addColorStop(1.00, 'rgba(255,255,255,0)');
+  sg.fillStyle = sgx;
+  sg.fillRect(0, 0, 64, 512);
+  const sgy = sg.createLinearGradient(0, 0, 0, 512);
+  sgy.addColorStop(0.00, 'rgba(0,0,0,0.55)');
+  sgy.addColorStop(0.12, 'rgba(0,0,0,0)');
+  sgy.addColorStop(0.88, 'rgba(0,0,0,0)');
+  sgy.addColorStop(1.00, 'rgba(0,0,0,0.55)');
+  sg.fillStyle = sgy;
+  sg.fillRect(0, 0, 64, 512);
+  const shineTex = new THREE.CanvasTexture(shineC);
+  shineTex.colorSpace = THREE.SRGBColorSpace;
+  bodyShine = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.58, bodyH * 0.94),
+    new THREE.MeshBasicMaterial({
+      map: shineTex,
+      transparent: true,
+      opacity: 0.95,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      toneMapped: false,
+    }),
+  );
+  bodyShine.position.set(-0.42, 0.06, 0.42);
+  bodyShine.rotation.y = 0.4;
+  bodyShine.renderOrder = 3;
+  lighterSpin.add(bodyShine);
+
   /* Black plastic collar under the chrome (photo) */
   const headH = 1.05;
   const head = bicShell(bodyW * 1.01, headH, bodyD * 1.02, plasticBlack(), bodyR + 0.02);
   head.position.y = bodyH * 0.5 + headH * 0.48;
   lighterSpin.add(head);
 
-  const topY = bodyH * 0.5 + headH + 0.55;
+  const topY = bodyH * 0.5 + headH + 0.38;
+  /* Flame on the left of the top; wheel + button on the right of the top. */
+  const flameX = -0.55;
+  const flameZ = 0.10;
 
-  /* ——— Photo chrome windguard ——— */
+  const deck = new THREE.Mesh(
+    new RoundedBoxGeometry(bodyW * 0.94, 0.18, bodyD * 1.04, 4, 0.06),
+    plasticBlack(),
+  );
+  deck.position.set(0, bodyH * 0.5 + headH + 0.06, 0);
+  lighterSpin.add(deck);
+
   const hood = buildChromeWindguard();
-  hood.position.set(0, topY, 0.02);
+  hood.scale.set(0.78, 0.88, 0.78);
+  hood.position.set(flameX, topY, flameZ);
   lighterSpin.add(hood);
 
-  /* Gas nozzle / jet inside the hood */
   const chimney = new THREE.Mesh(
     new THREE.CylinderGeometry(0.11, 0.13, 0.28, 28),
     steelMat(),
   );
-  chimney.position.set(0, topY - 0.28, 0.1);
+  chimney.position.set(flameX, topY - 0.18, flameZ);
   lighterSpin.add(chimney);
 
   const nozzleTip = new THREE.Mesh(
@@ -833,7 +879,7 @@ function buildLighter() {
       toneMapped: false,
     }),
   );
-  nozzleTip.position.set(0, topY - 0.1, 0.1);
+  nozzleTip.position.set(flameX, topY, flameZ);
   lighterSpin.add(nozzleTip);
 
   const hole = new THREE.Mesh(
@@ -841,35 +887,31 @@ function buildLighter() {
     new THREE.MeshBasicMaterial({ color: 0x050505, toneMapped: false }),
   );
   hole.rotation.x = -Math.PI * 0.5;
-  hole.position.set(0, topY - 0.055, 0.1);
+  hole.position.set(flameX, topY + 0.06, flameZ);
   lighterSpin.add(hole);
 
-  /* Dark serrated striker wheel — next to the flame, on the hood */
-  const wheel = knurlWheel(0.34, 0.70);
-  wheel.position.set(-0.22, topY + 0.06, 0.58);
+  const wheel = knurlWheel(0.28, 0.58);
+  wheel.position.set(0.18, topY + 0.14, 0.06);
   lighterSpin.add(wheel);
   sparkWheel = wheel;
 
-  /* Red BIC thumb lever — on the black collar, next to the flame exit */
   lever = buildRedFork();
-  lever.scale.setScalar(1);
-  lever.rotation.y = 0.2;
-  lever.position.set(0.22, bodyH * 0.5 + headH * 0.55, 0.72);
+  lever.scale.setScalar(0.78);
+  lever.position.set(0.62, topY - 0.02, 0.04);
   lighterSpin.add(lever);
   lever.userData.restY = lever.position.y;
   lever.userData.restZ = lever.position.z;
 
-  /* Small metal flint housing peeking near wheel */
   const flint = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.07, 0.07, 0.22, 16),
+    new THREE.CylinderGeometry(0.07, 0.07, 0.20, 16),
     steelMat(),
   );
   flint.rotation.z = Math.PI / 2;
-  flint.position.set(0.22, topY - 0.15, -0.28);
+  flint.position.set(0.32, topY + 0.02, 0.0);
   lighterSpin.add(flint);
 
   flameAnchor = new THREE.Group();
-  flameAnchor.position.set(0, topY + 0.58, 0.05);
+  flameAnchor.position.set(flameX, topY + 0.48, flameZ);
   lighterSpin.add(flameAnchor);
 
   flameGroup = new THREE.Group();
@@ -915,19 +957,20 @@ function buildLighter() {
     });
   }
 
-  lighterPivot.rotation.z = -0.58;
-  lighterPivot.position.set(-0.15, 0.12, 0);
+  lighterPivot.rotation.z = -0.46;
+  lighterPivot.rotation.x = 0.28;
+  lighterPivot.position.set(-0.05, 0.06, 0);
 }
 
 function buildLetters() {
   brand.i = makeLetter3D('I');
-  brand.i.scale.setScalar(2.28);
-  brand.i.rotation.z = -0.07;
+  brand.i.scale.setScalar(1.32);
+  brand.i.rotation.z = -0.06;
   scene.add(brand.i);
 
   brand.s = makeLetter3D('S');
-  brand.s.scale.setScalar(2.18);
-  brand.s.rotation.z = 0.07;
+  brand.s.scale.setScalar(2.42);
+  brand.s.rotation.z = 0.08;
   scene.add(brand.s);
 
   brand.iScale = brand.i.scale.x;
@@ -961,13 +1004,15 @@ function containRoot() {
 
   const fitted = new THREE.Box3().setFromObject(root);
   const fc = fitted.getCenter(new THREE.Vector3());
-  const k = 3.05;
-  /* I in front, pulled left/up so the hood + fork stay visible */
-  brand.i.position.set(fc.x - k * 1.08, fc.y + k * 0.72, 14);
-  brand.s.position.set(fc.x + k * 0.96, fc.y - k * 0.92, 2.8);
+  const k = 2.85;
+  /* I. smaller, fully on canvas, slightly in front of the red body.
+     S. larger, lower-right so only the barrel covers a sliver — not the button. */
+  brand.i.position.set(fc.x - k * 1.12, fc.y - k * 0.02, 6.5);
+  brand.s.position.set(fc.x + k * 1.58, fc.y - k * 1.02, -1.2);
   brand.i.renderOrder = 8;
-  brand.s.renderOrder = 6;
-  brand.s.traverse((o) => { if (o.isMesh) o.renderOrder = 6; });
+  brand.s.renderOrder = 1;
+  brand.i.traverse((o) => { if (o.isMesh) { o.renderOrder = 8; o.material.depthTest = true; } });
+  brand.s.traverse((o) => { if (o.isMesh) o.renderOrder = 1; });
   fx.position.set(fc.x, fc.y, 0);
 
   flameGroup.scale.setScalar(1);
@@ -1021,10 +1066,10 @@ function applyFrame(fr) {
     trap(t, 0.52, 0.56, 0.60, 0.66),
   );
 
-  lighterSpin.rotation.y = 0.32 + Math.sin(ph) * 0.38;
-  lighterSpin.rotation.x = Math.sin(ph * 1.15) * 0.12;
-  lighterPivot.rotation.x = Math.sin(ph * 0.85) * 0.06;
-  lighterPivot.rotation.z = -0.58 + Math.sin(ph * 0.5) * 0.028;
+  lighterSpin.rotation.y = 0.18 + Math.sin(ph) * 0.22;
+  lighterSpin.rotation.x = Math.sin(ph * 1.15) * 0.06;
+  lighterPivot.rotation.x = 0.28 + Math.sin(ph * 0.85) * 0.04;
+  lighterPivot.rotation.z = -0.46 + Math.sin(ph * 0.5) * 0.022;
 
   sparkWheel.rotation.x = ignite * 16 + t * 1.4;
   const press = flameOn;
@@ -1071,13 +1116,36 @@ function applyFrame(fr) {
   flameAnchor.localToWorld(flameLight2.position);
   root.worldToLocal(flameLight2.position);
 
-  shineSweep.position.set(-6 + Math.cos(ph) * 3.4, 9, 16);
-  shineSweep.intensity = 2.4 + 1.1 * (0.5 + 0.5 * Math.sin(ph * 2.0));
-  key2.intensity = 1.7 + 0.35 * (0.5 + 0.5 * Math.sin(ph * 1.6));
-  key.intensity = 3.35 + 0.25 * Math.sin(ph * 1.4);
+  shineSweep.position.set(-8 + Math.sin(ph) * 9.5, 3 + Math.cos(ph) * 7.5, 15);
+  shineSweep.intensity = 4.2 + 1.4 * (0.5 + 0.5 * Math.sin(ph * 2.0));
+  key2.intensity = 1.85 + 0.25 * (0.5 + 0.5 * Math.sin(ph * 1.6));
+  key.intensity = 3.6 + 0.2 * Math.sin(ph * 1.4);
+  if (lighterSpin) {
+    const aim = new THREE.Vector3();
+    lighterSpin.getWorldPosition(aim);
+    bodySpot.target.position.copy(aim);
+    const travel = Math.sin(ph);
+    bodySpot.position.set(
+      aim.x - 8.5 + travel * 5.5,
+      aim.y + 1.5 + travel * 7.0,
+      aim.z + 14,
+    );
+    bodySpot.intensity = 26 + 8 * (0.5 + 0.5 * Math.sin(ph * 2.2));
+    bodySpot.angle = 0.14 + 0.04 * (0.5 + 0.5 * Math.sin(ph));
+  }
+  if (bodyShine) {
+    const u = Math.sin(ph);
+    /* Sweep across the camera-facing face of the red barrel. */
+    bodyShine.position.set(u * 0.55, 0.04, 0.58);
+    bodyShine.rotation.y = u * 0.18;
+    bodyShine.material.opacity = 0.85 + 0.15 * (0.5 + 0.5 * Math.sin(ph * 2));
+  }
+  if (scene.environmentRotation) {
+    scene.environmentRotation.y = ph * 0.55;
+  }
 
-  applyLetter(brand.i, brand.iRest, brand.iRotZ, brand.iScale, t, 0.0, 0.035, 0.02);
-  applyLetter(brand.s, brand.sRest, brand.sRotZ, brand.sScale, t, 1.1, 0.08, 0.04);
+  applyLetter(brand.i, brand.iRest, brand.iRotZ, brand.iScale, t, 0.0, 0.028, 0.018);
+  applyLetter(brand.s, brand.sRest, brand.sRotZ, brand.sScale, t, 1.1, 0.05, 0.03);
   applyDot(brand.iDot, brand.iDotRest, t, 0.7);
   applyDot(brand.sDot, brand.sDotRest, t, 2.3);
 
