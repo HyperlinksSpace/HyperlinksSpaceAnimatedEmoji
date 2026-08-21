@@ -1,32 +1,99 @@
 <!doctype html>
 <meta charset="utf-8" />
 <title>Lighter preview</title>
-  <style>
-  html, body { margin: 0; font: 14px/1.4 system-ui, sans-serif; }
-  body { display: grid; grid-template-columns: 1fr 1fr 1fr; min-height: 100vh; }
-  section { display: grid; place-items: center; gap: 12px; padding: 24px; }
+<style>
+  html, body { margin: 0; font: 14px/1.45 system-ui, sans-serif; }
+  body { min-height: 100vh; background: #0c1118; color: #e8eef4; }
+  h1 { font-size: 18px; margin: 0 0 8px; }
+  .note { color: #8fa0b2; font-size: 13px; margin: 0 0 18px; max-width: 720px; }
+  .note code { background: #1a2433; padding: 1px 6px; border-radius: 4px; font: 12px ui-monospace, Consolas, monospace; }
+  .wrap { padding: 22px 20px 40px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr 1fr; min-height: 42vh; }
+  section { display: grid; place-items: center; gap: 12px; padding: 22px 12px; }
   .dark { background: #0e1621; color: #dbe4ee; }
   .light { background: #ffffff; color: #1a1a1a; }
   .green { background: #1a8f3c; color: #f4fff4; }
-  video { background: transparent; }
+  video { background: transparent; display: block; }
   .emoji { width: 100px; height: 100px; image-rendering: pixelated; }
-  .sticker { width: 256px; height: 256px; }
+  .sticker { width: 220px; height: 220px; }
+  .avatars {
+    display: flex; flex-wrap: wrap; gap: 28px; justify-content: center;
+    padding: 28px 16px 36px; background: #141c27; border-top: 1px solid #2a384a;
+  }
+  .avatar-slot { display: grid; gap: 10px; justify-items: center; width: 240px; }
+  .avatar-slot h2 { margin: 0; font-size: 13px; font-weight: 650; }
+  .avatar-slot p { margin: 0; font-size: 11px; color: #8fa0b2; text-align: center; }
+  .circle {
+    width: 220px; height: 220px; border-radius: 50%; overflow: hidden;
+    box-shadow: 0 0 0 3px #2a384a, 0 12px 28px rgba(0,0,0,.35);
+    display: grid; place-items: center;
+  }
+  .circle video { width: 92%; height: 92%; }
+  .ideal {
+    background:
+      radial-gradient(120% 90% at 30% 18%, #1ad0e0 0%, transparent 42%),
+      linear-gradient(165deg, #042830 0%, #0a5f6b 46%, #0c8896 100%);
+  }
+  .bright-cyan { background: #0ee1f1; }
+  .settings {
+    font: 12px/1.5 ui-monospace, Consolas, monospace;
+    background: #0c1118; color: #cfe8ee; padding: 10px 12px; border-radius: 8px;
+    text-align: left; width: 100%;
+  }
 </style>
-<section class="dark">
-  <div>Black / Telegram dark</div>
-  <video class="emoji" src="hyperlinks-space-emoji-lighter.webm?v=9" autoplay loop muted playsinline></video>
-  <div>sticker 512×512</div>
-  <video class="sticker" src="hyperlinks-space-sticker-lighter.webm?v=9" autoplay loop muted playsinline></video>
-</section>
-<section class="light">
-  <div>White</div>
-  <video class="emoji" src="hyperlinks-space-emoji-lighter.webm?v=9" autoplay loop muted playsinline></video>
-  <div>sticker 512×512</div>
-  <video class="sticker" src="hyperlinks-space-sticker-lighter.webm?v=9" autoplay loop muted playsinline></video>
-</section>
-<section class="green">
-  <div>Green</div>
-  <video class="emoji" src="hyperlinks-space-emoji-lighter.webm?v=9" autoplay loop muted playsinline></video>
-  <div>sticker 512×512</div>
-  <video class="sticker" src="hyperlinks-space-sticker-lighter.webm?v=9" autoplay loop muted playsinline></video>
-</section>
+<div class="wrap">
+  <h1>Lighter — chat + avatar undercover</h1>
+  <p class="note">
+    Telegram avatars and Android profile emoji are cropped to a <strong>circle</strong>
+    (square canvas, corners cut). Chat emoji on Android 12+ also round the square
+    (~8–10% inset). Keep the lighter a bit inside that circle.
+    Hard-reload this page after recapture.
+  </p>
+</div>
+<div class="row">
+  <section class="dark">
+    <div>Black / Telegram dark</div>
+    <video class="emoji" src="hyperlinks-space-emoji-lighter.webm?v=14" autoplay loop muted playsinline></video>
+    <div>sticker 512×512</div>
+    <video class="sticker" src="hyperlinks-space-sticker-lighter.webm?v=14" autoplay loop muted playsinline></video>
+  </section>
+  <section class="light">
+    <div>White</div>
+    <video class="emoji" src="hyperlinks-space-emoji-lighter.webm?v=14" autoplay loop muted playsinline></video>
+    <div>sticker 512×512</div>
+    <video class="sticker" src="hyperlinks-space-sticker-lighter.webm?v=14" autoplay loop muted playsinline></video>
+  </section>
+  <section class="green">
+    <div>Green</div>
+    <video class="emoji" src="hyperlinks-space-emoji-lighter.webm?v=14" autoplay loop muted playsinline></video>
+    <div>sticker 512×512</div>
+    <video class="sticker" src="hyperlinks-space-sticker-lighter.webm?v=14" autoplay loop muted playsinline></video>
+  </section>
+</div>
+<div class="avatars">
+  <div class="avatar-slot">
+    <h2>Recommended undercover</h2>
+    <div class="circle ideal">
+      <video src="hyperlinks-space-sticker-lighter.webm?v=14" autoplay loop muted playsinline></video>
+    </div>
+    <div class="settings">
+      Telegram → Change colors<br>
+      Hex <strong>#0a5f6b</strong><br>
+      H 188° &nbsp; S 84% &nbsp; L 24%<br>
+      RGB 10, 95, 107<br>
+      Same hue as #0ee1f1, much darker so red + chrome pop.
+    </div>
+  </div>
+  <div class="avatar-slot">
+    <h2>Your current pick (too bright)</h2>
+    <div class="circle bright-cyan">
+      <video src="hyperlinks-space-sticker-lighter.webm?v=14" autoplay loop muted playsinline></video>
+    </div>
+    <div class="settings">
+      Hex #0ee1f1<br>
+      H 184° &nbsp; S 89% &nbsp; L 50%<br>
+      RGB 14, 225, 241<br>
+      Washes the silver letters. Use only as a highlight stop, not the fill.
+    </div>
+  </div>
+</div>

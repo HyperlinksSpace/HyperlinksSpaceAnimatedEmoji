@@ -52,31 +52,32 @@ function makeStudioEnvTex() {
   c.height = 512;
   const g = c.getContext('2d');
   const ambient = g.createLinearGradient(0, 0, 0, 512);
-  ambient.addColorStop(0.00, '#a8b0ba');
-  ambient.addColorStop(0.40, '#6e7682');
-  ambient.addColorStop(1.00, '#5a6270');
+  ambient.addColorStop(0.00, '#f4f7fb');
+  ambient.addColorStop(0.22, '#c5ced8');
+  ambient.addColorStop(0.55, '#6a7380');
+  ambient.addColorStop(1.00, '#2a323c');
   g.fillStyle = ambient;
   g.fillRect(0, 0, 1024, 512);
-  const win = g.createLinearGradient(168, 0, 236, 0);
-  win.addColorStop(0.00, 'rgba(110,118,130,0)');
-  win.addColorStop(0.18, '#ffffff');
+  const win = g.createLinearGradient(150, 0, 250, 0);
+  win.addColorStop(0.00, 'rgba(42,50,60,0)');
+  win.addColorStop(0.12, '#ffffff');
   win.addColorStop(0.50, '#ffffff');
-  win.addColorStop(0.82, '#ffffff');
-  win.addColorStop(1.00, 'rgba(110,118,130,0)');
+  win.addColorStop(0.88, '#ffffff');
+  win.addColorStop(1.00, 'rgba(42,50,60,0)');
   g.fillStyle = win;
-  g.fillRect(168, 0, 68, 512);
+  g.fillRect(150, 0, 100, 512);
   g.fillStyle = '#ffffff';
-  g.fillRect(192, 0, 16, 512);
-  const win2 = g.createLinearGradient(320, 0, 348, 0);
-  win2.addColorStop(0.00, 'rgba(110,118,130,0)');
-  win2.addColorStop(0.4, '#f4f7fb');
-  win2.addColorStop(0.6, '#f4f7fb');
-  win2.addColorStop(1.00, 'rgba(110,118,130,0)');
+  g.fillRect(184, 0, 22, 512);
+  const win2 = g.createLinearGradient(310, 0, 360, 0);
+  win2.addColorStop(0.00, 'rgba(42,50,60,0)');
+  win2.addColorStop(0.28, '#ffffff');
+  win2.addColorStop(0.72, '#ffffff');
+  win2.addColorStop(1.00, 'rgba(42,50,60,0)');
   g.fillStyle = win2;
-  g.fillRect(320, 20, 28, 470);
-  g.fillStyle = '#8a929c';
-  g.fillRect(690, 40, 64, 400);
-  g.fillStyle = '#7a828c';
+  g.fillRect(310, 8, 50, 496);
+  g.fillStyle = '#d8dee6';
+  g.fillRect(680, 30, 72, 420);
+  g.fillStyle = '#4a5460';
   g.fillRect(0, 430, 1024, 82);
   const tex = new THREE.CanvasTexture(c);
   tex.mapping = THREE.EquirectangularReflectionMapping;
@@ -88,7 +89,7 @@ function makeStudioEnvTex() {
   return tex;
 }
 scene.environment = pmrem.fromEquirectangular(makeStudioEnvTex()).texture;
-scene.environmentIntensity = 2.55;
+scene.environmentIntensity = 2.85;
 
 const camera = new THREE.PerspectiveCamera(28, 1, 0.05, 200);
 camera.position.set(0, 0, 42);
@@ -155,19 +156,19 @@ const bolts = [];
 const centerFlames = [];
 
 function plasticRed() {
-  /* Reference candy red — lacquer with a hard vertical glance */
+  /* Candy lacquer — saturated, high clearcoat, photo vertical glance */
   return new THREE.MeshPhysicalMaterial({
-    color: 0xff1c14,
-    roughness: 0.008,
-    metalness: 0.0,
+    color: 0xff140c,
+    roughness: 0.006,
+    metalness: 0.04,
     clearcoat: 1,
-    clearcoatRoughness: 0.008,
-    ior: 1.55,
+    clearcoatRoughness: 0.006,
+    ior: 1.58,
     specularIntensity: 1,
     specularColor: new THREE.Color(0xffffff),
-    envMapIntensity: 3.55,
-    emissive: 0xff1208,
-    emissiveIntensity: 0.36,
+    envMapIntensity: 4.1,
+    emissive: 0xff1a08,
+    emissiveIntensity: 0.48,
     toneMapped: false,
   });
 }
@@ -197,34 +198,34 @@ function steelMat() {
   });
 }
 
-/** Polished liquid chrome — bright light metal, readable on dark and green. */
+/** Polished liquid chrome — hyperreal light metal. */
 function liquidChromeMat(light = false) {
   return new THREE.MeshPhysicalMaterial({
-    color: light ? 0xf7fafd : 0xf2f5fa,
+    color: light ? 0xffffff : 0xf4f7fb,
     metalness: 1.0,
-    roughness: light ? 0.038 : 0.042,
+    roughness: light ? 0.022 : 0.028,
     clearcoat: 1.0,
-    clearcoatRoughness: 0.018,
+    clearcoatRoughness: 0.01,
     reflectivity: 1,
     ior: 1.5,
-    envMapIntensity: light ? 2.85 : 2.7,
+    envMapIntensity: light ? 3.35 : 3.2,
     specularIntensity: 1,
     specularColor: new THREE.Color(0xffffff),
     toneMapped: false,
   });
 }
 
-/** Polished chrome windguard — hard vertical glance */
+/** Polished chrome windguard */
 function chromeMat() {
   return new THREE.MeshPhysicalMaterial({
-    color: 0xf6f9fd,
+    color: 0xffffff,
     metalness: 1.0,
-    roughness: 0.045,
+    roughness: 0.028,
     clearcoat: 1.0,
-    clearcoatRoughness: 0.02,
+    clearcoatRoughness: 0.012,
     reflectivity: 1,
     ior: 1.5,
-    envMapIntensity: 3.05,
+    envMapIntensity: 3.4,
     specularIntensity: 1,
     specularColor: new THREE.Color(0xffffff),
     toneMapped: false,
@@ -526,7 +527,7 @@ function timesIShape() {
   const stem = 0.40;
   const serifW = 0.90;
   const serifH = 0.26;
-  const h = 1.38;
+  const h = 1.52;
   const br = 0.16;
   s.moveTo(-serifW, -h);
   s.lineTo(serifW, -h);
@@ -613,7 +614,7 @@ function channelChromeGeo(geo, kind, centerline) {
   geo.computeVertexNormals();
   const pos = geo.attributes.position;
   const nrm = geo.attributes.normal;
-  const amp = kind === 'dot' ? 0.04 : 0.038;
+  const amp = kind === 'dot' ? 0.022 : 0.016;
   for (let i = 0; i < pos.count; i++) {
     const nz = nrm.getZ(i);
     if (Math.abs(nz) < 0.5) continue;
@@ -651,14 +652,14 @@ function extrudeOpts(depth) {
     bevelEnabled: true,
     bevelThickness: 0.12,
     bevelSize: 0.095,
-    bevelSegments: 8,
-    curveSegments: 64,
+    bevelSegments: 12,
+    curveSegments: 96,
     steps: 1,
   };
 }
 
 function dentedChromeSphere(radius, seed) {
-  const geo = new THREE.SphereGeometry(radius, 32, 24);
+  const geo = new THREE.SphereGeometry(radius, 48, 36);
   const pos = geo.attributes.position;
   const rnd = seeded(seed);
   for (let i = 0; i < pos.count; i++) {
@@ -825,7 +826,7 @@ function buildLighter() {
   const shineTex = new THREE.CanvasTexture(shineC);
   shineTex.colorSpace = THREE.SRGBColorSpace;
   bodyShine = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.58, bodyH * 0.94),
+    new THREE.PlaneGeometry(0.72, bodyH * 0.96),
     new THREE.MeshBasicMaterial({
       map: shineTex,
       transparent: true,
@@ -918,7 +919,7 @@ function buildLighter() {
   flameAnchor.add(flameGroup);
 
   /* Teardrop rooted at the nozzle; origin is the flame base */
-  const flameH = 5.15;
+  const flameH = 4.15;
   const flameGeo = new THREE.PlaneGeometry(2.45, flameH);
   flameGeo.translate(0, flameH * 0.5, 0);
   const sprite = new THREE.Mesh(
@@ -959,17 +960,17 @@ function buildLighter() {
 
   lighterPivot.rotation.z = -0.46;
   lighterPivot.rotation.x = 0.28;
-  lighterPivot.position.set(-0.05, 0.06, 0);
+  lighterPivot.position.set(0.22, -0.04, 0);
 }
 
 function buildLetters() {
   brand.i = makeLetter3D('I');
-  brand.i.scale.setScalar(1.32);
+  brand.i.scale.setScalar(2.42);
   brand.i.rotation.z = -0.06;
   scene.add(brand.i);
 
   brand.s = makeLetter3D('S');
-  brand.s.scale.setScalar(2.42);
+  brand.s.scale.setScalar(2.22);
   brand.s.rotation.z = 0.08;
   scene.add(brand.s);
 
@@ -994,7 +995,7 @@ function containRoot() {
   const box = new THREE.Box3().setFromObject(root);
   const size = box.getSize(new THREE.Vector3());
   const span = Math.max(size.x, size.y, 1e-6);
-  root.scale.setScalar((viewSpan * 0.88) / span);
+  root.scale.setScalar((viewSpan * 0.70) / span);
   root.updateMatrixWorld(true);
   const box2 = new THREE.Box3().setFromObject(root);
   const c = box2.getCenter(new THREE.Vector3());
@@ -1004,11 +1005,10 @@ function containRoot() {
 
   const fitted = new THREE.Box3().setFromObject(root);
   const fc = fitted.getCenter(new THREE.Vector3());
-  const k = 2.85;
-  /* I. smaller, fully on canvas, slightly in front of the red body.
-     S. larger, lower-right so only the barrel covers a sliver — not the button. */
-  brand.i.position.set(fc.x - k * 1.12, fc.y - k * 0.02, 6.5);
-  brand.s.position.set(fc.x + k * 1.58, fc.y - k * 1.02, -1.2);
+  const k = 2.22;
+  /* Tight sandwich inside the avatar circle: I. over the barrel, S. under the red body. */
+  brand.i.position.set(fc.x - k * 0.46, fc.y + k * 0.04, 6.5);
+  brand.s.position.set(fc.x + k * 0.34, fc.y - k * 0.56, -1.2);
   brand.i.renderOrder = 8;
   brand.s.renderOrder = 1;
   brand.i.traverse((o) => { if (o.isMesh) { o.renderOrder = 8; o.material.depthTest = true; } });
@@ -1066,7 +1066,7 @@ function applyFrame(fr) {
     trap(t, 0.52, 0.56, 0.60, 0.66),
   );
 
-  lighterSpin.rotation.y = 0.18 + Math.sin(ph) * 0.22;
+  lighterSpin.rotation.y = 0.12 + Math.sin(ph) * 0.10;
   lighterSpin.rotation.x = Math.sin(ph * 1.15) * 0.06;
   lighterPivot.rotation.x = 0.28 + Math.sin(ph * 0.85) * 0.04;
   lighterPivot.rotation.z = -0.46 + Math.sin(ph * 0.5) * 0.022;
@@ -1141,7 +1141,7 @@ function applyFrame(fr) {
     bodyShine.material.opacity = 0.85 + 0.15 * (0.5 + 0.5 * Math.sin(ph * 2));
   }
   if (scene.environmentRotation) {
-    scene.environmentRotation.y = ph * 0.55;
+    scene.environmentRotation.y = ph * 0.16;
   }
 
   applyLetter(brand.i, brand.iRest, brand.iRotZ, brand.iScale, t, 0.0, 0.028, 0.018);
