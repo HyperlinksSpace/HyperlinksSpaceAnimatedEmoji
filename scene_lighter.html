@@ -94,6 +94,99 @@ function makeStudioEnvTex() {
 scene.environment = pmrem.fromEquirectangular(makeStudioEnvTex()).texture;
 scene.environmentIntensity = 1.45;
 
+function makeStableChromeEnvTex() {
+  /* Same studio as I, windows shifted to +Z so a camera-facing S always
+     reads as chrome instead of waiting for the spinning white bar. */
+  const c = document.createElement('canvas');
+  c.width = 1024;
+  c.height = 512;
+  const g = c.getContext('2d');
+  const ambient = g.createLinearGradient(0, 0, 0, 512);
+  ambient.addColorStop(0.00, '#d8dee6');
+  ambient.addColorStop(0.22, '#8a929c');
+  ambient.addColorStop(0.55, '#4a525c');
+  ambient.addColorStop(1.00, '#1c2228');
+  g.fillStyle = ambient;
+  g.fillRect(0, 0, 1024, 512);
+  const win = g.createLinearGradient(450, 0, 574, 0);
+  win.addColorStop(0.00, 'rgba(42,50,60,0)');
+  win.addColorStop(0.12, '#e8eef4');
+  win.addColorStop(0.38, '#ffffff');
+  win.addColorStop(0.62, '#ffffff');
+  win.addColorStop(0.88, '#e8eef4');
+  win.addColorStop(1.00, 'rgba(42,50,60,0)');
+  g.fillStyle = win;
+  g.fillRect(468, 0, 88, 512);
+  g.fillStyle = '#ffffff';
+  g.fillRect(504, 0, 10, 512);
+  const win2 = g.createLinearGradient(660, 0, 680, 0);
+  win2.addColorStop(0.00, 'rgba(42,50,60,0)');
+  win2.addColorStop(0.35, '#ffffff');
+  win2.addColorStop(0.65, '#ffffff');
+  win2.addColorStop(1.00, 'rgba(42,50,60,0)');
+  g.fillStyle = win2;
+  g.fillRect(660, 8, 20, 496);
+  g.fillStyle = '#ffffff';
+  g.fillRect(668, 16, 5, 480);
+  g.fillStyle = '#d8dee6';
+  g.fillRect(780, 30, 72, 420);
+  g.fillStyle = '#4a5460';
+  g.fillRect(0, 430, 1024, 82);
+  const tex = new THREE.CanvasTexture(c);
+  tex.mapping = THREE.EquirectangularReflectionMapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.generateMipmaps = false;
+  tex.needsUpdate = true;
+  return tex;
+}
+const sChromeEnv = pmrem.fromEquirectangular(makeStableChromeEnvTex()).texture;
+
+function makeChromeMatcapTex() {
+  const s = 256;
+  const c = document.createElement('canvas');
+  c.width = s;
+  c.height = s;
+  const g = c.getContext('2d');
+  const body = g.createRadialGradient(s * 0.42, s * 0.36, s * 0.02, s * 0.5, s * 0.52, s * 0.52);
+  body.addColorStop(0.00, '#ffffff');
+  body.addColorStop(0.08, '#f6f8fb');
+  body.addColorStop(0.18, '#d0d8e0');
+  body.addColorStop(0.38, '#8a949e');
+  body.addColorStop(0.62, '#3e464e');
+  body.addColorStop(0.84, '#161a1e');
+  body.addColorStop(1.00, '#050608');
+  g.fillStyle = body;
+  g.fillRect(0, 0, s, s);
+  const hl = g.createRadialGradient(s * 0.32, s * 0.26, 0, s * 0.32, s * 0.26, s * 0.34);
+  hl.addColorStop(0.00, '#ffffff');
+  hl.addColorStop(0.22, '#ffffff');
+  hl.addColorStop(0.48, 'rgba(236,242,248,0.75)');
+  hl.addColorStop(1.00, 'rgba(0,0,0,0)');
+  g.fillStyle = hl;
+  g.fillRect(0, 0, s, s);
+  const streak = g.createLinearGradient(s * 0.22, 0, s * 0.40, s * 0.9);
+  streak.addColorStop(0.00, 'rgba(255,255,255,0)');
+  streak.addColorStop(0.32, 'rgba(255,255,255,0.85)');
+  streak.addColorStop(0.40, 'rgba(255,255,255,0)');
+  g.fillStyle = streak;
+  g.fillRect(0, 0, s, s);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.needsUpdate = true;
+  return tex;
+}
+const sChromeMatcap = makeChromeMatcapTex();
+
+function sChromeMat() {
+  return new THREE.MeshMatcapMaterial({
+    matcap: sChromeMatcap,
+    color: 0xffffff,
+    toneMapped: false,
+  });
+}
+
 const camera = new THREE.PerspectiveCamera(28, 1, 0.05, 200);
 camera.position.set(0, 0, 42);
 
@@ -119,6 +212,10 @@ scene.add(rim);
 const camFill = new THREE.DirectionalLight(0xffffff, 0.85);
 camFill.position.set(-2, 3, 28);
 scene.add(camFill);
+const sKey = new THREE.DirectionalLight(0xffffff, 2.6);
+sKey.position.set(-6, 8, 24);
+sKey.layers.set(1);
+scene.add(sKey);
 
 function makeGlanceSpot() {
   const spot = new THREE.SpotLight(0xffffff, 22, 60, 0.055, 0.02);
@@ -209,7 +306,7 @@ function attachGlance(letter, ch) {
   const body = letter.children[0];
   const shape = ch === 'I' ? timesIShape() : timesSShape();
   const geo = new THREE.ShapeGeometry(shape, 72);
-  const mesh = new THREE.Mesh(geo, glanceMat(ch === 'S' ? 0.42 : 1));
+  const mesh = new THREE.Mesh(geo, glanceMat(1));
   mesh.position.set(body.position.x, body.position.y, 0.50);
   mesh.renderOrder = 4;
   letter.add(mesh);
@@ -766,12 +863,7 @@ function attachEdgeShadow(mesh, xy = 1.065, z = 1.03) {
 function makeLetter3D(ch) {
   const g = new THREE.Group();
   const isI = ch === 'I';
-  const chrome = liquidChromeMat(false);
-  if (!isI) {
-    chrome.color.setHex(0xb4bec8);
-    chrome.roughness = 0.08;
-    chrome.envMapIntensity = 1.05;
-  }
+  const chrome = isI ? liquidChromeMat(false) : sChromeMat();
   const bodyShapes = [isI ? timesIShape() : timesSShape()];
   const sLine = isI ? null : sCenterlinePts();
 
@@ -791,6 +883,7 @@ function makeLetter3D(ch) {
   const sphereR = isI ? 0.44 : 0.42;
   const indent = isI ? 0.22 : 0.26;
   const dot = dentedChromeSphere(sphereR, isI ? 4103 : 7721);
+  if (!isI) dot.material = sChromeMat();
   /* Gap (indent) from the glyph; bottom of the sphere sits on the text baseline. */
   const letterRight = bb.max.x - c.x;
   const letterBottom = bb.min.y - c.y;
@@ -799,10 +892,10 @@ function makeLetter3D(ch) {
   g.userData.dot = dot;
   attachEdgeShadow(body, 1.07, 1.04);
   attachEdgeShadow(dot, 1.045, 1.03);
-  const fill = new THREE.PointLight(0xffffff, isI ? 2.4 : 0.7, 10, 1.1);
+  const fill = new THREE.PointLight(0xffffff, 2.4, 10, 1.1);
   fill.position.set(0.35, 0.7, 4.2);
   g.add(fill);
-  const dotFill = new THREE.PointLight(0xffffff, isI ? 2.4 : 0.7, 8, 1.15);
+  const dotFill = new THREE.PointLight(0xffffff, 2.4, 8, 1.15);
   dotFill.position.set(dot.position.x + 0.25, dot.position.y + 0.4, 2.4);
   g.add(dotFill);
   return g;
@@ -1082,6 +1175,7 @@ function buildLetters() {
   brand.s.scale.setScalar(1);
   brand.s.rotation.z = THREE.MathUtils.degToRad(-30);
   sGlance = attachGlance(brand.s, 'S');
+  brand.s.traverse((o) => { o.layers.enable(1); });
   stage.add(brand.s);
 
   brand.iScale0 = brand.i.scale.x;
@@ -1230,6 +1324,18 @@ function setLetterWorldXY(letter, x, y) {
   letter.parent.worldToLocal(w);
   letter.position.x = w.x;
   letter.position.y = w.y;
+}
+
+function dropLetterToFloor(letter, floorY) {
+  letter.updateMatrixWorld(true);
+  const b = new THREE.Box3().setFromObject(letter);
+  const dy = b.min.y - floorY;
+  if (dy <= 0) return;
+  const w = new THREE.Vector3();
+  letter.getWorldPosition(w);
+  w.y -= dy;
+  letter.parent.worldToLocal(w);
+  letter.position.copy(w);
 }
 
 function growAtWorldPos(letter, wx, wy, safe) {
@@ -1423,6 +1529,8 @@ function containRoot() {
   keepScreenAtZ(brand.s, -1.4);
   while (!letterFitsSafe(brand.i, safe) && brand.i.scale.x > 0.3) brand.i.scale.multiplyScalar(0.97);
   while (!letterFitsSafe(brand.s, safe) && brand.s.scale.x > 0.3) brand.s.scale.multiplyScalar(0.97);
+  /* Sit S almost on the canvas floor (period is the lowest point). */
+  dropLetterToFloor(brand.s, -safe.half + 0.12);
 
   brand.iScale = brand.i.scale.x;
   brand.sScale = brand.s.scale.x;
@@ -1543,8 +1651,8 @@ function applyFrame(fr) {
     spot.intensity = 22 + 8 * (0.5 + 0.5 * Math.sin(ph * 2 + tOff));
   }
   sweepGlance(iSpot, brand.i, 0.0, 7.5);
-  sweepGlance(sSpot, brand.s, 2.094, 7.5);
-  sSpot.intensity *= 0.45;
+  sweepGlance(sSpot, brand.s, 2.094, 1.8);
+  sSpot.intensity = 22;
   sweepGlance(bodySpot, lighterSpin, 4.189, 8.0);
   bodySpot.intensity = 32 + 10 * (0.5 + 0.5 * Math.sin(ph * 2));
 
@@ -1553,8 +1661,8 @@ function applyFrame(fr) {
     iGlance.material.uniforms.uGain.value = 0.92 + 0.08 * (0.5 + 0.5 * Math.sin(ph * 2));
   }
   if (sGlance?.material.uniforms) {
-    sGlance.material.uniforms.uShift.value = Math.sin(ph + 2.094) * 0.38;
-    sGlance.material.uniforms.uGain.value = 0.42 + 0.06 * (0.5 + 0.5 * Math.sin(ph * 2 + 2.094));
+    sGlance.material.uniforms.uShift.value = Math.sin(ph + 2.094) * 0.12;
+    sGlance.material.uniforms.uGain.value = 0.88;
   }
   if (bodyShine) {
     const u = Math.sin(ph + 4.189);
