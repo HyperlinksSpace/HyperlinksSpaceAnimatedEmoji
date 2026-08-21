@@ -1,5 +1,5 @@
-Sign-only variant: green **N** centered and enlarged, no HYPERLINKS.SPACE text.
-Same firebomb FX / shatter / organism motion as the main volumetric scene.
+Sign-only: clean **green-tone 3D N** — shine, then tear/explosion. No side décor clutter.
+Deep/mid/lime greens only (readable on light, dark, and Telegram green). Hard green rim, no cream/shadow sludge.
 
 ```bash
 HL_FRAMES=90 node capture_signonly.mjs

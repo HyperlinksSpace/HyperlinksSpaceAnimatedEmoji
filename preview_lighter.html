@@ -1,0 +1,32 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>Lighter preview</title>
+  <style>
+  html, body { margin: 0; font: 14px/1.4 system-ui, sans-serif; }
+  body { display: grid; grid-template-columns: 1fr 1fr 1fr; min-height: 100vh; }
+  section { display: grid; place-items: center; gap: 12px; padding: 24px; }
+  .dark { background: #0e1621; color: #dbe4ee; }
+  .light { background: #ffffff; color: #1a1a1a; }
+  .green { background: #1a8f3c; color: #f4fff4; }
+  video { background: transparent; }
+  .emoji { width: 100px; height: 100px; image-rendering: pixelated; }
+  .sticker { width: 256px; height: 256px; }
+</style>
+<section class="dark">
+  <div>Black / Telegram dark</div>
+  <video class="emoji" src="hyperlinks-space-emoji-lighter.webm?v=2" autoplay loop muted playsinline></video>
+  <div>sticker 512×512</div>
+  <video class="sticker" src="hyperlinks-space-sticker-lighter.webm?v=2" autoplay loop muted playsinline></video>
+</section>
+<section class="light">
+  <div>White</div>
+  <video class="emoji" src="hyperlinks-space-emoji-lighter.webm?v=2" autoplay loop muted playsinline></video>
+  <div>sticker 512×512</div>
+  <video class="sticker" src="hyperlinks-space-sticker-lighter.webm?v=2" autoplay loop muted playsinline></video>
+</section>
+<section class="green">
+  <div>Green</div>
+  <video class="emoji" src="hyperlinks-space-emoji-lighter.webm?v=2" autoplay loop muted playsinline></video>
+  <div>sticker 512×512</div>
+  <video class="sticker" src="hyperlinks-space-sticker-lighter.webm?v=2" autoplay loop muted playsinline></video>
+</section>

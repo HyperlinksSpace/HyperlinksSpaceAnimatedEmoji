@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hyperlinks.SPACE — WebM preview</title>
+  <style>
+    :root {
+      --ink: #e8eef4;
+      --muted: #8fa0b2;
+      --panel: #121a24;
+      --line: #243041;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      font: 14px/1.45 "Segoe UI", system-ui, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(900px 420px at 10% -10%, #1a3348 0%, transparent 55%),
+        #0b1017;
+      padding: 28px 20px 48px;
+    }
+    h1 { margin: 0 0 6px; font-size: 22px; font-weight: 650; letter-spacing: -0.02em; }
+    .sub { color: var(--muted); margin-bottom: 28px; }
+    .sub code {
+      font: 12px/1.3 ui-monospace, Consolas, monospace;
+      background: #182231;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .variant {
+      margin-bottom: 36px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      overflow: hidden;
+      background: var(--panel);
+    }
+    .variant > header {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 16px;
+      align-items: baseline;
+      justify-content: space-between;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--line);
+    }
+    .variant h2 { margin: 0; font-size: 15px; font-weight: 650; }
+    .variant .files { color: var(--muted); font-size: 12px; }
+    .bgs {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0;
+    }
+    @media (max-width: 900px) {
+      .bgs { grid-template-columns: 1fr; }
+    }
+    .bg {
+      display: grid;
+      justify-items: center;
+      gap: 14px;
+      padding: 22px 16px 26px;
+      min-height: 280px;
+    }
+    .bg.dark { background: #0e1621; }
+    .bg.light { background: #f2f0ea; color: #1c1c1c; }
+    .bg.green { background: #3f9a5a; color: #06240f; }
+    .bg label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      opacity: 0.75;
+    }
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 28px;
+      align-items: end;
+      justify-content: center;
+    }
+    .slot { display: grid; gap: 8px; justify-items: center; }
+    .slot span { font-size: 11px; opacity: 0.7; }
+    video {
+      display: block;
+      background: transparent;
+      image-rendering: auto;
+    }
+    .emoji { width: 100px; height: 100px; }
+    .sticker { width: 220px; height: 220px; }
+    .missing {
+      width: 220px;
+      height: 100px;
+      display: grid;
+      place-items: center;
+      border: 1px dashed currentColor;
+      opacity: 0.45;
+      font-size: 12px;
+      border-radius: 8px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Hyperlinks.SPACE WebM preview</h1>
+  <p class="sub">
+    Open this file via a local server so WebMs load:
+    <code>npm run preview</code>
+    then visit <code>http://localhost:5173/preview.html</code>
+  </p>
+
+  <section class="variant" data-emoji="hyperlinks-space-emoji.webm" data-sticker="hyperlinks-space-sticker.webm">
+    <header>
+      <h2>Main</h2>
+      <div class="files">emoji · sticker</div>
+    </header>
+    <div class="bgs"></div>
+  </section>
+
+  <section class="variant" data-emoji="hyperlinks-space-emoji-sign.webm" data-sticker="hyperlinks-space-sticker-sign.webm">
+    <header>
+      <h2>Sign-only</h2>
+      <div class="files">emoji-sign · sticker-sign</div>
+    </header>
+    <div class="bgs"></div>
+  </section>
+
+  <section class="variant" data-emoji="hyperlinks-space-emoji-lighter.webm" data-sticker="hyperlinks-space-sticker-lighter.webm">
+    <header>
+      <h2>Lighter</h2>
+      <div class="files">emoji-lighter · sticker-lighter</div>
+    </header>
+    <div class="bgs"></div>
+  </section>
+
+  <section class="variant" data-emoji="hyperlinks-space-emoji-firebomb.webm" data-sticker="hyperlinks-space-sticker-firebomb.webm">
+    <header>
+      <h2>Firebomb</h2>
+      <div class="files">emoji-firebomb · sticker-firebomb</div>
+    </header>
+    <div class="bgs"></div>
+  </section>
+
+  <section class="variant" data-emoji="hyperlinks-space-emoji-shatter.webm" data-sticker="hyperlinks-space-sticker-shatter.webm">
+    <header>
+      <h2>Shatter</h2>
+      <div class="files">emoji-shatter · sticker-shatter</div>
+    </header>
+    <div class="bgs"></div>
+  </section>
+
+  <section class="variant" data-emoji="hyperlinks-space-emoji-layered.webm" data-sticker="hyperlinks-space-sticker-layered.webm">
+    <header>
+      <h2>Layered</h2>
+      <div class="files">emoji-layered · sticker-layered</div>
+    </header>
+    <div class="bgs"></div>
+  </section>
+
+  <script>
+    const BGS = [
+      ['dark', 'Telegram dark'],
+      ['light', 'Light chat'],
+      ['green', 'Green chat'],
+    ];
+
+    function slot(src, cls, caption) {
+      if (!src) {
+        return `<div class="slot"><div class="missing">missing</div><span>${caption}</span></div>`;
+      }
+      return `
+        <div class="slot">
+          <video class="${cls}" src="${src}?v=${Date.now()}" autoplay loop muted playsinline></video>
+          <span>${caption}</span>
+        </div>`;
+    }
+
+    for (const section of document.querySelectorAll('.variant')) {
+      const emoji = section.dataset.emoji;
+      const sticker = section.dataset.sticker;
+      const host = section.querySelector('.bgs');
+      host.innerHTML = BGS.map(([cls, title]) => `
+        <div class="bg ${cls}">
+          <label>${title}</label>
+          <div class="row">
+            ${slot(emoji, 'emoji', '100×100')}
+            ${slot(sticker, 'sticker', '512×512')}
+          </div>
+        </div>`).join('');
+    }
+  </script>
+</body>
+</html>
