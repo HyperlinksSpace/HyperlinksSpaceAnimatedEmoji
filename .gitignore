@@ -7,6 +7,7 @@ Thumbs.db
 # Capture / encode intermediates
 render_frames/
 render_frames_sign/
+render_frames_lighter/
 ffmpeg2pass-0.log
 *.log
 bash.exe.stackdump

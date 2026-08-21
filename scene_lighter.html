@@ -898,6 +898,7 @@ function buildLighter() {
   const bodyD = 1.14;
   const bodyR = 0.54;
   const body = bicShell(bodyW, bodyH, bodyD, plasticRed(), bodyR);
+  body.userData.part = 'body';
   lighterSpin.add(body);
 
   /* Hard vertical glance along the lacquer body (photo streak). */
@@ -946,6 +947,7 @@ function buildLighter() {
   const headH = 1.05;
   const head = bicShell(bodyW * 1.01, headH, bodyD * 1.02, plasticBlack(), bodyR + 0.02);
   head.position.y = bodyH * 0.5 + headH * 0.48;
+  head.userData.part = 'hood';
   lighterSpin.add(head);
 
   const topY = bodyH * 0.5 + headH + 0.38;
@@ -958,11 +960,13 @@ function buildLighter() {
     plasticBlack(),
   );
   deck.position.set(0, bodyH * 0.5 + headH + 0.06, 0);
+  deck.userData.part = 'hood';
   lighterSpin.add(deck);
 
   const hood = buildChromeWindguard();
   hood.scale.set(0.78, 0.88, 0.78);
   hood.position.set(flameX, topY, flameZ);
+  hood.userData.part = 'hood';
   lighterSpin.add(hood);
 
   const chimney = new THREE.Mesh(
@@ -1067,13 +1071,13 @@ function buildLighter() {
 function buildLetters() {
   brand.i = makeLetter3D('I');
   brand.i.scale.setScalar(1);
-  brand.i.rotation.z = THREE.MathUtils.degToRad(45);
+  brand.i.rotation.z = THREE.MathUtils.degToRad(-30);
   iGlance = attachGlance(brand.i, 'I');
   stage.add(brand.i);
 
   brand.s = makeLetter3D('S');
   brand.s.scale.setScalar(1);
-  brand.s.rotation.z = THREE.MathUtils.degToRad(35);
+  brand.s.rotation.z = THREE.MathUtils.degToRad(-30);
   sGlance = attachGlance(brand.s, 'S');
   stage.add(brand.s);
 
@@ -1239,6 +1243,103 @@ function growAtWorldPos(letter, wx, wy, safe) {
   setLetterWorldXY(letter, wx, wy);
 }
 
+function letterArea(letter) {
+  letter.updateMatrixWorld(true);
+  const s = new THREE.Box3().setFromObject(letter).getSize(new THREE.Vector3());
+  return s.x * s.y + 1e-6;
+}
+
+function nudgeToBody(letter, tx, ty, bodyBox, hoodBox, minBody, maxHood, safe) {
+  const step = 0.14;
+  for (let i = 0; i < 70; i++) {
+    letter.updateMatrixWorld(true);
+    const b = new THREE.Box3().setFromObject(letter);
+    const area = letterArea(letter);
+    const bodyHit = xyOverlapArea(b, bodyBox) / area;
+    const hoodHit = hoodBox ? xyOverlapArea(b, hoodBox) / area : 0;
+    if (bodyHit >= minBody && hoodHit <= maxHood) break;
+    let dx = 0;
+    let dy = 0;
+    if (hoodHit > maxHood) {
+      dx = -tx;
+      dy = -ty;
+    } else if (bodyHit < minBody) {
+      dx = tx;
+      dy = ty;
+    } else break;
+    letter.position.x += dx * step;
+    letter.position.y += dy * step;
+    if (!letterFitsSafe(letter, safe)) {
+      letter.position.x -= dx * step;
+      letter.position.y -= dy * step;
+      if (letter.scale.x > 1.4) letter.scale.multiplyScalar(0.97);
+      else break;
+    }
+  }
+}
+
+function packLeaningLetter(letter, deg, wx, wy, tx, ty, bodyBox, hoodBox, minBody, maxHood, safe) {
+  letter.rotation.z = THREE.MathUtils.degToRad(-deg);
+  growAtWorldPos(letter, wx, wy, safe);
+  nudgeToBody(letter, tx, ty, bodyBox, hoodBox, minBody, maxHood, safe);
+  return letter.scale.x;
+}
+
+function partWorldBox(part) {
+  const box = new THREE.Box3();
+  lighterSpin.updateMatrixWorld(true);
+  lighterSpin.traverse((node) => {
+    if (!node.isMesh || !node.geometry) return;
+    let p = node;
+    let ok = false;
+    while (p && p !== lighterSpin.parent) {
+      if (p.userData && p.userData.part === part) { ok = true; break; }
+      p = p.parent;
+    }
+    if (!ok) return;
+    if (!node.geometry.boundingBox) node.geometry.computeBoundingBox();
+    box.union(node.geometry.boundingBox.clone().applyMatrix4(node.matrixWorld));
+  });
+  return box;
+}
+
+function xyOverlapArea(a, b) {
+  const ox = Math.min(a.max.x, b.max.x) - Math.max(a.min.x, b.min.x);
+  const oy = Math.min(a.max.y, b.max.y) - Math.max(a.min.y, b.min.y);
+  if (ox <= 0 || oy <= 0) return 0;
+  return ox * oy;
+}
+
+function packLetterAngle(letter, degClockwise, lx, ly, lighterX, lighterY, lighterZ, safe) {
+  /* Design-tool +deg is clockwise = top to the right = negative Three.js Z. */
+  letter.rotation.z = THREE.MathUtils.degToRad(-degClockwise);
+  letter.scale.setScalar(1);
+  growLetterToSafe(letter, lx, ly, lighterX, lighterY, lighterZ, safe);
+  return letterFitsSafe(letter, safe) ? letter.scale.x : 0;
+}
+
+function bestLetterAngle(letter, degrees, lx, ly, lighterX, lighterY, lighterZ, safe, reject) {
+  let bestDeg = degrees[0];
+  let bestScale = 0;
+  let bestPos = letter.position.clone();
+  for (const deg of degrees) {
+    const sc = packLetterAngle(letter, deg, lx, ly, lighterX, lighterY, lighterZ, safe);
+    if (reject && reject(letter)) continue;
+    if (sc > bestScale) {
+      bestScale = sc;
+      bestDeg = deg;
+      bestPos = letter.position.clone();
+    }
+  }
+  packLetterAngle(letter, bestDeg, lx, ly, lighterX, lighterY, lighterZ, safe);
+  if (bestScale > 0) {
+    letter.scale.setScalar(bestScale);
+    letter.position.copy(bestPos);
+    letter.rotation.z = THREE.MathUtils.degToRad(-bestDeg);
+  }
+  return bestDeg;
+}
+
 function overlapFrac(letter, lighterBox) {
   letter.updateMatrixWorld(true);
   const b = new THREE.Box3().setFromObject(letter);
@@ -1298,23 +1399,22 @@ function containRoot() {
 
   const safe = worldSafeRect();
   const h = safe.half;
+  const bodyBox = partWorldBox('body');
+  const hoodBox = partWorldBox('hood');
 
-  /* 2. I. fills the top-left; top leans left. Then kiss the barrel. */
+  /* 2. I. +30° clockwise — top to the right. Fill the left pocket; period + stem may kiss the red. */
   brand.i.visible = true;
-  brand.i.rotation.z = THREE.MathUtils.degToRad(45);
-  growAtWorldPos(brand.i, -h * 0.32, h * 0.30, safe);
+  packLeaningLetter(brand.i, 30, -h * 0.32, h * 0.30, 1, -1, bodyBox, null, 0.13, 1, safe);
+  const iChosen = 30;
 
-  /* 3. S. fills the bottom-right; top leans left. Then the lighter bites the top curve. */
+  /* 3. S. +30° clockwise — top to the right. Fill the lower-right pocket; red body may
+     bite the top curve, black hood must not. */
   brand.s.visible = true;
-  brand.s.rotation.z = THREE.MathUtils.degToRad(35);
-  growAtWorldPos(brand.s, h * 0.34, -h * 0.32, safe);
+  packLeaningLetter(brand.s, 30, h * 0.30, -h * 0.28, -1, 1, bodyBox, hoodBox, 0.15, 0.008, safe);
+  const sChosen = 30;
 
   brand.i.traverse((o) => { if (o.isMesh) o.material.depthTest = true; });
   brand.s.traverse((o) => { if (o.isMesh) o.material.depthTest = true; });
-
-  const lighterBox = boxFromVisibleMeshes(root, flameGroup);
-  nudgeLetter(brand.i, -1, 1, lighterBox, 0.18, safe);
-  nudgeLetter(brand.s, 1, -1, lighterBox, 0.20, safe);
 
   keepScreenAtZ(brand.i, 6.5);
   keepScreenAtZ(brand.s, -1.4);
@@ -1325,6 +1425,7 @@ function containRoot() {
   brand.sScale = brand.s.scale.x;
   brand.iRotZ = brand.i.rotation.z;
   brand.sRotZ = brand.s.rotation.z;
+  console.log('letter angles I', iChosen, 'S', sChosen, 'scale', brand.iScale.toFixed(2), brand.sScale.toFixed(2));
 
   fx.position.set(0, 0, 0);
   flameGroup.scale.setScalar(1);
