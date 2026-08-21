@@ -33,6 +33,7 @@ const renderer = new THREE.WebGLRenderer({
   alpha: true,
   preserveDrawingBuffer: true,
   powerPreference: 'high-performance',
+  stencil: true,
 });
 renderer.setSize(W, H, false);
 renderer.setPixelRatio(2);
@@ -52,10 +53,10 @@ function makeStudioEnvTex() {
   c.height = 512;
   const g = c.getContext('2d');
   const ambient = g.createLinearGradient(0, 0, 0, 512);
-  ambient.addColorStop(0.00, '#f4f7fb');
-  ambient.addColorStop(0.22, '#c5ced8');
-  ambient.addColorStop(0.55, '#6a7380');
-  ambient.addColorStop(1.00, '#2a323c');
+  ambient.addColorStop(0.00, '#d8dee6');
+  ambient.addColorStop(0.22, '#8a929c');
+  ambient.addColorStop(0.55, '#4a525c');
+  ambient.addColorStop(1.00, '#1c2228');
   g.fillStyle = ambient;
   g.fillRect(0, 0, 1024, 512);
   const win = g.createLinearGradient(150, 0, 250, 0);
@@ -91,7 +92,7 @@ function makeStudioEnvTex() {
   return tex;
 }
 scene.environment = pmrem.fromEquirectangular(makeStudioEnvTex()).texture;
-scene.environmentIntensity = 1.85;
+scene.environmentIntensity = 1.45;
 
 const camera = new THREE.PerspectiveCamera(28, 1, 0.05, 200);
 camera.position.set(0, 0, 42);
@@ -120,7 +121,7 @@ camFill.position.set(-2, 3, 28);
 scene.add(camFill);
 
 function makeGlanceSpot() {
-  const spot = new THREE.SpotLight(0xffffff, 42, 60, 0.055, 0.02);
+  const spot = new THREE.SpotLight(0xffffff, 22, 60, 0.055, 0.02);
   scene.add(spot);
   scene.add(spot.target);
   return spot;
@@ -128,7 +129,7 @@ function makeGlanceSpot() {
 const iSpot = makeGlanceSpot();
 const sSpot = makeGlanceSpot();
 const bodySpot = makeGlanceSpot();
-bodySpot.intensity = 55;
+bodySpot.intensity = 32;
 bodySpot.angle = 0.048;
 
 const flameLight = new THREE.PointLight(0xff7018, 0, 22, 1.7);
@@ -167,65 +168,69 @@ scene.add(fx);
 const bolts = [];
 const centerFlames = [];
 
-function makeGlanceStripe(width, height) {
-  /* Thin almost-white line, with a slightly wider halo so it survives 30×30. */
-  const c = document.createElement('canvas');
-  c.width = 64;
-  c.height = 256;
-  const g = c.getContext('2d');
-  const gx = g.createLinearGradient(0, 0, 64, 0);
-  gx.addColorStop(0.00, 'rgba(255,255,255,0)');
-  gx.addColorStop(0.40, 'rgba(255,255,255,0)');
-  gx.addColorStop(0.46, 'rgba(255,255,255,0.45)');
-  gx.addColorStop(0.49, 'rgba(255,255,255,1)');
-  gx.addColorStop(0.51, 'rgba(255,255,255,1)');
-  gx.addColorStop(0.54, 'rgba(255,255,255,0.45)');
-  gx.addColorStop(0.60, 'rgba(255,255,255,0)');
-  gx.addColorStop(1.00, 'rgba(255,255,255,0)');
-  g.fillStyle = gx;
-  g.fillRect(0, 0, 64, 256);
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.minFilter = THREE.LinearFilter;
-  tex.magFilter = THREE.LinearFilter;
-  const mesh = new THREE.Mesh(
-    new THREE.PlaneGeometry(width, height),
-    new THREE.MeshBasicMaterial({
-      map: tex,
-      transparent: true,
-      opacity: 1,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      depthTest: true,
-      toneMapped: false,
-    }),
-  );
-  mesh.renderOrder = 4;
-  return mesh;
+function glanceMat(width = 1) {
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      uShift: { value: 0 },
+      uGain: { value: 1 },
+      uWidth: { value: width },
+    },
+    vertexShader: `
+      varying float vX;
+      void main() {
+        vX = position.x;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform float uShift;
+      uniform float uGain;
+      uniform float uWidth;
+      varying float vX;
+      void main() {
+        float d = abs(vX - uShift) / max(uWidth, 0.001);
+        float core = 1.0 - smoothstep(0.032, 0.072, d);
+        float halo = 1.0 - smoothstep(0.072, 0.15, d);
+        float a = max(core, halo * 0.4) * uGain;
+        if (a < 0.03) discard;
+        gl_FragColor = vec4(1.0, 1.0, 1.0, a);
+      }
+    `,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthTest: true,
+    depthWrite: false,
+    toneMapped: false,
+    side: THREE.FrontSide,
+  });
 }
 
-function attachGlance(letter, width, height) {
-  const stripe = makeGlanceStripe(width, height);
-  stripe.position.set(0, 0.04, 0.50);
-  letter.add(stripe);
-  letter.userData.glance = stripe;
-  return stripe;
+function attachGlance(letter, ch) {
+  const body = letter.children[0];
+  const shape = ch === 'I' ? timesIShape() : timesSShape();
+  const geo = new THREE.ShapeGeometry(shape, 72);
+  const mesh = new THREE.Mesh(geo, glanceMat(ch === 'S' ? 2.4 : 1));
+  mesh.position.set(body.position.x, body.position.y, 0.50);
+  mesh.renderOrder = 4;
+  letter.add(mesh);
+  letter.userData.glance = mesh;
+  return mesh;
 }
 
 function plasticRed() {
   /* Candy lacquer — saturated, high clearcoat, photo vertical glance */
   return new THREE.MeshPhysicalMaterial({
-    color: 0xff140c,
-    roughness: 0.006,
+    color: 0xe80e08,
+    roughness: 0.01,
     metalness: 0.04,
     clearcoat: 1,
-    clearcoatRoughness: 0.006,
+    clearcoatRoughness: 0.01,
     ior: 1.58,
     specularIntensity: 1,
     specularColor: new THREE.Color(0xffffff),
-    envMapIntensity: 4.1,
+    envMapIntensity: 2.6,
     emissive: 0xff1a08,
-    emissiveIntensity: 0.16,
+    emissiveIntensity: 0.22,
     toneMapped: false,
   });
 }
@@ -258,14 +263,16 @@ function steelMat() {
 /** Polished liquid chrome — hyperreal light metal. */
 function liquidChromeMat(light = false) {
   return new THREE.MeshPhysicalMaterial({
-    color: light ? 0xffffff : 0xf4f7fb,
-    metalness: 1.0,
-    roughness: light ? 0.014 : 0.018,
+    color: light ? 0xffffff : 0xeef2f6,
+    metalness: light ? 0.58 : 1.0,
+    roughness: light ? 0.09 : 0.042,
     clearcoat: 1.0,
-    clearcoatRoughness: 0.006,
+    clearcoatRoughness: light ? 0.06 : 0.04,
     reflectivity: 1,
     ior: 1.5,
-    envMapIntensity: light ? 3.35 : 3.2,
+    envMapIntensity: light ? 2.05 : 1.7,
+    emissive: light ? 0xe2e8ee : 0x000000,
+    emissiveIntensity: light ? 0.36 : 0,
     specularIntensity: 1,
     specularColor: new THREE.Color(0xffffff),
     toneMapped: false,
@@ -275,14 +282,14 @@ function liquidChromeMat(light = false) {
 /** Polished chrome windguard */
 function chromeMat() {
   return new THREE.MeshPhysicalMaterial({
-    color: 0xffffff,
+    color: 0x9aa3ad,
     metalness: 1.0,
-    roughness: 0.028,
+    roughness: 0.045,
     clearcoat: 1.0,
-    clearcoatRoughness: 0.012,
+    clearcoatRoughness: 0.03,
     reflectivity: 1,
     ior: 1.5,
-    envMapIntensity: 3.4,
+    envMapIntensity: 2.0,
     specularIntensity: 1,
     specularColor: new THREE.Color(0xffffff),
     toneMapped: false,
@@ -724,28 +731,51 @@ function dentedChromeSphere(radius, seed) {
     const y = pos.getY(i);
     const z = pos.getZ(i);
     const n = Math.hypot(x, y, z) || 1;
-    const dent = 0.055 * Math.sin(x * 8.2 + y * 6.4)
-      + 0.04 * Math.sin(y * 9.5 + z * 7.1)
-      + 0.028 * Math.sin(z * 11.0 + x * 5.5)
-      + (rnd() - 0.5) * 0.025;
+    /* Light ripple only — heavy dents read as dark cavities. */
+    const dent = 0.016 * Math.sin(x * 8.2 + y * 6.4)
+      + 0.012 * Math.sin(y * 9.5 + z * 7.1)
+      + 0.008 * Math.sin(z * 11.0 + x * 5.5)
+      + (rnd() - 0.5) * 0.008;
     const s = (1 + dent) * radius / n;
     pos.setXYZ(i, x * s, y * s, z * s);
   }
   geo.computeVertexNormals();
-  return new THREE.Mesh(geo, liquidChromeMat(false));
+  return new THREE.Mesh(geo, liquidChromeMat(true));
+}
+
+function attachEdgeShadow(mesh, xy = 1.065, z = 1.03) {
+  const shell = new THREE.Mesh(
+    mesh.geometry,
+    new THREE.MeshBasicMaterial({
+      color: 0x101214,
+      side: THREE.BackSide,
+      toneMapped: false,
+    }),
+  );
+  shell.position.copy(mesh.position);
+  shell.rotation.copy(mesh.rotation);
+  shell.scale.copy(mesh.scale);
+  shell.scale.x *= xy;
+  shell.scale.y *= xy;
+  shell.scale.z *= z;
+  shell.renderOrder = -1;
+  mesh.parent.add(shell);
+  return shell;
 }
 
 function makeLetter3D(ch) {
   const g = new THREE.Group();
   const isI = ch === 'I';
-  const chrome = liquidChromeMat(false);
+  /* S sits farther back — use the brighter chrome so it matches the I. */
+  const chrome = liquidChromeMat(!isI);
   const bodyShapes = [isI ? timesIShape() : timesSShape()];
   const sLine = isI ? null : sCenterlinePts();
 
   const depth = 0.92;
   const geo = new THREE.ExtrudeGeometry(bodyShapes, extrudeOpts(depth));
   geo.translate(0, 0, -depth * 0.5);
-  channelChromeGeo(geo, isI ? 'I' : 'S', sLine);
+  /* Channel valleys on S read as dark grey; keep them on the I slab only. */
+  if (isI) channelChromeGeo(geo, 'I', sLine);
   const body = new THREE.Mesh(geo, chrome);
   g.add(body);
 
@@ -755,13 +785,23 @@ function makeLetter3D(ch) {
   body.position.x -= c.x;
   body.position.y -= c.y;
 
-  const sphereR = isI ? 0.22 : 0.21;
+  const sphereR = isI ? 0.44 : 0.42;
   const indent = isI ? 0.22 : 0.26;
   const dot = dentedChromeSphere(sphereR, isI ? 4103 : 7721);
-  /* Same baseline as the letter, gap to the right. */
-  dot.position.set(bb.max.x - c.x + indent + sphereR, bb.min.y - c.y + sphereR, 0);
+  /* Gap (indent) from the glyph; bottom of the sphere sits on the text baseline. */
+  const letterRight = bb.max.x - c.x;
+  const letterBottom = bb.min.y - c.y;
+  dot.position.set(letterRight + indent + sphereR, letterBottom + sphereR, 0);
   g.add(dot);
   g.userData.dot = dot;
+  attachEdgeShadow(body, 1.07, 1.04);
+  attachEdgeShadow(dot, 1.045, 1.03);
+  const fill = new THREE.PointLight(0xffffff, isI ? 2.4 : 16, isI ? 10 : 22, 1.1);
+  fill.position.set(0.35, 0.7, 4.2);
+  g.add(fill);
+  const dotFill = new THREE.PointLight(0xffffff, 16, 10, 1.15);
+  dotFill.position.set(dot.position.x + 0.25, dot.position.y + 0.4, 2.4);
+  g.add(dotFill);
   return g;
 }
 
@@ -853,7 +893,7 @@ function buildLighter() {
   root.add(lighterPivot);
 
   /* Classic BIC body: rounded-rect red shell */
-  const bodyW = 2.38;
+  const bodyW = 2.22;
   const bodyH = 7.55;
   const bodyD = 1.14;
   const bodyR = 0.54;
@@ -1019,23 +1059,22 @@ function buildLighter() {
     });
   }
 
-  lighterPivot.rotation.z = -0.46;
-  lighterPivot.rotation.x = 0.28;
+  lighterPivot.rotation.z = -0.72;
+  lighterPivot.rotation.x = 0.10;
   lighterPivot.position.set(0, 0, 0);
 }
 
 function buildLetters() {
   brand.i = makeLetter3D('I');
-  /* Draft: I. is the large top-left mark. S. is the smaller bottom-right mark. */
-  brand.i.scale.setScalar(2.08);
-  brand.i.rotation.z = -0.04;
-  iGlance = attachGlance(brand.i, 0.72, 2.85);
+  brand.i.scale.setScalar(1);
+  brand.i.rotation.z = THREE.MathUtils.degToRad(45);
+  iGlance = attachGlance(brand.i, 'I');
   stage.add(brand.i);
 
   brand.s = makeLetter3D('S');
-  brand.s.scale.setScalar(1.16);
-  brand.s.rotation.z = 0.06;
-  sGlance = attachGlance(brand.s, 0.78, 2.55);
+  brand.s.scale.setScalar(1);
+  brand.s.rotation.z = THREE.MathUtils.degToRad(35);
+  sGlance = attachGlance(brand.s, 'S');
   stage.add(brand.s);
 
   brand.iScale0 = brand.i.scale.x;
@@ -1082,47 +1121,210 @@ function keepScreenAtZ(obj, zWorld) {
   obj.scale.multiplyScalar(k);
 }
 
+function expandFlameTip(box) {
+  const spinY = lighterSpin.rotation.y;
+  const spinX = lighterSpin.rotation.x;
+  const pivX = lighterPivot.rotation.x;
+  const pivZ = lighterPivot.rotation.z;
+  const fs = flameGroup.scale.clone();
+  /* Cover flick scale + lighter yaw/pitch so the flame never leaves the square. */
+  flameGroup.scale.set(1.14, 1.12, 1.14);
+  const poses = [
+    [0.02, -0.05, 0.07],
+    [0.12, 0.00, 0.10],
+    [0.22, 0.05, 0.13],
+  ];
+  for (const [y, sx, px] of poses) {
+    lighterSpin.rotation.y = y;
+    lighterSpin.rotation.x = sx;
+    lighterPivot.rotation.x = px;
+    stage.updateMatrixWorld(true);
+    for (const xy of [[0, 4.15], [-0.55, 3.95], [0.6, 4.1]]) {
+      const p = new THREE.Vector3(xy[0], xy[1], 0);
+      flameAnchor.localToWorld(p);
+      box.expandByPoint(p);
+    }
+  }
+  lighterSpin.rotation.y = spinY;
+  lighterSpin.rotation.x = spinX;
+  lighterPivot.rotation.x = pivX;
+  lighterPivot.rotation.z = pivZ;
+  flameGroup.scale.copy(fs);
+  stage.updateMatrixWorld(true);
+}
+
+function boxFromVisibleMeshes(rootObj, skip) {
+  const box = new THREE.Box3();
+  rootObj.updateMatrixWorld(true);
+  rootObj.traverse((node) => {
+    if (!node.isMesh || !node.geometry) return;
+    let p = node;
+    while (p) {
+      if (p === skip || p.visible === false) return;
+      if (p === rootObj) break;
+      p = p.parent;
+    }
+    if (!node.geometry.boundingBox) node.geometry.computeBoundingBox();
+    const b = node.geometry.boundingBox.clone().applyMatrix4(node.matrixWorld);
+    box.union(b);
+  });
+  return box;
+}
+
+function placeLetterContact(letter, lx, ly, lighterX, lighterY, lighterZ) {
+  const z = letter.position.z;
+  letter.position.set(0, 0, z);
+  stage.updateMatrixWorld(true);
+  letter.updateMatrixWorld(true);
+  const from = new THREE.Vector3(lx, ly, 0);
+  letter.localToWorld(from);
+  stage.worldToLocal(from);
+  const to = spinToStage(lighterX, lighterY, lighterZ);
+  letter.position.set(to.x - from.x, to.y - from.y, z);
+}
+
+function worldSafeRect() {
+  const half = Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) * camera.position.z;
+  const inset = half * 2 * 0.08;
+  return { minX: -half + inset, maxX: half - inset, minY: -half + inset, maxY: half - inset, half };
+}
+
+function localGlyphBox(letter) {
+  const pos = letter.position.clone();
+  const scl = letter.scale.clone();
+  const rot = letter.rotation.clone();
+  letter.position.set(0, 0, 0);
+  letter.scale.setScalar(1);
+  letter.rotation.set(0, 0, 0);
+  letter.updateMatrixWorld(true);
+  const b = new THREE.Box3().setFromObject(letter);
+  letter.position.copy(pos);
+  letter.scale.copy(scl);
+  letter.rotation.copy(rot);
+  letter.updateMatrixWorld(true);
+  return b;
+}
+
+function letterFitsSafe(letter, safe) {
+  letter.updateMatrixWorld(true);
+  const b = new THREE.Box3().setFromObject(letter);
+  return (
+    b.min.x >= safe.minX && b.max.x <= safe.maxX
+    && b.min.y >= safe.minY && b.max.y <= safe.maxY
+  );
+}
+
+function setLetterWorldXY(letter, x, y) {
+  letter.updateMatrixWorld(true);
+  const w = new THREE.Vector3();
+  letter.getWorldPosition(w);
+  w.x = x;
+  w.y = y;
+  letter.parent.worldToLocal(w);
+  letter.position.x = w.x;
+  letter.position.y = w.y;
+}
+
+function growAtWorldPos(letter, wx, wy, safe) {
+  let lo = 0.5;
+  let hi = 9;
+  for (let n = 0; n < 20; n++) {
+    const mid = (lo + hi) * 0.5;
+    letter.scale.setScalar(mid);
+    setLetterWorldXY(letter, wx, wy);
+    if (letterFitsSafe(letter, safe)) lo = mid;
+    else hi = mid;
+  }
+  letter.scale.setScalar(lo);
+  setLetterWorldXY(letter, wx, wy);
+}
+
+function overlapFrac(letter, lighterBox) {
+  letter.updateMatrixWorld(true);
+  const b = new THREE.Box3().setFromObject(letter);
+  const ox = Math.min(b.max.x, lighterBox.max.x) - Math.max(b.min.x, lighterBox.min.x);
+  const oy = Math.min(b.max.y, lighterBox.max.y) - Math.max(b.min.y, lighterBox.min.y);
+  if (ox <= 0 || oy <= 0) return 0;
+  const ls = b.getSize(new THREE.Vector3());
+  return (ox * oy) / (ls.x * ls.y + 1e-6);
+}
+
+function nudgeLetter(letter, dirX, dirY, lighterBox, maxFrac, safe) {
+  if (lighterBox.isEmpty()) return;
+  const step = 0.16;
+  for (let i = 0; i < 80; i++) {
+    const frac = overlapFrac(letter, lighterBox);
+    if (frac > 0.06 && frac <= maxFrac) break;
+    const s = frac > maxFrac ? 1 : -1;
+    letter.position.x += dirX * step * s;
+    letter.position.y += dirY * step * s;
+    if (!letterFitsSafe(letter, safe)) {
+      letter.position.x -= dirX * step * s;
+      letter.position.y -= dirY * step * s;
+      if (letter.scale.x > 1.35) letter.scale.multiplyScalar(0.97);
+      else break;
+    }
+  }
+  while (!letterFitsSafe(letter, safe) && letter.scale.x > 0.3) {
+    letter.scale.multiplyScalar(0.96);
+  }
+}
+
 function containRoot() {
   stage.scale.setScalar(1);
   stage.position.set(0, 0, 0);
   root.scale.setScalar(1);
   root.position.set(0, 0, 0);
-  brand.i.scale.setScalar(brand.iScale0);
-  brand.s.scale.setScalar(brand.sScale0);
+  brand.i.visible = false;
+  brand.s.visible = false;
   flameGroup.visible = false;
   flameGroup.scale.setScalar(1);
 
-  const iS = objectSize(brand.i);
-  const sS = objectSize(brand.s);
-
-  /* Draft XY on the z=0 plane: I. top-left overlapping the barrel, lighter
-     on the diagonal, S. smaller at bottom-right tucked under the red body. */
-  const iAt = spinToStage(-0.55, 1.20, 0.35);
-  brand.i.position.set(iAt.x - iS.x * 0.18, iAt.y + iS.y * 0.30, 0);
-  const sAt = spinToStage(1.55, -2.20, 0);
-  brand.s.position.set(sAt.x + sS.x * 0.42, sAt.y - sS.y * 0.02, 0);
-
-  brand.i.traverse((o) => { if (o.isMesh) o.material.depthTest = true; });
-  brand.s.traverse((o) => { if (o.isMesh) o.material.depthTest = true; });
-
+  /* 1. Fit the lighter + flame to the diagonal. Ignore the letters. */
   stage.updateMatrixWorld(true);
   const viewSpan = 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) * camera.position.z;
-  const box = new THREE.Box3().setFromObject(stage);
-  const size = box.getSize(new THREE.Vector3());
-  const span = Math.max(size.x, size.y, 1e-6);
-  stage.scale.setScalar((viewSpan * 0.80) / span);
+  const box = boxFromVisibleMeshes(root, flameGroup);
+  expandFlameTip(box);
+  const spanSize = box.getSize(new THREE.Vector3());
+  const span = Math.max(spanSize.x, spanSize.y, 1e-6);
+  stage.scale.setScalar((viewSpan * 0.90) / span);
   stage.updateMatrixWorld(true);
-  const box2 = new THREE.Box3().setFromObject(stage);
+  const box2 = boxFromVisibleMeshes(root, flameGroup);
+  expandFlameTip(box2);
   const c = box2.getCenter(new THREE.Vector3());
   stage.position.x -= c.x;
   stage.position.y -= c.y;
   stage.updateMatrixWorld(true);
 
-  /* Split on Z so chrome and lacquer no longer share a surface. Scale holds the draft. */
-  keepScreenAtZ(brand.i, 10.5);
-  keepScreenAtZ(brand.s, -14);
+  const safe = worldSafeRect();
+  const h = safe.half;
+
+  /* 2. I. fills the top-left; top leans left. Then kiss the barrel. */
+  brand.i.visible = true;
+  brand.i.rotation.z = THREE.MathUtils.degToRad(45);
+  growAtWorldPos(brand.i, -h * 0.32, h * 0.30, safe);
+
+  /* 3. S. fills the bottom-right; top leans left. Then the lighter bites the top curve. */
+  brand.s.visible = true;
+  brand.s.rotation.z = THREE.MathUtils.degToRad(35);
+  growAtWorldPos(brand.s, h * 0.34, -h * 0.32, safe);
+
+  brand.i.traverse((o) => { if (o.isMesh) o.material.depthTest = true; });
+  brand.s.traverse((o) => { if (o.isMesh) o.material.depthTest = true; });
+
+  const lighterBox = boxFromVisibleMeshes(root, flameGroup);
+  nudgeLetter(brand.i, -1, 1, lighterBox, 0.18, safe);
+  nudgeLetter(brand.s, 1, -1, lighterBox, 0.20, safe);
+
+  keepScreenAtZ(brand.i, 6.5);
+  keepScreenAtZ(brand.s, -1.4);
+  while (!letterFitsSafe(brand.i, safe) && brand.i.scale.x > 0.3) brand.i.scale.multiplyScalar(0.97);
+  while (!letterFitsSafe(brand.s, safe) && brand.s.scale.x > 0.3) brand.s.scale.multiplyScalar(0.97);
+
   brand.iScale = brand.i.scale.x;
   brand.sScale = brand.s.scale.x;
+  brand.iRotZ = brand.i.rotation.z;
+  brand.sRotZ = brand.s.rotation.z;
 
   fx.position.set(0, 0, 0);
   flameGroup.scale.setScalar(1);
@@ -1179,8 +1381,8 @@ function applyFrame(fr) {
 
   lighterSpin.rotation.y = 0.12 + Math.sin(ph) * 0.10;
   lighterSpin.rotation.x = Math.sin(ph * 2) * 0.05;
-  lighterPivot.rotation.x = 0.28 + Math.sin(ph) * 0.04;
-  lighterPivot.rotation.z = -0.46 + Math.sin(ph) * 0.02;
+  lighterPivot.rotation.x = 0.10 + Math.sin(ph) * 0.03;
+  lighterPivot.rotation.z = -0.72 + Math.sin(ph) * 0.02;
 
   sparkWheel.rotation.x = ignite * 16 + ph * 2;
   const press = flameOn;
@@ -1234,20 +1436,21 @@ function applyFrame(fr) {
     spot.target.position.copy(aim);
     const u = Math.sin(ph + tOff);
     spot.position.set(aim.x - 6.5 + u * xAmp, aim.y + 2.2 + Math.cos(ph + tOff) * 3.5, aim.z + 16);
-    spot.intensity = 38 + 14 * (0.5 + 0.5 * Math.sin(ph * 2 + tOff));
+    spot.intensity = 22 + 8 * (0.5 + 0.5 * Math.sin(ph * 2 + tOff));
   }
   sweepGlance(iSpot, brand.i, 0.0, 7.5);
   sweepGlance(sSpot, brand.s, 2.094, 7.0);
+  sSpot.intensity *= 1.55;
   sweepGlance(bodySpot, lighterSpin, 4.189, 8.0);
-  bodySpot.intensity = 58 + 16 * (0.5 + 0.5 * Math.sin(ph * 2));
+  bodySpot.intensity = 32 + 10 * (0.5 + 0.5 * Math.sin(ph * 2));
 
-  if (iGlance) {
-    iGlance.position.x = Math.sin(ph) * 0.38;
-    iGlance.material.opacity = 0.92 + 0.08 * (0.5 + 0.5 * Math.sin(ph * 2));
+  if (iGlance?.material.uniforms) {
+    iGlance.material.uniforms.uShift.value = Math.sin(ph) * 0.38;
+    iGlance.material.uniforms.uGain.value = 0.92 + 0.08 * (0.5 + 0.5 * Math.sin(ph * 2));
   }
-  if (sGlance) {
-    sGlance.position.x = Math.sin(ph + 2.094) * 0.42;
-    sGlance.material.opacity = 0.92 + 0.08 * (0.5 + 0.5 * Math.sin(ph * 2 + 1.2));
+  if (sGlance?.material.uniforms) {
+    sGlance.material.uniforms.uShift.value = Math.sin(ph + 2.094) * 0.36;
+    sGlance.material.uniforms.uGain.value = 1.45 + 0.12 * (0.5 + 0.5 * Math.sin(ph * 2 + 1.2));
   }
   if (bodyShine) {
     const u = Math.sin(ph + 4.189);
@@ -1260,14 +1463,15 @@ function applyFrame(fr) {
   }
 
   applyLetter(brand.i, brand.iRest, brand.iRotZ, brand.iScale, t, 0.0, 0.018, 0.012);
-  applyLetter(brand.s, brand.sRest, brand.sRotZ, brand.sScale, t, 2.094, 0.028, 0.018);
+  applyLetter(brand.s, brand.sRest, brand.sRotZ, brand.sScale, t, 2.094, 0.018, 0.012);
   applyDot(brand.iDot, brand.iDotRest, t, 0.7);
   applyDot(brand.sDot, brand.sDotRest, t, 2.3);
 
   const base = stage.userData.basePos || { x: 0, y: 0 };
   stage.position.x = base.x + Math.sin(ph) * 0.02;
   stage.position.y = base.y + Math.cos(ph) * 0.016;
-  stage.scale.setScalar((stage.userData.baseScale || 1) * (1 + Math.sin(ph * 2) * 0.004));
+  const bs = stage.userData.baseScale || 1;
+  stage.scale.setScalar(bs * (1 + Math.sin(ph * 2) * 0.004));
 
   camera.lookAt(0, 0, 0);
   renderer.clear(true, true, true);
