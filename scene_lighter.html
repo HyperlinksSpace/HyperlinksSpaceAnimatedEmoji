@@ -179,10 +179,60 @@ function makeChromeMatcapTex() {
 }
 const sChromeMatcap = makeChromeMatcapTex();
 
-function sChromeMat() {
-  return new THREE.MeshMatcapMaterial({
-    matcap: sChromeMatcap,
-    color: 0xffffff,
+const sGlanceU = {
+  uShift: { value: 0 },
+  uGain: { value: 0.92 },
+};
+
+function sChromeMat(withGlance = false) {
+  if (!withGlance) {
+    return new THREE.MeshMatcapMaterial({
+      matcap: sChromeMatcap,
+      color: 0xffffff,
+      toneMapped: false,
+    });
+  }
+  /* Same matcap, plus I's moderate traveling chrome window on the 3D form. */
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      matcap: { value: sChromeMatcap },
+      uShift: sGlanceU.uShift,
+      uGain: sGlanceU.uGain,
+    },
+    vertexShader: `
+      varying vec3 vViewPosition;
+      varying vec3 vNormal;
+      varying float vX;
+      void main() {
+        vX = position.x;
+        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+        vViewPosition = -mvPosition.xyz;
+        vNormal = normalize(normalMatrix * normal);
+        gl_Position = projectionMatrix * mvPosition;
+      }
+    `,
+    fragmentShader: `
+      uniform sampler2D matcap;
+      uniform float uShift;
+      uniform float uGain;
+      varying vec3 vViewPosition;
+      varying vec3 vNormal;
+      varying float vX;
+      void main() {
+        vec3 normal = normalize(vNormal);
+        vec3 viewDir = normalize(vViewPosition);
+        vec3 x = normalize(vec3(viewDir.z, 0.0, -viewDir.x));
+        vec3 y = cross(viewDir, x);
+        vec2 uv = vec2(dot(x, normal), dot(y, normal)) * 0.495 + 0.5;
+        vec3 col = texture2D(matcap, uv).rgb;
+        float d = abs(vX - uShift);
+        float core = 1.0 - smoothstep(0.08, 0.20, d);
+        float halo = 1.0 - smoothstep(0.20, 0.42, d);
+        float a = max(core, halo * 0.45) * uGain;
+        col += vec3(a);
+        gl_FragColor = vec4(col, 1.0);
+      }
+    `,
     toneMapped: false,
   });
 }
@@ -307,7 +357,11 @@ function attachGlance(letter, ch) {
   const shape = ch === 'I' ? timesIShape() : timesSShape();
   const geo = new THREE.ShapeGeometry(shape, 72);
   const mesh = new THREE.Mesh(geo, glanceMat(1));
-  mesh.position.set(body.position.x, body.position.y, 0.50);
+  mesh.material.side = THREE.DoubleSide;
+  mesh.material.polygonOffset = true;
+  mesh.material.polygonOffsetFactor = -2;
+  mesh.material.polygonOffsetUnits = -2;
+  mesh.position.set(body.position.x, body.position.y, 0.52);
   mesh.renderOrder = 4;
   letter.add(mesh);
   letter.userData.glance = mesh;
@@ -863,7 +917,7 @@ function attachEdgeShadow(mesh, xy = 1.065, z = 1.03) {
 function makeLetter3D(ch) {
   const g = new THREE.Group();
   const isI = ch === 'I';
-  const chrome = isI ? liquidChromeMat(false) : sChromeMat();
+  const chrome = isI ? liquidChromeMat(false) : sChromeMat(true);
   const bodyShapes = [isI ? timesIShape() : timesSShape()];
   const sLine = isI ? null : sCenterlinePts();
 
@@ -1651,8 +1705,7 @@ function applyFrame(fr) {
     spot.intensity = 22 + 8 * (0.5 + 0.5 * Math.sin(ph * 2 + tOff));
   }
   sweepGlance(iSpot, brand.i, 0.0, 7.5);
-  sweepGlance(sSpot, brand.s, 2.094, 1.8);
-  sSpot.intensity = 22;
+  sweepGlance(sSpot, brand.s, 2.094, 7.5);
   sweepGlance(bodySpot, lighterSpin, 4.189, 8.0);
   bodySpot.intensity = 32 + 10 * (0.5 + 0.5 * Math.sin(ph * 2));
 
@@ -1660,9 +1713,13 @@ function applyFrame(fr) {
     iGlance.material.uniforms.uShift.value = Math.sin(ph) * 0.38;
     iGlance.material.uniforms.uGain.value = 0.92 + 0.08 * (0.5 + 0.5 * Math.sin(ph * 2));
   }
+  const sShift = Math.sin(ph + 2.094) * 0.38;
+  const sGain = 0.92 + 0.08 * (0.5 + 0.5 * Math.sin(ph * 2 + 2.094));
+  sGlanceU.uShift.value = sShift;
+  sGlanceU.uGain.value = 0.52 + 0.06 * (0.5 + 0.5 * Math.sin(ph * 2 + 2.094));
   if (sGlance?.material.uniforms) {
-    sGlance.material.uniforms.uShift.value = Math.sin(ph + 2.094) * 0.12;
-    sGlance.material.uniforms.uGain.value = 0.88;
+    sGlance.material.uniforms.uShift.value = sShift;
+    sGlance.material.uniforms.uGain.value = sGain;
   }
   if (bodyShine) {
     const u = Math.sin(ph + 4.189);
