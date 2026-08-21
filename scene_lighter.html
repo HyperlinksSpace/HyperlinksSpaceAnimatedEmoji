@@ -46,33 +46,52 @@ const pmrem = new THREE.PMREMGenerator(renderer);
 const scene = new THREE.Scene();
 
 function makeStudioEnvTex() {
-  /* Dark void + hard white vertical windows → candy-red plastic gets sharp linear glances */
+  /* High-contrast studio: dark voids + hard white windows.
+     Chrome gets liquid-metal glances on black BG and dark form on white BG. */
   const c = document.createElement('canvas');
   c.width = 1024;
   c.height = 512;
   const g = c.getContext('2d');
-  g.fillStyle = '#050508';
+  g.fillStyle = '#0c0e14';
   g.fillRect(0, 0, 1024, 512);
-  /* Primary hard specular stripe (photo glance) */
-  const win = g.createLinearGradient(168, 0, 248, 0);
-  win.addColorStop(0.00, '#050508');
-  win.addColorStop(0.18, '#ffffff');
+  /* Cool grey fill so chrome isn't a black hole on dark chat */
+  const ambient = g.createLinearGradient(0, 0, 0, 512);
+  ambient.addColorStop(0.00, '#222830');
+  ambient.addColorStop(0.45, '#12151c');
+  ambient.addColorStop(1.00, '#2a3038');
+  g.fillStyle = ambient;
+  g.fillRect(0, 0, 1024, 512);
+  /* Primary hard specular stripe */
+  const win = g.createLinearGradient(150, 0, 250, 0);
+  win.addColorStop(0.00, 'rgba(7,8,12,0)');
+  win.addColorStop(0.22, '#ffffff');
   win.addColorStop(0.50, '#ffffff');
-  win.addColorStop(0.82, '#ffffff');
-  win.addColorStop(1.00, '#050508');
+  win.addColorStop(0.78, '#ffffff');
+  win.addColorStop(1.00, 'rgba(7,8,12,0)');
   g.fillStyle = win;
-  g.fillRect(168, 0, 80, 512);
-  /* Thin secondary rim stripe */
-  const win2 = g.createLinearGradient(700, 0, 760, 0);
-  win2.addColorStop(0.00, '#050508');
-  win2.addColorStop(0.30, '#e8e8f0');
-  win2.addColorStop(0.70, '#e8e8f0');
-  win2.addColorStop(1.00, '#050508');
+  g.fillRect(150, 0, 100, 512);
+  /* Thin knife-edge glance */
+  const win2 = g.createLinearGradient(318, 0, 348, 0);
+  win2.addColorStop(0.00, 'rgba(7,8,12,0)');
+  win2.addColorStop(0.35, '#f4f7ff');
+  win2.addColorStop(0.65, '#f4f7ff');
+  win2.addColorStop(1.00, 'rgba(7,8,12,0)');
   g.fillStyle = win2;
-  g.fillRect(700, 40, 60, 400);
-  /* Soft floor bounce — keeps underside from going black, not pastel */
-  g.fillStyle = '#1a080a';
-  g.fillRect(0, 420, 1024, 92);
+  g.fillRect(318, 20, 30, 470);
+  /* Secondary window — opposite side */
+  const win3 = g.createLinearGradient(690, 0, 760, 0);
+  win3.addColorStop(0.00, 'rgba(7,8,12,0)');
+  win3.addColorStop(0.28, '#d8dee8');
+  win3.addColorStop(0.72, '#d8dee8');
+  win3.addColorStop(1.00, 'rgba(7,8,12,0)');
+  g.fillStyle = win3;
+  g.fillRect(690, 50, 70, 380);
+  /* Dark negative — keeps chrome readable on white backgrounds */
+  g.fillStyle = '#14161c';
+  g.fillRect(430, 0, 140, 512);
+  /* Soft floor bounce */
+  g.fillStyle = '#222830';
+  g.fillRect(0, 430, 1024, 82);
   const tex = new THREE.CanvasTexture(c);
   tex.mapping = THREE.EquirectangularReflectionMapping;
   tex.colorSpace = THREE.SRGBColorSpace;
@@ -184,18 +203,26 @@ function steelMat() {
   });
 }
 
-/** Polished chrome windguard — match photo glance / specular */
-function chromeMat() {
+/** Polished liquid chrome — letters + lighter cap. `light` = slightly brighter cap. */
+function liquidChromeMat(light = false) {
   return new THREE.MeshPhysicalMaterial({
-    color: 0xffffff,
+    color: light ? 0xf4f7fc : 0xe8edf4,
     metalness: 1.0,
-    roughness: 0.04,
-    envMapIntensity: 3.4,
+    roughness: light ? 0.042 : 0.028,
     clearcoat: 1.0,
-    clearcoatRoughness: 0.02,
+    clearcoatRoughness: 0.016,
     reflectivity: 1,
+    ior: 1.5,
+    envMapIntensity: light ? 3.15 : 3.7,
+    specularIntensity: 1,
+    specularColor: new THREE.Color(0xffffff),
     toneMapped: false,
   });
+}
+
+/** Polished chrome windguard — match photo glance / specular */
+function chromeMat() {
+  return liquidChromeMat(true);
 }
 
 /** Photo chrome hood: silver rounded shell, open top, front slot */
@@ -558,116 +585,68 @@ function strokeShape(pts, radius) {
   return shape;
 }
 
-function letterFaceMat() {
-  return new THREE.MeshPhysicalMaterial({
-    color: 0xffffff,
-    roughness: 0.16,
-    metalness: 0.04,
-    clearcoat: 1,
-    clearcoatRoughness: 0.06,
-    emissive: 0xfff6e8,
-    emissiveIntensity: 0.22,
-    envMapIntensity: 0.85,
-    toneMapped: false,
-  });
+function sCenterlinePts() {
+  const top = sampleBezier([0.42, 1.18], [-0.72, 1.28], [-0.74, 0.10], [0.04, 0.04], 28);
+  const bot = sampleBezier([0.04, 0.04], [0.80, -0.02], [0.76, -1.28], [-0.42, -1.18], 28);
+  return top.concat(bot.slice(1));
 }
 
-function letterSideMat() {
-  return new THREE.MeshPhysicalMaterial({
-    color: 0xfaf7f2,
-    roughness: 0.2,
-    metalness: 0.04,
-    clearcoat: 0.7,
-    clearcoatRoughness: 0.1,
-    envMapIntensity: 0.5,
-    toneMapped: false,
-  });
-}
-
-function makeScratchedMetalMaps() {
-  const w = 512;
-  const h = 512;
-  const c = document.createElement('canvas');
-  c.width = w;
-  c.height = h;
-  const g = c.getContext('2d');
-  const rnd = seeded(9041);
-  const base = g.createLinearGradient(0, 0, w * 0.2, h);
-  base.addColorStop(0, '#eceff3');
-  base.addColorStop(0.5, '#c8ccd3');
-  base.addColorStop(1, '#d8dce2');
-  g.fillStyle = base;
-  g.fillRect(0, 0, w, h);
-  for (let i = 0; i < 220; i++) {
-    const x = rnd() * w;
-    const y = rnd() * h;
-    const ang = (rnd() - 0.5) * 0.65;
-    const len = 18 + rnd() * 110;
-    const bright = rnd() > 0.62;
-    g.strokeStyle = bright
-      ? `rgba(255,255,255,${0.22 + rnd() * 0.4})`
-      : `rgba(48,52,58,${0.28 + rnd() * 0.45})`;
-    g.lineWidth = 0.7 + rnd() * 2.4;
-    g.beginPath();
-    g.moveTo(x, y);
-    g.lineTo(x + Math.cos(ang) * len, y + Math.sin(ang) * len);
-    g.stroke();
+function distToPolyline(x, y, pts) {
+  let best = 1e9;
+  for (let i = 0; i < pts.length; i++) {
+    const dx = x - pts[i][0];
+    const dy = y - pts[i][1];
+    const d = dx * dx + dy * dy;
+    if (d < best) best = d;
   }
-  for (let i = 0; i < 22; i++) {
-    const x = rnd() * w;
-    const y = rnd() * h;
-    const rad = 7 + rnd() * 22;
-    const blot = g.createRadialGradient(x, y, 0, x, y, rad);
-    blot.addColorStop(0, `rgba(70,74,80,${0.22 + rnd() * 0.28})`);
-    blot.addColorStop(1, 'rgba(70,74,80,0)');
-    g.fillStyle = blot;
-    g.beginPath();
-    g.arc(x, y, rad, 0, Math.PI * 2);
-    g.fill();
-  }
-  const map = new THREE.CanvasTexture(c);
-  map.colorSpace = THREE.SRGBColorSpace;
-  map.wrapS = map.wrapT = THREE.ClampToEdgeWrapping;
-  map.anisotropy = 4;
-  map.needsUpdate = true;
-  return map;
+  return Math.sqrt(best);
 }
 
-function metalLetterMats() {
-  const map = makeScratchedMetalMaps();
-  const face = new THREE.MeshPhysicalMaterial({
-    color: 0xffffff,
-    map,
-    roughness: 0.34,
-    metalness: 0.92,
-    bumpMap: map,
-    bumpScale: 0.16,
-    clearcoat: 0.42,
-    clearcoatRoughness: 0.3,
-    envMapIntensity: 1.6,
-    specularIntensity: 1,
-    toneMapped: false,
-  });
-  const side = new THREE.MeshPhysicalMaterial({
-    color: 0xc5c9d0,
-    roughness: 0.4,
-    metalness: 0.88,
-    clearcoat: 0.22,
-    clearcoatRoughness: 0.4,
-    envMapIntensity: 1.15,
-    toneMapped: false,
-  });
-  return [side, face];
+/** Concave stroke valleys — bent metal that splits the glance into two ridges. */
+function channelChromeGeo(geo, kind, centerline) {
+  geo.computeVertexNormals();
+  const pos = geo.attributes.position;
+  const nrm = geo.attributes.normal;
+  const amp = kind === 'dot' ? 0.055 : 0.09;
+  for (let i = 0; i < pos.count; i++) {
+    const nz = nrm.getZ(i);
+    if (Math.abs(nz) < 0.5) continue;
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const z = pos.getZ(i);
+    let k = 0;
+    if (kind === 'I') {
+      const inStem = Math.abs(x) < 0.50 && Math.abs(y) < 1.14;
+      const inSerif = Math.abs(y) > 1.04;
+      if (inStem) {
+        const u = Math.min(1, Math.abs(x) / 0.40);
+        k = 1 - u * u;
+      } else if (inSerif) {
+        const yc = y > 0 ? 1.25 : -1.25;
+        const u = Math.min(1, Math.abs(y - yc) / 0.24);
+        k = (1 - u * u) * 0.72;
+      }
+    } else if (kind === 'S' && centerline) {
+      const d = distToPolyline(x, y, centerline);
+      const u = Math.min(1, d / 0.30);
+      k = 1 - u * u;
+    } else if (kind === 'dot') {
+      const u = Math.min(1, Math.hypot(x, y) / 0.20);
+      k = 1 - u * u;
+    }
+    pos.setZ(i, z - Math.sign(nz || 1) * amp * k);
+  }
+  geo.computeVertexNormals();
 }
 
 function extrudeOpts(depth) {
   return {
     depth,
     bevelEnabled: true,
-    bevelThickness: 0.055,
-    bevelSize: 0.045,
-    bevelSegments: 3,
-    curveSegments: 48,
+    bevelThickness: 0.12,
+    bevelSize: 0.095,
+    bevelSegments: 8,
+    curveSegments: 64,
     steps: 1,
   };
 }
@@ -675,22 +654,25 @@ function extrudeOpts(depth) {
 function makeLetter3D(ch) {
   const g = new THREE.Group();
   const isI = ch === 'I';
-  const mats = isI ? [letterSideMat(), letterFaceMat()] : metalLetterMats();
+  const chrome = liquidChromeMat(false);
   const bodyShapes = [isI ? timesIShape() : timesSShape()];
+  const sLine = isI ? null : sCenterlinePts();
   const dotX = isI ? 1.08 : 0.96;
   const dotY = isI ? -1.36 : -1.32;
 
   const depth = 0.92;
   const geo = new THREE.ExtrudeGeometry(bodyShapes, extrudeOpts(depth));
   geo.translate(0, 0, -depth * 0.5);
-  g.add(new THREE.Mesh(geo, mats));
+  channelChromeGeo(geo, isI ? 'I' : 'S', sLine);
+  g.add(new THREE.Mesh(geo, chrome));
 
   const dot = [circleShape(isI ? 0.22 : 0.21)];
   const dotG = new THREE.Group();
   const dDepth = depth * 0.92;
   const dGeo = new THREE.ExtrudeGeometry(dot, extrudeOpts(dDepth));
   dGeo.translate(0, 0, -dDepth * 0.5);
-  dotG.add(new THREE.Mesh(dGeo, mats));
+  channelChromeGeo(dGeo, 'dot');
+  dotG.add(new THREE.Mesh(dGeo, chrome));
   dotG.position.set(dotX, dotY, 0);
   g.add(dotG);
 
@@ -1030,10 +1012,14 @@ function applyFrame(fr) {
   key2.intensity = 1.35 + 0.45 * (0.5 + 0.5 * Math.sin(ph * 1.6));
   key.intensity = 2.25 + 0.2 * Math.sin(ph * 1.4);
 
-  /* I almost face-on in front; S keeps mild depth */
-  /* I: almost face-on, stays in front; S: mild depth */
-  applyLetter(brand.i, brand.iRest, brand.iRotZ, brand.iScale, t, 0.0, 0.02, 0.012);
-  applyLetter(brand.s, brand.sRest, brand.sRotZ, brand.sScale, t, 1.1, 0.12, 0.06);
+  /* I: slight turn so chrome windows travel; S: a bit more depth */
+  applyLetter(brand.i, brand.iRest, brand.iRotZ, brand.iScale, t, 0.0, 0.055, 0.03);
+  applyLetter(brand.s, brand.sRest, brand.sRotZ, brand.sScale, t, 1.1, 0.16, 0.08);
+
+  if (scene.environmentRotation) {
+    scene.environmentRotation.y = Math.sin(ph) * 0.42;
+    scene.environmentRotation.x = Math.cos(ph * 0.7) * 0.08;
+  }
 
   const base = root.userData.basePos || { x: 0, y: 0 };
   root.position.x = base.x + Math.sin(ph * 1.1) * 0.03;
