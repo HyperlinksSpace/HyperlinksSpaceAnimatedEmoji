@@ -1,7 +1,7 @@
 {
   "name": "hyperlinksspaceanimatedemoji",
   "version": "1.0.0",
-  "description": "",
+  "description": "Telegram VP9 WebM animated emoji/sticker for Hyperlinks.SPACE (alpha; AV1 rejected — no TG support / no single-stream alpha)",
   "main": "index.js",
   "type": "module",
   "scripts": {

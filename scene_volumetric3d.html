@@ -31,6 +31,10 @@ const WORLD = 20;
 const REST_SCALE = 0.92; /* match reference canvas fill */
 const DEPTH = 1.85;
 const CHUNK_DEPTH = 2.4; /* thick blocks so tumble reads as 3D */
+const SIGN_ONLY = new URLSearchParams(location.search).get('signOnly') === '1';
+/* N glyph sits high in the plate — shift down (local Y) then enlarge when sign-only */
+const N_CENTER_Y = -WORLD * 0.20;
+const N_SIGN_SCALE = 1.95;
 
 const renderer = new THREE.WebGLRenderer({
   antialias: true,
@@ -814,13 +818,14 @@ async function build() {
   ];
 
   for (const s of specs) {
+    if (SIGN_ONLY && s.kind === 'text') continue;
     const tex = await loadTex(`./layers_exact/${s.file}?v=${Date.now()}`);
     const slab = makeSlab(tex, s.z);
     slab.userData.kind = s.kind;
     if (s.kind === 'n') {
       brand.n = slab;
       brand.nWholes.push(slab);
-      await addShatterTiles(tex, s.z, 0x00e05a, 16, 'nChunk');
+      await addShatterTiles(tex, s.z, 0x00e05a, SIGN_ONLY ? 22 : 16, 'nChunk');
     } else if (s.kind === 'text') {
       brand.text = slab;
       brand.tWholes.push(slab);
@@ -837,10 +842,29 @@ async function build() {
     }
   }
 
+  if (SIGN_ONLY && brand.n) {
+    /* Center glyph in frame and enlarge — decorations stay as supporting FX */
+    brand.n.position.y += N_CENTER_Y;
+    brand.n.scale.setScalar(N_SIGN_SCALE);
+    brand.n.position.z = 0.15;
+    for (const p of pieces) {
+      if (p.kind !== 'nChunk') continue;
+      p.mesh.position.y += N_CENTER_Y;
+      p.mesh.position.z = brand.n.position.z + (p.mesh.position.z - 0.7);
+      p.mesh.scale.multiplyScalar(N_SIGN_SCALE);
+    }
+    /* Pull decorative layers slightly toward center / down so composition frames the N */
+    for (const p of pieces) {
+      if (p.kind !== 'boom') continue;
+      p.mesh.position.y += N_CENTER_Y * 0.45;
+      p.mesh.scale.multiplyScalar(0.92);
+    }
+  }
+
   brand.nRest = brand.n.position.clone();
-  brand.tRest = brand.text.position.clone();
+  brand.tRest = brand.text ? brand.text.position.clone() : new THREE.Vector3();
   brand.nScale = brand.n.scale.x;
-  brand.tScale = brand.text.scale.x;
+  brand.tScale = brand.text ? brand.text.scale.x : 1;
 
   await buildFireBomb();
   buildLightnings();
@@ -862,10 +886,19 @@ function containRoot() {
   const size = box.getSize(new THREE.Vector3());
   const span = Math.max(size.x, size.y, 1e-6);
   const viewSpan = 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) * camera.position.z;
-  root.scale.setScalar((viewSpan * REST_SCALE) / span);
+  const fill = SIGN_ONLY ? 0.96 : REST_SCALE;
+  root.scale.setScalar((viewSpan * fill) / span);
   root.updateMatrixWorld(true);
-  const box2 = new THREE.Box3().setFromObject(root);
-  const c = box2.getCenter(new THREE.Vector3());
+  /* Prefer centering on the visible N glyph when sign-only */
+  let c;
+  if (SIGN_ONLY && brand.n) {
+    /* Glyph sits ~+0.252*WORLD in plate local Y (texture top-weighted) */
+    c = new THREE.Vector3(0, WORLD * 0.20, 0);
+    brand.n.localToWorld(c);
+  } else {
+    const box2 = new THREE.Box3().setFromObject(root);
+    c = box2.getCenter(new THREE.Vector3());
+  }
   root.position.x -= c.x;
   root.position.y -= c.y;
   for (const m of hidden) root.add(m);
@@ -875,7 +908,7 @@ function containRoot() {
     p.restScale = p.mesh.scale.x;
   }
   brand.nRest = brand.n.position.clone();
-  brand.tRest = brand.text.position.clone();
+  if (brand.text) brand.tRest = brand.text.position.clone();
   root.userData.baseScale = root.scale.x;
   root.userData.basePos = { x: root.position.x, y: root.position.y };
 }
