@@ -65,16 +65,18 @@ function makeStudioEnvTex() {
   win.addColorStop(0.88, '#ffffff');
   win.addColorStop(1.00, 'rgba(42,50,60,0)');
   g.fillStyle = win;
-  g.fillRect(150, 0, 100, 512);
+  g.fillRect(168, 0, 48, 512);
   g.fillStyle = '#ffffff';
-  g.fillRect(184, 0, 22, 512);
-  const win2 = g.createLinearGradient(310, 0, 360, 0);
+  g.fillRect(188, 0, 7, 512);
+  const win2 = g.createLinearGradient(328, 0, 348, 0);
   win2.addColorStop(0.00, 'rgba(42,50,60,0)');
-  win2.addColorStop(0.28, '#ffffff');
-  win2.addColorStop(0.72, '#ffffff');
+  win2.addColorStop(0.35, '#ffffff');
+  win2.addColorStop(0.65, '#ffffff');
   win2.addColorStop(1.00, 'rgba(42,50,60,0)');
   g.fillStyle = win2;
-  g.fillRect(310, 8, 50, 496);
+  g.fillRect(328, 8, 20, 496);
+  g.fillStyle = '#ffffff';
+  g.fillRect(336, 16, 5, 480);
   g.fillStyle = '#d8dee6';
   g.fillRect(680, 30, 72, 420);
   g.fillStyle = '#4a5460';
@@ -89,38 +91,46 @@ function makeStudioEnvTex() {
   return tex;
 }
 scene.environment = pmrem.fromEquirectangular(makeStudioEnvTex()).texture;
-scene.environmentIntensity = 2.85;
+scene.environmentIntensity = 1.85;
 
 const camera = new THREE.PerspectiveCamera(28, 1, 0.05, 200);
 camera.position.set(0, 0, 42);
 
+const stage = new THREE.Group();
+scene.add(stage);
 const root = new THREE.Group();
-scene.add(root);
+stage.add(root);
 
-/* Hard white keys → crisp plastic speculars like the reference */
-const key = new THREE.DirectionalLight(0xffffff, 3.4);
+/* Soft form lights — glances come from independent tight spots + stripe meshes */
+const key = new THREE.DirectionalLight(0xffffff, 1.55);
 key.position.set(-11, 9, 18);
 scene.add(key);
-const key2 = new THREE.DirectionalLight(0xffffff, 1.6);
+const key2 = new THREE.DirectionalLight(0xffffff, 0.7);
 key2.position.set(4, 12, 10);
 scene.add(key2);
-const fill = new THREE.DirectionalLight(0xffe8e4, 0.18);
+const fill = new THREE.DirectionalLight(0xffe8e4, 0.08);
 fill.position.set(10, -4, 8);
 scene.add(fill);
-scene.add(new THREE.AmbientLight(0xfff8f4, 0.22));
-const rim = new THREE.DirectionalLight(0xffffff, 0.55);
+scene.add(new THREE.AmbientLight(0xfff8f4, 0.08));
+const rim = new THREE.DirectionalLight(0xffffff, 0.35);
 rim.position.set(6, 8, -16);
 scene.add(rim);
-const shineSweep = new THREE.DirectionalLight(0xffffff, 2.6);
-shineSweep.position.set(-5, 9, 16);
-scene.add(shineSweep);
-const bodySpot = new THREE.SpotLight(0xffffff, 22, 55, 0.16, 0.22);
-bodySpot.position.set(-10, 7, 18);
-scene.add(bodySpot);
-scene.add(bodySpot.target);
-const camFill = new THREE.DirectionalLight(0xffffff, 2.1);
+const camFill = new THREE.DirectionalLight(0xffffff, 0.85);
 camFill.position.set(-2, 3, 28);
 scene.add(camFill);
+
+function makeGlanceSpot() {
+  const spot = new THREE.SpotLight(0xffffff, 42, 60, 0.055, 0.02);
+  scene.add(spot);
+  scene.add(spot.target);
+  return spot;
+}
+const iSpot = makeGlanceSpot();
+const sSpot = makeGlanceSpot();
+const bodySpot = makeGlanceSpot();
+bodySpot.intensity = 55;
+bodySpot.angle = 0.048;
+
 const flameLight = new THREE.PointLight(0xff7018, 0, 22, 1.7);
 root.add(flameLight);
 const flameLight2 = new THREE.PointLight(0xfff0a0, 0, 14, 2.1);
@@ -148,12 +158,59 @@ let flameGroup = null;
 let flameAnchor = null;
 let lever = null;
 let bodyShine = null;
+let iGlance = null;
+let sGlance = null;
 const flameParts = [];
 const sparks = [];
 const fx = new THREE.Group();
 scene.add(fx);
 const bolts = [];
 const centerFlames = [];
+
+function makeGlanceStripe(width, height) {
+  /* Thin almost-white line, with a slightly wider halo so it survives 30×30. */
+  const c = document.createElement('canvas');
+  c.width = 64;
+  c.height = 256;
+  const g = c.getContext('2d');
+  const gx = g.createLinearGradient(0, 0, 64, 0);
+  gx.addColorStop(0.00, 'rgba(255,255,255,0)');
+  gx.addColorStop(0.40, 'rgba(255,255,255,0)');
+  gx.addColorStop(0.46, 'rgba(255,255,255,0.45)');
+  gx.addColorStop(0.49, 'rgba(255,255,255,1)');
+  gx.addColorStop(0.51, 'rgba(255,255,255,1)');
+  gx.addColorStop(0.54, 'rgba(255,255,255,0.45)');
+  gx.addColorStop(0.60, 'rgba(255,255,255,0)');
+  gx.addColorStop(1.00, 'rgba(255,255,255,0)');
+  g.fillStyle = gx;
+  g.fillRect(0, 0, 64, 256);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  const mesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(width, height),
+    new THREE.MeshBasicMaterial({
+      map: tex,
+      transparent: true,
+      opacity: 1,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      depthTest: true,
+      toneMapped: false,
+    }),
+  );
+  mesh.renderOrder = 4;
+  return mesh;
+}
+
+function attachGlance(letter, width, height) {
+  const stripe = makeGlanceStripe(width, height);
+  stripe.position.set(0, 0.04, 0.50);
+  letter.add(stripe);
+  letter.userData.glance = stripe;
+  return stripe;
+}
 
 function plasticRed() {
   /* Candy lacquer — saturated, high clearcoat, photo vertical glance */
@@ -168,7 +225,7 @@ function plasticRed() {
     specularColor: new THREE.Color(0xffffff),
     envMapIntensity: 4.1,
     emissive: 0xff1a08,
-    emissiveIntensity: 0.48,
+    emissiveIntensity: 0.16,
     toneMapped: false,
   });
 }
@@ -203,9 +260,9 @@ function liquidChromeMat(light = false) {
   return new THREE.MeshPhysicalMaterial({
     color: light ? 0xffffff : 0xf4f7fb,
     metalness: 1.0,
-    roughness: light ? 0.022 : 0.028,
+    roughness: light ? 0.014 : 0.018,
     clearcoat: 1.0,
-    clearcoatRoughness: 0.01,
+    clearcoatRoughness: 0.006,
     reflectivity: 1,
     ior: 1.5,
     envMapIntensity: light ? 3.35 : 3.2,
@@ -810,9 +867,12 @@ function buildLighter() {
   const sg = shineC.getContext('2d');
   const sgx = sg.createLinearGradient(0, 0, 64, 0);
   sgx.addColorStop(0.00, 'rgba(255,255,255,0)');
-  sgx.addColorStop(0.42, 'rgba(255,255,255,0.15)');
-  sgx.addColorStop(0.50, 'rgba(255,255,255,1)');
-  sgx.addColorStop(0.58, 'rgba(255,255,255,0.15)');
+  sgx.addColorStop(0.40, 'rgba(255,255,255,0)');
+  sgx.addColorStop(0.46, 'rgba(255,255,255,0.5)');
+  sgx.addColorStop(0.49, 'rgba(255,255,255,1)');
+  sgx.addColorStop(0.51, 'rgba(255,255,255,1)');
+  sgx.addColorStop(0.54, 'rgba(255,255,255,0.5)');
+  sgx.addColorStop(0.60, 'rgba(255,255,255,0)');
   sgx.addColorStop(1.00, 'rgba(255,255,255,0)');
   sg.fillStyle = sgx;
   sg.fillRect(0, 0, 64, 512);
@@ -826,13 +886,14 @@ function buildLighter() {
   const shineTex = new THREE.CanvasTexture(shineC);
   shineTex.colorSpace = THREE.SRGBColorSpace;
   bodyShine = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.72, bodyH * 0.96),
+    new THREE.PlaneGeometry(0.52, bodyH * 0.96),
     new THREE.MeshBasicMaterial({
       map: shineTex,
       transparent: true,
       opacity: 0.95,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
+      depthTest: true,
       toneMapped: false,
     }),
   );
@@ -960,22 +1021,27 @@ function buildLighter() {
 
   lighterPivot.rotation.z = -0.46;
   lighterPivot.rotation.x = 0.28;
-  lighterPivot.position.set(0.22, -0.04, 0);
+  lighterPivot.position.set(0, 0, 0);
 }
 
 function buildLetters() {
   brand.i = makeLetter3D('I');
-  brand.i.scale.setScalar(2.42);
-  brand.i.rotation.z = -0.06;
-  scene.add(brand.i);
+  /* Draft: I. is the large top-left mark. S. is the smaller bottom-right mark. */
+  brand.i.scale.setScalar(2.08);
+  brand.i.rotation.z = -0.04;
+  iGlance = attachGlance(brand.i, 0.72, 2.85);
+  stage.add(brand.i);
 
   brand.s = makeLetter3D('S');
-  brand.s.scale.setScalar(2.22);
-  brand.s.rotation.z = 0.08;
-  scene.add(brand.s);
+  brand.s.scale.setScalar(1.16);
+  brand.s.rotation.z = 0.06;
+  sGlance = attachGlance(brand.s, 0.78, 2.55);
+  stage.add(brand.s);
 
-  brand.iScale = brand.i.scale.x;
-  brand.sScale = brand.s.scale.x;
+  brand.iScale0 = brand.i.scale.x;
+  brand.sScale0 = brand.s.scale.x;
+  brand.iScale = brand.iScale0;
+  brand.sScale = brand.sScale0;
   brand.iRotZ = brand.i.rotation.z;
   brand.sRotZ = brand.s.rotation.z;
   brand.iDot = brand.i.userData.dot;
@@ -984,77 +1050,122 @@ function buildLetters() {
   brand.sDotRest = brand.sDot.position.clone();
 }
 
+function objectSize(obj) {
+  const saved = obj.position.clone();
+  obj.position.set(0, 0, 0);
+  obj.updateMatrixWorld(true);
+  const b = new THREE.Box3().setFromObject(obj);
+  const s = b.getSize(new THREE.Vector3());
+  obj.position.copy(saved);
+  return s;
+}
+
+function spinToStage(x, y, z) {
+  const v = new THREE.Vector3(x, y, z);
+  lighterSpin.updateMatrixWorld(true);
+  lighterSpin.localToWorld(v);
+  stage.worldToLocal(v);
+  return v;
+}
+
+/* Move in Z while keeping the same screen position and apparent size. */
+function keepScreenAtZ(obj, zWorld) {
+  obj.updateMatrixWorld(true);
+  const w = new THREE.Vector3();
+  obj.getWorldPosition(w);
+  const k = (camera.position.z - zWorld) / camera.position.z;
+  w.x *= k;
+  w.y *= k;
+  w.z = zWorld;
+  obj.parent.worldToLocal(w);
+  obj.position.copy(w);
+  obj.scale.multiplyScalar(k);
+}
+
 function containRoot() {
+  stage.scale.setScalar(1);
+  stage.position.set(0, 0, 0);
   root.scale.setScalar(1);
   root.position.set(0, 0, 0);
+  brand.i.scale.setScalar(brand.iScale0);
+  brand.s.scale.setScalar(brand.sScale0);
   flameGroup.visible = false;
   flameGroup.scale.setScalar(1);
-  root.updateMatrixWorld(true);
 
+  const iS = objectSize(brand.i);
+  const sS = objectSize(brand.s);
+
+  /* Draft XY on the z=0 plane: I. top-left overlapping the barrel, lighter
+     on the diagonal, S. smaller at bottom-right tucked under the red body. */
+  const iAt = spinToStage(-0.55, 1.20, 0.35);
+  brand.i.position.set(iAt.x - iS.x * 0.18, iAt.y + iS.y * 0.30, 0);
+  const sAt = spinToStage(1.55, -2.20, 0);
+  brand.s.position.set(sAt.x + sS.x * 0.42, sAt.y - sS.y * 0.02, 0);
+
+  brand.i.traverse((o) => { if (o.isMesh) o.material.depthTest = true; });
+  brand.s.traverse((o) => { if (o.isMesh) o.material.depthTest = true; });
+
+  stage.updateMatrixWorld(true);
   const viewSpan = 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) * camera.position.z;
-  const box = new THREE.Box3().setFromObject(root);
+  const box = new THREE.Box3().setFromObject(stage);
   const size = box.getSize(new THREE.Vector3());
   const span = Math.max(size.x, size.y, 1e-6);
-  root.scale.setScalar((viewSpan * 0.70) / span);
-  root.updateMatrixWorld(true);
-  const box2 = new THREE.Box3().setFromObject(root);
+  stage.scale.setScalar((viewSpan * 0.80) / span);
+  stage.updateMatrixWorld(true);
+  const box2 = new THREE.Box3().setFromObject(stage);
   const c = box2.getCenter(new THREE.Vector3());
-  root.position.x -= c.x;
-  root.position.y -= c.y;
-  root.updateMatrixWorld(true);
+  stage.position.x -= c.x;
+  stage.position.y -= c.y;
+  stage.updateMatrixWorld(true);
 
-  const fitted = new THREE.Box3().setFromObject(root);
-  const fc = fitted.getCenter(new THREE.Vector3());
-  const k = 2.22;
-  /* Tight sandwich inside the avatar circle: I. over the barrel, S. under the red body. */
-  brand.i.position.set(fc.x - k * 0.46, fc.y + k * 0.04, 6.5);
-  brand.s.position.set(fc.x + k * 0.34, fc.y - k * 0.56, -1.2);
-  brand.i.renderOrder = 8;
-  brand.s.renderOrder = 1;
-  brand.i.traverse((o) => { if (o.isMesh) { o.renderOrder = 8; o.material.depthTest = true; } });
-  brand.s.traverse((o) => { if (o.isMesh) o.renderOrder = 1; });
-  fx.position.set(fc.x, fc.y, 0);
+  /* Split on Z so chrome and lacquer no longer share a surface. Scale holds the draft. */
+  keepScreenAtZ(brand.i, 10.5);
+  keepScreenAtZ(brand.s, -14);
+  brand.iScale = brand.i.scale.x;
+  brand.sScale = brand.s.scale.x;
 
+  fx.position.set(0, 0, 0);
   flameGroup.scale.setScalar(1);
   brand.iRest = brand.i.position.clone();
   brand.sRest = brand.s.position.clone();
-  root.userData.baseScale = root.scale.x;
-  root.userData.basePos = { x: root.position.x, y: root.position.y };
+  stage.userData.baseScale = stage.scale.x;
+  stage.userData.basePos = { x: stage.position.x, y: stage.position.y };
 }
 
 function applyDot(dot, rest, t, phase) {
   const ph = t * Math.PI * 2 + phase;
   dot.position.set(
-    rest.x + Math.sin(ph * 3.15) * 0.045,
-    rest.y + Math.cos(ph * 2.55) * 0.04,
-    rest.z + Math.sin(ph * 2.1) * 0.03,
+    rest.x + Math.sin(ph * 3) * 0.045,
+    rest.y + Math.cos(ph * 2) * 0.04,
+    rest.z + Math.sin(ph * 2) * 0.03,
   );
   dot.rotation.set(
-    Math.sin(ph * 3.5) * 0.55,
-    Math.cos(ph * 2.35) * 0.72,
-    Math.sin(ph * 1.85 + 0.4) * 0.4,
+    Math.sin(ph * 3) * 0.55,
+    Math.cos(ph * 2) * 0.72,
+    Math.sin(ph * 2 + 0.4) * 0.4,
   );
-  const s = 1 + Math.sin(ph * 4.4) * 0.07;
+  const s = 1 + Math.sin(ph * 4) * 0.07;
   dot.scale.setScalar(s);
 }
 
 function applyLetter(letter, rest, restZ, scale, t, phase, yaw, pitch) {
   const ph = t * Math.PI * 2 + phase;
   letter.position.set(
-    rest.x + Math.sin(ph * 2.1) * 0.025,
-    rest.y + Math.cos(ph * 1.8) * 0.02,
+    rest.x + Math.sin(ph * 2) * 0.025,
+    rest.y + Math.cos(ph * 2) * 0.02,
     rest.z,
   );
   letter.rotation.set(
-    Math.sin(ph * 2.6) * pitch * 0.4,
-    Math.cos(ph * 1.7) * yaw * 0.45,
-    restZ + Math.sin(ph * 2.5 + 0.6) * 0.025,
+    Math.sin(ph * 2) * pitch * 0.4,
+    Math.cos(ph * 2) * yaw * 0.45,
+    restZ + Math.sin(ph * 2) * 0.025,
   );
-  letter.scale.setScalar(scale * (1 + Math.sin(ph * 3.6) * 0.01));
+  letter.scale.setScalar(scale * (1 + Math.sin(ph * 2) * 0.01));
 }
 
 function applyFrame(fr) {
-  const t = (fr - 1) / Math.max(1, TOTAL - 1);
+  /* Open interval [0, 1) so frame TOTAL steps into frame 1 with no pose jump. */
+  const t = (fr - 1) / TOTAL;
   const ph = t * Math.PI * 2;
 
   const flameOn = Math.max(
@@ -1067,22 +1178,22 @@ function applyFrame(fr) {
   );
 
   lighterSpin.rotation.y = 0.12 + Math.sin(ph) * 0.10;
-  lighterSpin.rotation.x = Math.sin(ph * 1.15) * 0.06;
-  lighterPivot.rotation.x = 0.28 + Math.sin(ph * 0.85) * 0.04;
-  lighterPivot.rotation.z = -0.46 + Math.sin(ph * 0.5) * 0.022;
+  lighterSpin.rotation.x = Math.sin(ph * 2) * 0.05;
+  lighterPivot.rotation.x = 0.28 + Math.sin(ph) * 0.04;
+  lighterPivot.rotation.z = -0.46 + Math.sin(ph) * 0.02;
 
-  sparkWheel.rotation.x = ignite * 16 + t * 1.4;
+  sparkWheel.rotation.x = ignite * 16 + ph * 2;
   const press = flameOn;
   lever.rotation.x = 0.32 * press;
   lever.position.y = (lever.userData.restY ?? lever.position.y) - 0.11 * press;
 
-  const flick = 0.9 + 0.1 * Math.sin(t * 62);
+  const flick = 0.9 + 0.1 * Math.sin(ph * 8);
   const on = flameOn * flick;
   flameGroup.visible = on > 0.02;
   flameGroup.scale.set(
-    1.04 + 0.06 * on + 0.02 * Math.sin(t * 37),
-    1.0 + 0.08 * on * (0.96 + 0.04 * Math.sin(t * 29)),
-    1.04 + 0.06 * on + 0.02 * Math.cos(t * 33),
+    1.04 + 0.06 * on + 0.02 * Math.sin(ph * 8),
+    1.0 + 0.08 * on * (0.96 + 0.04 * Math.sin(ph * 6)),
+    1.04 + 0.06 * on + 0.02 * Math.cos(ph * 8),
   );
   flameGroup.rotation.set(0, 0, 0);
   for (const p of flameParts) {
@@ -1090,7 +1201,7 @@ function applyFrame(fr) {
   }
 
   for (const sp of sparks) {
-    const u = ignite * (0.55 + 0.45 * ((Math.sin(t * 40 + sp.seed * 9) + 1) * 0.5));
+    const u = ignite * (0.55 + 0.45 * ((Math.sin(ph * 6 + sp.seed * 9) + 1) * 0.5));
     if (u < 0.08) {
       sp.mesh.visible = false;
       continue;
@@ -1116,43 +1227,47 @@ function applyFrame(fr) {
   flameAnchor.localToWorld(flameLight2.position);
   root.worldToLocal(flameLight2.position);
 
-  shineSweep.position.set(-8 + Math.sin(ph) * 9.5, 3 + Math.cos(ph) * 7.5, 15);
-  shineSweep.intensity = 4.2 + 1.4 * (0.5 + 0.5 * Math.sin(ph * 2.0));
-  key2.intensity = 1.85 + 0.25 * (0.5 + 0.5 * Math.sin(ph * 1.6));
-  key.intensity = 3.6 + 0.2 * Math.sin(ph * 1.4);
-  if (lighterSpin) {
+  function sweepGlance(spot, obj, tOff, xAmp) {
+    if (!obj) return;
     const aim = new THREE.Vector3();
-    lighterSpin.getWorldPosition(aim);
-    bodySpot.target.position.copy(aim);
-    const travel = Math.sin(ph);
-    bodySpot.position.set(
-      aim.x - 8.5 + travel * 5.5,
-      aim.y + 1.5 + travel * 7.0,
-      aim.z + 14,
-    );
-    bodySpot.intensity = 26 + 8 * (0.5 + 0.5 * Math.sin(ph * 2.2));
-    bodySpot.angle = 0.14 + 0.04 * (0.5 + 0.5 * Math.sin(ph));
+    obj.getWorldPosition(aim);
+    spot.target.position.copy(aim);
+    const u = Math.sin(ph + tOff);
+    spot.position.set(aim.x - 6.5 + u * xAmp, aim.y + 2.2 + Math.cos(ph + tOff) * 3.5, aim.z + 16);
+    spot.intensity = 38 + 14 * (0.5 + 0.5 * Math.sin(ph * 2 + tOff));
+  }
+  sweepGlance(iSpot, brand.i, 0.0, 7.5);
+  sweepGlance(sSpot, brand.s, 2.094, 7.0);
+  sweepGlance(bodySpot, lighterSpin, 4.189, 8.0);
+  bodySpot.intensity = 58 + 16 * (0.5 + 0.5 * Math.sin(ph * 2));
+
+  if (iGlance) {
+    iGlance.position.x = Math.sin(ph) * 0.38;
+    iGlance.material.opacity = 0.92 + 0.08 * (0.5 + 0.5 * Math.sin(ph * 2));
+  }
+  if (sGlance) {
+    sGlance.position.x = Math.sin(ph + 2.094) * 0.42;
+    sGlance.material.opacity = 0.92 + 0.08 * (0.5 + 0.5 * Math.sin(ph * 2 + 1.2));
   }
   if (bodyShine) {
-    const u = Math.sin(ph);
-    /* Sweep across the camera-facing face of the red barrel. */
-    bodyShine.position.set(u * 0.55, 0.04, 0.58);
-    bodyShine.rotation.y = u * 0.18;
-    bodyShine.material.opacity = 0.85 + 0.15 * (0.5 + 0.5 * Math.sin(ph * 2));
+    const u = Math.sin(ph + 4.189);
+    bodyShine.position.set(u * 0.48, 0.04, 0.58);
+    bodyShine.rotation.y = u * 0.12;
+    bodyShine.material.opacity = 0.95 + 0.05 * (0.5 + 0.5 * Math.sin(ph * 2));
   }
   if (scene.environmentRotation) {
-    scene.environmentRotation.y = ph * 0.16;
+    scene.environmentRotation.y = ph;
   }
 
-  applyLetter(brand.i, brand.iRest, brand.iRotZ, brand.iScale, t, 0.0, 0.028, 0.018);
-  applyLetter(brand.s, brand.sRest, brand.sRotZ, brand.sScale, t, 1.1, 0.05, 0.03);
+  applyLetter(brand.i, brand.iRest, brand.iRotZ, brand.iScale, t, 0.0, 0.018, 0.012);
+  applyLetter(brand.s, brand.sRest, brand.sRotZ, brand.sScale, t, 2.094, 0.028, 0.018);
   applyDot(brand.iDot, brand.iDotRest, t, 0.7);
   applyDot(brand.sDot, brand.sDotRest, t, 2.3);
 
-  const base = root.userData.basePos || { x: 0, y: 0 };
-  root.position.x = base.x + Math.sin(ph * 1.1) * 0.03;
-  root.position.y = base.y + Math.cos(ph * 0.9) * 0.022;
-  root.scale.setScalar(root.userData.baseScale * (1 + Math.sin(ph * 2) * 0.006));
+  const base = stage.userData.basePos || { x: 0, y: 0 };
+  stage.position.x = base.x + Math.sin(ph) * 0.02;
+  stage.position.y = base.y + Math.cos(ph) * 0.016;
+  stage.scale.setScalar((stage.userData.baseScale || 1) * (1 + Math.sin(ph * 2) * 0.004));
 
   camera.lookAt(0, 0, 0);
   renderer.clear(true, true, true);
