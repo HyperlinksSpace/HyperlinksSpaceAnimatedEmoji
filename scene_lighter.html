@@ -186,6 +186,15 @@ const sGlanceU = {
   uGain: { value: 0.92 },
 };
 
+function dotChromeMat(quiet = false) {
+  /* Same hammered PBR as the last commit, tinted to the quieter period color. */
+  const mat = liquidChromeMat(false);
+  mat.color.setHex(quiet ? 0x7a828a : 0x9aa3ab);
+  mat.envMapIntensity = quiet ? 1.15 : 1.35;
+  mat.roughness = 0.048;
+  return mat;
+}
+
 function sChromeMat(withGlance = false) {
   if (!withGlance) {
     return new THREE.MeshMatcapMaterial({
@@ -980,7 +989,7 @@ function makeLetter3D(ch) {
   const sphereR = isI ? 0.44 : 0.42;
   const indent = isI ? 0.22 : 0.26;
   const dot = dentedChromeSphere(sphereR, isI ? 4103 : 7721);
-  if (!isI) dot.material = sChromeMat();
+  dot.material = dotChromeMat(!isI);
   /* Gap (indent) from the glyph; bottom of the sphere sits on the text baseline. */
   const letterRight = bb.max.x - c.x;
   const letterBottom = bb.min.y - c.y;
@@ -990,6 +999,9 @@ function makeLetter3D(ch) {
   attachEdgeShadow(body, 1.03, 1.014);
   attachEdgeShadow(dot, 1.024, 1.012);
   const dotGlance = new THREE.Mesh(new THREE.CircleGeometry(sphereR * 0.90, 32), glanceMat(0.9));
+  if (dotGlance.material.uniforms) {
+    dotGlance.material.uniforms.uGain.value = isI ? 0.55 : 0.38;
+  }
   dotGlance.material.side = THREE.DoubleSide;
   dotGlance.material.polygonOffset = true;
   dotGlance.material.polygonOffsetFactor = -2;
@@ -1001,7 +1013,7 @@ function makeLetter3D(ch) {
   const fill = new THREE.PointLight(0xffffff, 2.4, 10, 1.1);
   fill.position.set(0.35, 0.7, 4.2);
   g.add(fill);
-  const dotFill = new THREE.PointLight(0xffffff, 2.4, 8, 1.15);
+  const dotFill = new THREE.PointLight(0xffffff, isI ? 1.65 : 1.15, 8, 1.15);
   dotFill.position.set(dot.position.x + 0.25, dot.position.y + 0.4, 2.4);
   g.add(dotFill);
   return g;
@@ -2037,12 +2049,12 @@ function applyFrame(fr) {
   const iDotG = brand.iDot?.userData.glance;
   if (iDotG?.material.uniforms) {
     iDotG.material.uniforms.uShift.value = Math.sin(ph) * 0.16;
-    iDotG.material.uniforms.uGain.value = 0.92 + 0.08 * (0.5 + 0.5 * Math.sin(ph * 2));
+    iDotG.material.uniforms.uGain.value = 0.50 + 0.08 * (0.5 + 0.5 * Math.sin(ph * 2));
   }
   const sDotG = brand.sDot?.userData.glance;
   if (sDotG?.material.uniforms) {
     sDotG.material.uniforms.uShift.value = Math.sin(ph + 2.094) * 0.16;
-    sDotG.material.uniforms.uGain.value = sGain;
+    sDotG.material.uniforms.uGain.value = 0.34 + 0.06 * (0.5 + 0.5 * Math.sin(ph * 2 + 2.094));
   }
   const u = Math.sin(ph + 4.189);
   const gx = u * 0.34;
