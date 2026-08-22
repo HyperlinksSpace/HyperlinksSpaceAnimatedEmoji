@@ -33,10 +33,12 @@ const DEPTH = 1.85;
 const CHUNK_DEPTH = 2.4; /* thick blocks so tumble reads as 3D */
 const SIGN_ONLY = new URLSearchParams(location.search).get('signOnly') === '1'
   || /signOnly=1/.test(location.hash);
-/* Thumb pose = frame 6 (t=5/90): right stem reads higher; shine stays at t=0. */
-const SIGN_THUMB_POSE = 5 / TOTAL;
+/* CCW roll + right-side toward camera: right stem reads a little higher. Shine stays at t=0. */
+const SIGN_REST_RX = 0.05;
+const SIGN_REST_RY = -0.12;
+const SIGN_REST_RZ = 0.14;
 /*
- * Sign-only: smaller hero so explosion/shards/lightning own the canvas.
+ * Sign-only: fill the rounded canvas with a small harmony indent.
  * Metrics (lx/ly/frac) filled after texture clean.
  */
 const N_GLYPH = {
@@ -1849,8 +1851,6 @@ function buildSvgSign() {
     geo.translate(0, 0, -SVG_N_DEPTH * 0.5);
     applySvgFaceUVs(geo);
     const mesh = new THREE.Mesh(geo, faceMat);
-    mesh.userData.restPos = mesh.position.clone();
-    mesh.userData.stem = pi === 0 ? 'right' : 'left';
     group.add(mesh);
     pieceMeshes.push(mesh);
 
@@ -2204,6 +2204,28 @@ async function build() {
   if (SIGN_ONLY) buildSignSphereFx();
 }
 
+function pointInRoundRect(x, y, half, corner) {
+  if (Math.abs(x) > half || Math.abs(y) > half) return false;
+  const inset = half - corner;
+  if (Math.abs(x) <= inset || Math.abs(y) <= inset) return true;
+  const dx = Math.abs(x) - inset;
+  const dy = Math.abs(y) - inset;
+  return dx * dx + dy * dy <= corner * corner + 1e-8;
+}
+
+function aabbFitsRoundRect(box, half, corner) {
+  const pts = [
+    [box.min.x, box.min.y],
+    [box.min.x, box.max.y],
+    [box.max.x, box.min.y],
+    [box.max.x, box.max.y],
+  ];
+  for (const [x, y] of pts) {
+    if (!pointInRoundRect(x, y, half, corner)) return false;
+  }
+  return true;
+}
+
 function containRoot() {
   const hidden = [];
   for (const p of pieces) {
@@ -2228,17 +2250,35 @@ function containRoot() {
 
   const viewSpan = 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) * camera.position.z;
   if (SIGN_ONLY && brand.n) {
-    const box = new THREE.Box3().setFromObject(brand.n);
-    const size = box.getSize(new THREE.Vector3());
-    const span = Math.max(size.x, size.y, 1e-6);
-    root.scale.setScalar((viewSpan * N_GLYPH.fill) / span);
+    brand.n.rotation.set(SIGN_REST_RX, SIGN_REST_RY, SIGN_REST_RZ);
+    brand.n.updateMatrixWorld(true);
+    const viewHalf = viewSpan * 0.5;
+    const edgeIndent = 0.10;
+    const A = viewHalf * (1 - edgeIndent);
+    const CR = viewHalf * 2 * 0.18;
+    let lo = 0.2;
+    let hi = 12;
+    for (let i = 0; i < 22; i++) {
+      const mid = (lo + hi) * 0.5;
+      root.scale.setScalar(mid);
+      root.position.set(0, 0, 0);
+      root.updateMatrixWorld(true);
+      const box = new THREE.Box3().setFromObject(brand.n);
+      const c = box.getCenter(new THREE.Vector3());
+      root.position.x -= c.x;
+      root.position.y -= c.y;
+      root.updateMatrixWorld(true);
+      const box2 = new THREE.Box3().setFromObject(brand.n);
+      if (aabbFitsRoundRect(box2, A, CR)) lo = mid;
+      else hi = mid;
+    }
+    root.scale.setScalar(lo);
+    root.position.set(0, 0, 0);
     root.updateMatrixWorld(true);
-    const box2 = new THREE.Box3().setFromObject(brand.n);
-    const c2 = box2.getCenter(new THREE.Vector3());
-    root.position.x -= c2.x;
-    root.position.y -= c2.y;
-    root.position.y -= viewSpan * N_GLYPH.opticalDown;
-    root.position.x += viewSpan * N_GLYPH.opticalRight;
+    const box3 = new THREE.Box3().setFromObject(brand.n);
+    const c3 = box3.getCenter(new THREE.Vector3());
+    root.position.x -= c3.x;
+    root.position.y -= c3.y;
   } else {
     const box = new THREE.Box3().setFromObject(root);
     const size = box.getSize(new THREE.Vector3());
@@ -2287,7 +2327,7 @@ function applyFrame(fr) {
   if (brand.n && showWhole) {
     const n = brand.n;
     const rp = brand.nRest;
-    const ph = (SIGN_ONLY ? t + SIGN_THUMB_POSE : t) * Math.PI * 2;
+    const ph = t * Math.PI * 2;
     const yaw = SIGN_ONLY ? 0 : 0.72;
     const pitch = SIGN_ONLY ? 0 : 0.34;
     /* Shine phase: gentle turn so green facets catch light */
@@ -2296,22 +2336,16 @@ function applyFrame(fr) {
       rp.y + 0.12 * zoomN + Math.cos(ph * 1.8) * (SIGN_ONLY ? 0.025 : 0.08) * life,
       rp.z + 0.55 * zoomN + 0.2 * boomAmt + Math.sin(ph * 2.4) * (SIGN_ONLY ? 0.06 : 0.14) * life,
     );
+    const restRx = SIGN_ONLY ? SIGN_REST_RX : 0;
+    const restRy = SIGN_ONLY ? SIGN_REST_RY : 0;
+    const restRz = SIGN_ONLY ? SIGN_REST_RZ : 0;
     n.rotation.set(
-      -0.1 * zoomN + Math.sin(ph * 2.6) * pitch * life + Math.sin(ph * 5.2) * 0.08 * life,
-      0.12 * boomAmt + Math.cos(ph * 1.7) * yaw * life + Math.sin(ph * 4.0) * 0.12 * life,
-      0.05 * zoomN + Math.sin(ph * 2.5 + 0.6) * (SIGN_ONLY ? 0.06 : 0.16) * life,
+      restRx - 0.1 * zoomN + Math.sin(ph * 2.6) * pitch * life + Math.sin(ph * 5.2) * 0.05 * life,
+      restRy + 0.12 * boomAmt + Math.cos(ph * 1.7) * yaw * life + Math.sin(ph * 4.0) * 0.07 * life,
+      restRz + 0.05 * zoomN + Math.sin(ph * 2.5) * (SIGN_ONLY ? 0.035 : 0.16) * life,
     );
     const shinePulse = 1;
     n.scale.setScalar(brand.nScale * (1 + 0.04 * zoomN) * (1 + Math.sin(ph * 3.6) * 0.015 * life) * shinePulse);
-    /* Right stem sits above the rest — frozen thumb and intact N. */
-    const svg = n.userData.svgPieces;
-    if (SIGN_ONLY && svg) {
-      for (const m of svg) {
-        const rp = m.userData.restPos || { x: 0, y: 0, z: 0 };
-        const lift = m.userData.stem === 'right' ? 7.6 * life : 0;
-        m.position.set(rp.x, rp.y + lift, rp.z);
-      }
-    }
   }
   if (brand.text && showWhole) {
     const tx = brand.text;
@@ -2481,7 +2515,7 @@ function applyFrame(fr) {
   /* Whole sign: yaw/pitch so the stack’s side volume reads */
   const shake = (SIGN_ONLY ? 0.02 : 0.35) + (SIGN_ONLY ? 0.04 : 0.65) * life;
   const wobble = 0.5 + 0.5 * lifeSoft;
-  const wt = SIGN_ONLY ? t + SIGN_THUMB_POSE : t;
+  const wt = t;
   const sx = Math.sin(wt * 9.5) * (SIGN_ONLY ? 0.008 : 0.1) * shake + Math.sin(wt * 19.0) * (SIGN_ONLY ? 0.004 : 0.03) * shake;
   const sy = Math.cos(wt * 7.6 + 0.8) * (SIGN_ONLY ? 0.01 : 0.22) * shake + Math.sin(wt * 14.0) * (SIGN_ONLY ? 0.005 : 0.06) * shake;
   const sz = Math.sin(wt * 11.0 + 1.4) * (SIGN_ONLY ? 0.006 : 0.07) * shake + Math.cos(wt * 14.5) * (SIGN_ONLY ? 0.004 : 0.022) * shake;
