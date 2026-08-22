@@ -720,9 +720,10 @@ function makeLightningTex(seed) {
   return tex;
 }
 
-function makeSparkStreakTex(seed) {
-  const w = 256;
-  const h = 512;
+function makeSparkChipTex(seed) {
+  /* One short comet: bright head, taper tail — not a lightning stream. */
+  const w = 48;
+  const h = 128;
   const c = document.createElement('canvas');
   c.width = w;
   c.height = h;
@@ -730,42 +731,30 @@ function makeSparkStreakTex(seed) {
   const rnd = seeded(seed * 173 + 11);
   ctx.clearRect(0, 0, w, h);
   const cx = w * 0.5;
-  const pts = [];
-  let x = cx;
-  pts.push([x, h - 6]);
-  const segs = 5 + Math.floor(rnd() * 3);
-  for (let i = 1; i <= segs; i++) {
-    const u = i / segs;
-    x = cx + (rnd() - 0.5) * 70 * u;
-    pts.push([x, h - 6 - u * (h - 18)]);
-  }
-  const stroke = (width, color) => {
-    ctx.strokeStyle = color;
-    ctx.lineWidth = width;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.beginPath();
-    ctx.moveTo(pts[0][0], pts[0][1]);
-    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
-    ctx.stroke();
-  };
-  stroke(54, 'rgba(80,20,0,0.85)');
-  stroke(32, '#ff6a00');
-  stroke(18, '#ffd24a');
-  stroke(8, '#fffce8');
-  const mid = 2 + Math.floor(rnd() * 2);
-  let bx = pts[mid][0];
-  let by = pts[mid][1];
-  const dir = rnd() > 0.5 ? 1 : -1;
-  ctx.strokeStyle = '#ffe566';
-  ctx.lineWidth = 10;
+  const lean = (rnd() - 0.5) * 8;
+  /* flipY: canvas top → plane +Y tip (head); canvas bottom → origin (tail). */
+  const grad = ctx.createLinearGradient(cx, h - 6, cx + lean, 10);
+  grad.addColorStop(0.00, 'rgba(255,40,0,0)');
+  grad.addColorStop(0.22, 'rgba(255,90,8,0.45)');
+  grad.addColorStop(0.52, '#ff9a20');
+  grad.addColorStop(0.78, '#ffe566');
+  grad.addColorStop(1.00, '#fffce8');
+  ctx.fillStyle = grad;
   ctx.beginPath();
-  ctx.moveTo(bx, by);
-  ctx.lineTo(bx + dir * (36 + rnd() * 40), by - 40 - rnd() * 50);
-  ctx.stroke();
-  ctx.fillStyle = '#fff8e0';
+  ctx.moveTo(cx - 3, h - 10);
+  ctx.lineTo(cx + 3, h - 10);
+  ctx.lineTo(cx + 11 + rnd() * 4, 18);
+  ctx.lineTo(cx - 11 - rnd() * 4, 18);
+  ctx.closePath();
+  ctx.fill();
+  const head = ctx.createRadialGradient(cx, 16, 0, cx, 16, 18);
+  head.addColorStop(0.00, '#ffffff');
+  head.addColorStop(0.28, '#fff6c8');
+  head.addColorStop(0.62, '#ffcc44');
+  head.addColorStop(1.00, 'rgba(255,120,0,0)');
+  ctx.fillStyle = head;
   ctx.beginPath();
-  ctx.arc(cx, h - 10, 16 + rnd() * 8, 0, Math.PI * 2);
+  ctx.arc(cx, 16, 18, 0, Math.PI * 2);
   ctx.fill();
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
@@ -1393,17 +1382,8 @@ function buildLighter() {
   flameGroup.add(sprite);
   flameParts.push({ mesh: sprite, kind: 'sprite' });
 
-  const sparkMat = new THREE.MeshBasicMaterial({
-    color: 0xfff4c8,
-    transparent: true,
-    opacity: 1,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-    depthTest: true,
-    toneMapped: false,
-  });
   sparkGroup = new THREE.Group();
-  /* Same opening as the flame: sparks leave the chrome through the jet, up only. */
+  /* Flint burst from the jet: individual sparks in a 45° fan aimed +Y. */
   sparkGroup.position.set(jetX, jetY + 0.02, jetZ);
   lighterSpin.add(sparkGroup);
   const sparkDepth = {
@@ -1424,38 +1404,53 @@ function buildLighter() {
   flash.renderOrder = 3;
   sparkGroup.add(flash);
   sparks.push({ mesh: flash, kind: 'flash', seed: 0.1, ax: 0, ay: 0.12 });
-  for (let i = 0; i < 8; i++) {
-    const boltGeo = new THREE.PlaneGeometry(0.95, 2.20);
-    boltGeo.translate(0, 1.10, 0);
-    const bolt = new THREE.Mesh(
-      boltGeo,
+
+  const sector = Math.PI / 4;
+  const nSpark = 9;
+  for (let i = 0; i < nSpark; i++) {
+    const rnd = seeded(i * 97 + 19);
+    const u = i / (nSpark - 1);
+    const ang = (u - 0.5) * sector + (rnd() - 0.5) * 0.07;
+    const len = 0.58 + rnd() * 0.22;
+    const wid = 0.26 + rnd() * 0.10;
+    const chipGeo = new THREE.PlaneGeometry(wid, len);
+    chipGeo.translate(0, len * 0.5, 0);
+    const chip = new THREE.Mesh(
+      chipGeo,
       new THREE.MeshBasicMaterial({
-        map: makeSparkStreakTex(i + 3),
+        map: makeSparkChipTex(i + 3),
         ...sparkDepth,
         side: THREE.DoubleSide,
       }),
     );
-    bolt.renderOrder = 3;
-    sparkGroup.add(bolt);
+    chip.renderOrder = 3;
+    const head = new THREE.Mesh(
+      new THREE.SphereGeometry(0.11 + rnd() * 0.04, 10, 10),
+      new THREE.MeshBasicMaterial({
+        color: 0xfff6d0,
+        transparent: true,
+        opacity: 1,
+        depthWrite: false,
+        depthTest: true,
+        toneMapped: false,
+      }),
+    );
+    head.position.y = len * 0.92;
+    head.renderOrder = 4;
+    const grp = new THREE.Group();
+    grp.add(chip);
+    grp.add(head);
+    grp.rotation.z = -ang;
+    sparkGroup.add(grp);
     sparks.push({
-      mesh: bolt,
-      kind: 'bolt',
+      mesh: grp,
+      chip,
+      head,
+      kind: 'spark',
       seed: i * 0.73 + 0.2,
-      ax: (i % 2 === 0 ? 1 : -1) * (0.06 + i * 0.018),
-      ay: 1.15 + (i % 3) * 0.12,
-    });
-  }
-  for (let i = 0; i < 8; i++) {
-    const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 8), sparkMat.clone());
-    mesh.material.depthTest = true;
-    mesh.renderOrder = 3;
-    sparkGroup.add(mesh);
-    sparks.push({
-      mesh,
-      kind: 'dot',
-      seed: i * 0.91 + 0.4,
-      ax: (i % 2 === 0 ? 0.10 : -0.08) * (0.4 + i * 0.04),
-      ay: 0.85 + i * 0.12,
+      ang,
+      reach: 1.25 + rnd() * 0.90,
+      delay: u * 0.032 + rnd() * 0.010,
     });
   }
 
@@ -1554,7 +1549,7 @@ function expandFlameTip(box) {
     lighterSpin.rotation.x = sx;
     lighterPivot.rotation.x = px;
     stage.updateMatrixWorld(true);
-    for (const xy of [[0, 4.15], [-0.55, 3.95], [0.6, 4.1]]) {
+    for (const xy of [[0, 4.15], [-0.55, 3.95], [0.6, 4.1], [-0.85, 3.55], [0.85, 3.55]]) {
       const p = new THREE.Vector3(xy[0], xy[1], 0);
       flameAnchor.localToWorld(p);
       box.expandByPoint(p);
@@ -1932,8 +1927,8 @@ function applyFrame(fr) {
     return u * u * (3 - 2 * u);
   };
   const sparkOn = Math.max(
-    trap(t, 0.085, 0.095, 0.118, 0.145),
-    trap(t, 0.555, 0.565, 0.588, 0.615),
+    trap(t, 0.078, 0.088, 0.128, 0.192),
+    trap(t, 0.548, 0.558, 0.598, 0.662),
   );
   const press = Math.max(
     trap(t, 0.13, 0.16, 0.40, 0.47),
@@ -1972,40 +1967,48 @@ function applyFrame(fr) {
     p.mesh.visible = on > 0.03;
   }
 
+  const sparkBursts = [
+    { t0: 0.082, flight: 0.088 },
+    { t0: 0.552, flight: 0.088 },
+  ];
   for (const sp of sparks) {
-    const u = sparkOn * (0.55 + 0.45 * ((Math.sin(ph * 18 + sp.seed * 11) + 1) * 0.5));
-    if (u < 0.10) {
+    if (sp.kind === 'flash') {
+      const u = sparkOn;
+      if (u < 0.12) {
+        sp.mesh.visible = false;
+        continue;
+      }
+      sp.mesh.visible = true;
+      sp.mesh.position.set(0, 0.02, 0);
+      sp.mesh.scale.setScalar(0.40 + 0.95 * u);
+      sp.mesh.material.opacity = 0.30 + 0.40 * u;
+      continue;
+    }
+    let k = -1;
+    for (const b of sparkBursts) {
+      const u = (t - b.t0 - sp.delay) / b.flight;
+      if (u >= 0 && u < 1.18) k = u;
+    }
+    if (k < 0 || sparkOn < 0.02) {
       sp.mesh.visible = false;
       continue;
     }
     sp.mesh.visible = true;
-    const k = (t * 14 + sp.seed) % 1;
-    const flick = 0.70 + 0.30 * Math.sin(ph * 32 + sp.seed * 7);
-    if (sp.kind === 'flash') {
-      sp.mesh.position.set(0, 0.04, 0);
-      sp.mesh.scale.setScalar((0.55 + 1.05 * u * flick));
-      sp.mesh.material.opacity = 0.45 + 0.40 * u;
-    } else if (sp.kind === 'bolt') {
-      /* Out of the jet opening, +Y only — never down, never across the body. */
-      sp.mesh.position.set(
-        sp.ax * k * 0.22,
-        0.02 + k * 0.55,
-        0,
-      );
-      sp.mesh.rotation.set(
-        0.06,
-        Math.sin(ph * 16 + sp.seed) * 0.08,
-        sp.ax * 0.12,
-      );
-      sp.mesh.scale.set(0.85 + 0.20 * flick, 0.70 + 0.55 * u, 1);
-      sp.mesh.material.opacity = 0.72 + 0.28 * u * flick;
-    } else {
-      sp.mesh.position.set(
-        sp.ax * k * 0.35,
-        0.08 + sp.ay * k * 0.95,
-        0,
-      );
-      sp.mesh.scale.setScalar((0.70 + 0.85 * (1 - k)) * u * flick);
+    const travel = Math.min(1, k);
+    const e = 1 - (1 - travel) * (1 - travel);
+    const dist = 0.10 + e * sp.reach;
+    sp.mesh.position.set(Math.sin(sp.ang) * dist, Math.cos(sp.ang) * dist, 0);
+    sp.mesh.rotation.z = -sp.ang;
+    const fade = k < 0.10 ? k / 0.10 : k > 0.70 ? Math.max(0, 1 - (k - 0.70) / 0.45) : 1;
+    const pop = 0.88 + 0.12 * Math.sin(ph * 22 + sp.seed * 9);
+    if (sp.chip) {
+      sp.chip.material.opacity = fade * pop;
+      sp.chip.scale.set(1, 0.78 + 0.40 * (1 - travel), 1);
+    }
+    if (sp.head) {
+      sp.head.material.opacity = fade * pop;
+      const hs = (0.85 + 0.45 * (1 - travel)) * (0.92 + 0.08 * pop);
+      sp.head.scale.setScalar(hs);
     }
   }
 
