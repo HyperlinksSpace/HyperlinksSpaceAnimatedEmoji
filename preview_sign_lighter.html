@@ -71,7 +71,10 @@
     .card .files { color: var(--muted); font-size: 11px; }
     .bgs {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+    @media (max-width: 1100px) {
+      .bgs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
     @media (max-width: 720px) {
       .bgs { grid-template-columns: 1fr; }
@@ -83,9 +86,11 @@
       padding: 18px 12px 22px;
       min-height: 260px;
     }
-    .bg.dark { background: #0e1621; }
-    .bg.light { background: #f2f0ea; color: #1c1c1c; }
-    .bg.green { background: #3f9a5a; color: #06240f; }
+    .bg.cobalt { background: linear-gradient(180deg, #1E5AE8 0%, #0A2C9C 100%); color: #e8f0ff; }
+    .bg.black { background: #000000; }
+    .bg.white { background: #ffffff; color: #1c1c1c; }
+    .bg.green { background: #1a8f3c; color: #f4fff4; }
+    .bg.cobalt label { font-weight: 700; opacity: 1; }
     .bg label {
       font-size: 10px;
       text-transform: uppercase;
@@ -108,9 +113,8 @@
     .emoji { width: 100px; height: 100px; }
     .sticker { width: 200px; height: 200px; }
     .tiny {
-      width: 30px;
-      height: 30px;
-      image-rendering: pixelated;
+      width: 32px;
+      height: 32px;
     }
     .avatars-block {
       margin-top: 36px;
@@ -153,13 +157,14 @@
     .avatar-slot { display: grid; gap: 8px; justify-items: center; width: 168px; }
     .avatar-slot .name { font-size: 11px; font-weight: 650; text-align: center; }
     .circle {
-      width: 156px; height: 156px; border-radius: 50%; overflow: hidden;
-      box-shadow: 0 0 0 2px #2a384a, 0 10px 22px rgba(0,0,0,.35);
+      width: 46px; height: 46px; border-radius: 50%; overflow: hidden;
+      box-shadow: 0 0 0 2px #2a384a, 0 8px 16px rgba(0,0,0,.35);
       display: grid; place-items: center;
       background: #111;
     }
-    /* Official: custom emoji occupies at most 67% of the profile picture. */
-    .circle video { width: 67%; height: 67%; }
+    .circle.x2 { width: 92px; height: 92px; }
+    /* Android AvatarConstructorFragment.STICKER_DEFAULT_SCALE = 0.70 */
+    .circle video { width: 70%; height: 70%; }
     .swatches { display: flex; gap: 4px; }
     .swatches i {
       width: 18px; height: 18px; border-radius: 4px;
@@ -218,12 +223,15 @@
     <header>
       <h2>Telegram avatar backgrounds</h2>
       <p class="why">
-        Custom emoji avatars occupy <strong>67%</strong> of the circle.
+        Custom emoji avatars occupy <strong>70%</strong> of the circle
+        (<code>STICKER_DEFAULT_SCALE</code>).
+        Telegram Desktop chat list is <strong>46×46px</strong> → emoji <strong>32×32px</strong>.
+        <strong>Sign — cobalt</strong> (high contrast vs emerald):
+        <code>#1E5AE8</code> → <code>#0A2C9C</code>.
         Color count splits the rest of the disc:
         <strong>1</strong> = solid,
         <strong>2</strong> = linear top→bottom (rotation 0),
         <strong>3–4</strong> = freeform blobs (① top-right, ② top-left, ③ bottom-left, ④ bottom-right).
-        Enter colors in that order in Telegram.
       </p>
     </header>
     <div class="avatar-grid">
@@ -234,9 +242,10 @@
 
   <script>
     const BGS = [
-      ['dark', 'Telegram dark'],
-      ['light', 'Light chat'],
-      ['green', 'Green chat'],
+      ['cobalt', 'Custom cobalt ★'],
+      ['black', 'Black'],
+      ['white', 'White'],
+      ['green', 'Green'],
     ];
 
     function slot(src, cls, caption) {
@@ -254,8 +263,8 @@
         <div class="bg ${cls}">
           <label>${title}</label>
           <div class="row">
-            ${slot(emoji, 'tiny', '30×30')}
-            ${slot(emoji, 'emoji', '100×100')}
+            ${slot(emoji, 'tiny', '32×32 avatar emoji')}
+            ${slot(emoji, 'emoji', '100×100 file')}
             ${slot(sticker, 'sticker', '512×512')}
           </div>
         </div>`).join('');
@@ -321,27 +330,32 @@
       return c.toDataURL();
     }
 
-    function avatarCard(sticker, pack) {
+    function avatarCard(emoji, pack) {
       const v = Date.now();
       return pack.sets.map((set) => `
         <div class="avatar-slot">
           <div class="name">${set.name}${set.best ? ' ★' : ''}</div>
           <div class="circle" style="background-image:url('${telegramFillUrl(set.colors)}');background-size:cover">
-            <video src="${sticker}?v=${v}" autoplay loop muted playsinline></video>
+            <video src="${emoji}?v=${v}" autoplay loop muted playsinline></video>
           </div>
+          <span class="legend">46px chat · 32px emoji</span>
+          <div class="circle x2" style="background-image:url('${telegramFillUrl(set.colors)}');background-size:cover">
+            <video src="${emoji}?v=${v}" autoplay loop muted playsinline></video>
+          </div>
+          <span class="legend">92px @2× · 64px emoji</span>
           <div class="swatches">${set.colors.map((c, i) => `<i title="${TG_LABEL[i]} ${c}" style="background:${c}"></i>`).join('')}</div>
           <div class="hexes">${set.colors.map((c, i) => `${i + 1} ${c}`).join('<br>')}</div>
         </div>`).join('');
     }
 
     const SIGN_SETS = {
-      title: 'Sign — recommended',
-      note: 'Dark plum so green chrome and fire read through the gaps. Avoid green slots — they swallow the N.',
+      title: 'Sign — custom cobalt',
+      note: 'Vivid cobalt vs emerald N. Chat-list avatar is 46px; the emoji is 32px. Skip green slots.',
       sets: [
-        { name: '4 colors (best)', best: true, colors: ['#2c1a4a', '#0c1018', '#16101c', '#241436'] },
-        { name: '3 colors', colors: ['#2a1848', '#0e1018', '#1a1028'] },
-        { name: '2 colors', colors: ['#120c1c', '#241436'] },
-        { name: '1 color', colors: ['#140e1c'] },
+        { name: '2 colors (best)', best: true, colors: ['#1E5AE8', '#0A2C9C'] },
+        { name: '4 colors', colors: ['#3A78FF', '#1E5AE8', '#0A2C9C', '#1650D0'] },
+        { name: '3 colors', colors: ['#3A78FF', '#1E5AE8', '#0A2C9C'] },
+        { name: '1 color', colors: ['#1648D4'] },
       ],
     };
     const LIGHTER_SETS = {
@@ -359,8 +373,8 @@
       const el = document.getElementById(id);
       el.innerHTML = `<h3>${title}</h3><p class="legend">${note}</p><div class="avatar-row">${avatarCard(sticker, pack)}</div>`;
     }
-    fillCol('sign-avatars', SIGN_SETS.title, SIGN_SETS.note, 'hyperlinks-space-sticker-sign.webm', SIGN_SETS);
-    fillCol('lighter-avatars', LIGHTER_SETS.title, LIGHTER_SETS.note, 'hyperlinks-space-sticker-lighter.webm', LIGHTER_SETS);
+    fillCol('sign-avatars', SIGN_SETS.title, SIGN_SETS.note, 'hyperlinks-space-emoji-sign.webm', SIGN_SETS);
+    fillCol('lighter-avatars', LIGHTER_SETS.title, LIGHTER_SETS.note, 'hyperlinks-space-emoji-lighter.webm', LIGHTER_SETS);
   </script>
 </body>
 </html>

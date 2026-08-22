@@ -1,0 +1,2750 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Hyperlinks.SPACE — Lighter + nail sticker</title>
+  <style>
+    html, body { margin: 0; background: transparent; overflow: hidden; }
+    canvas { display: block; width: 512px; height: 512px; background: transparent; }
+  </style>
+</head>
+<body>
+<script type="importmap">
+{
+  "imports": {
+    "three": "./node_modules/three/build/three.module.js",
+    "three/addons/": "./node_modules/three/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+/**
+ * AAA lighter emoji: Times New Roman I. / geometric S.,
+ * hyperreal plastic + hi-fi anime hard shine / fire.
+ * Isolated from the sign-only pipeline.
+ * Alternate sticker: 3D fingertip (nail.png jewelry + glitter) flicks the wheel.
+ * Does not replace the original lighter scene or WebMs.
+ */
+import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+
+const W = 512, H = 512, TOTAL = 90;
+
+const renderer = new THREE.WebGLRenderer({
+  antialias: true,
+  alpha: true,
+  preserveDrawingBuffer: true,
+  powerPreference: 'high-performance',
+  stencil: true,
+});
+renderer.setSize(W, H, false);
+renderer.setPixelRatio(2);
+renderer.setClearColor(0x000000, 0);
+renderer.autoClear = true;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.NoToneMapping;
+document.body.appendChild(renderer.domElement);
+
+const pmrem = new THREE.PMREMGenerator(renderer);
+const scene = new THREE.Scene();
+
+function makeStudioEnvTex() {
+  /* Darker metal form + a hard white window for chrome glances and the red streak. */
+  const c = document.createElement('canvas');
+  c.width = 1024;
+  c.height = 512;
+  const g = c.getContext('2d');
+  const ambient = g.createLinearGradient(0, 0, 0, 512);
+  ambient.addColorStop(0.00, '#d8dee6');
+  ambient.addColorStop(0.22, '#8a929c');
+  ambient.addColorStop(0.55, '#4a525c');
+  ambient.addColorStop(1.00, '#1c2228');
+  g.fillStyle = ambient;
+  g.fillRect(0, 0, 1024, 512);
+  const win = g.createLinearGradient(150, 0, 250, 0);
+  win.addColorStop(0.00, 'rgba(42,50,60,0)');
+  win.addColorStop(0.12, '#ffffff');
+  win.addColorStop(0.50, '#ffffff');
+  win.addColorStop(0.88, '#ffffff');
+  win.addColorStop(1.00, 'rgba(42,50,60,0)');
+  g.fillStyle = win;
+  g.fillRect(168, 0, 48, 512);
+  g.fillStyle = '#ffffff';
+  g.fillRect(188, 0, 7, 512);
+  const win2 = g.createLinearGradient(328, 0, 348, 0);
+  win2.addColorStop(0.00, 'rgba(42,50,60,0)');
+  win2.addColorStop(0.35, '#ffffff');
+  win2.addColorStop(0.65, '#ffffff');
+  win2.addColorStop(1.00, 'rgba(42,50,60,0)');
+  g.fillStyle = win2;
+  g.fillRect(328, 8, 20, 496);
+  g.fillStyle = '#ffffff';
+  g.fillRect(336, 16, 5, 480);
+  g.fillStyle = '#d8dee6';
+  g.fillRect(680, 30, 72, 420);
+  g.fillStyle = '#4a5460';
+  g.fillRect(0, 430, 1024, 82);
+  const tex = new THREE.CanvasTexture(c);
+  tex.mapping = THREE.EquirectangularReflectionMapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.generateMipmaps = false;
+  tex.needsUpdate = true;
+  return tex;
+}
+scene.environment = pmrem.fromEquirectangular(makeStudioEnvTex()).texture;
+scene.environmentIntensity = 1.45;
+
+function makeStableChromeEnvTex() {
+  /* Same studio as I, windows shifted to +Z so a camera-facing S always
+     reads as chrome instead of waiting for the spinning white bar. */
+  const c = document.createElement('canvas');
+  c.width = 1024;
+  c.height = 512;
+  const g = c.getContext('2d');
+  const ambient = g.createLinearGradient(0, 0, 0, 512);
+  ambient.addColorStop(0.00, '#d8dee6');
+  ambient.addColorStop(0.22, '#8a929c');
+  ambient.addColorStop(0.55, '#4a525c');
+  ambient.addColorStop(1.00, '#1c2228');
+  g.fillStyle = ambient;
+  g.fillRect(0, 0, 1024, 512);
+  const win = g.createLinearGradient(450, 0, 574, 0);
+  win.addColorStop(0.00, 'rgba(42,50,60,0)');
+  win.addColorStop(0.12, '#e8eef4');
+  win.addColorStop(0.38, '#ffffff');
+  win.addColorStop(0.62, '#ffffff');
+  win.addColorStop(0.88, '#e8eef4');
+  win.addColorStop(1.00, 'rgba(42,50,60,0)');
+  g.fillStyle = win;
+  g.fillRect(468, 0, 88, 512);
+  g.fillStyle = '#ffffff';
+  g.fillRect(504, 0, 10, 512);
+  const win2 = g.createLinearGradient(660, 0, 680, 0);
+  win2.addColorStop(0.00, 'rgba(42,50,60,0)');
+  win2.addColorStop(0.35, '#ffffff');
+  win2.addColorStop(0.65, '#ffffff');
+  win2.addColorStop(1.00, 'rgba(42,50,60,0)');
+  g.fillStyle = win2;
+  g.fillRect(660, 8, 20, 496);
+  g.fillStyle = '#ffffff';
+  g.fillRect(668, 16, 5, 480);
+  g.fillStyle = '#d8dee6';
+  g.fillRect(780, 30, 72, 420);
+  g.fillStyle = '#4a5460';
+  g.fillRect(0, 430, 1024, 82);
+  const tex = new THREE.CanvasTexture(c);
+  tex.mapping = THREE.EquirectangularReflectionMapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.generateMipmaps = false;
+  tex.needsUpdate = true;
+  return tex;
+}
+const sChromeEnv = pmrem.fromEquirectangular(makeStableChromeEnvTex()).texture;
+
+function makeChromeMatcapTex() {
+  /* Bright studio chrome — light metal vs black, with a vertical window shine. */
+  const s = 256;
+  const c = document.createElement('canvas');
+  c.width = s;
+  c.height = s;
+  const g = c.getContext('2d');
+  const sky = g.createLinearGradient(0, 0, 0, s);
+  sky.addColorStop(0.00, '#ffffff');
+  sky.addColorStop(0.18, '#f4f7fb');
+  sky.addColorStop(0.36, '#cfd8e2');
+  sky.addColorStop(0.52, '#9aa6b2');
+  sky.addColorStop(0.72, '#6e7884');
+  sky.addColorStop(1.00, '#3e464e');
+  g.fillStyle = sky;
+  g.fillRect(0, 0, s, s);
+  const win = g.createRadialGradient(s * 0.34, s * 0.28, 0, s * 0.34, s * 0.28, s * 0.48);
+  win.addColorStop(0.00, '#ffffff');
+  win.addColorStop(0.14, '#ffffff');
+  win.addColorStop(0.38, 'rgba(236,242,248,0.7)');
+  win.addColorStop(1.00, 'rgba(0,0,0,0)');
+  g.fillStyle = win;
+  g.fillRect(0, 0, s, s);
+  const bar = g.createLinearGradient(s * 0.26, 0, s * 0.48, 0);
+  bar.addColorStop(0.00, 'rgba(255,255,255,0)');
+  bar.addColorStop(0.40, 'rgba(255,255,255,0.55)');
+  bar.addColorStop(0.50, '#ffffff');
+  bar.addColorStop(0.60, 'rgba(255,255,255,0.55)');
+  bar.addColorStop(1.00, 'rgba(255,255,255,0)');
+  g.fillStyle = bar;
+  g.fillRect(0, 0, s, s);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.needsUpdate = true;
+  return tex;
+}
+const sChromeMatcap = makeChromeMatcapTex();
+
+const sGlanceU = {
+  uShift: { value: 0 },
+  uGain: { value: 0.92 },
+};
+
+function dotChromeMat(quiet = false) {
+  /* Same hammered PBR as the last commit, tinted to the quieter period color. */
+  const mat = liquidChromeMat(false);
+  mat.color.setHex(quiet ? 0x7a828a : 0x9aa3ab);
+  mat.envMapIntensity = quiet ? 1.15 : 1.35;
+  mat.roughness = 0.048;
+  return mat;
+}
+
+function sChromeMat(withGlance = false) {
+  if (!withGlance) {
+    return new THREE.MeshMatcapMaterial({
+      matcap: sChromeMatcap,
+      color: 0xffffff,
+      toneMapped: false,
+    });
+  }
+  /* Same matcap, plus I's moderate traveling chrome window on the 3D form. */
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      matcap: { value: sChromeMatcap },
+      uShift: sGlanceU.uShift,
+      uGain: sGlanceU.uGain,
+    },
+    vertexShader: `
+      varying vec3 vViewPosition;
+      varying vec3 vNormal;
+      varying float vX;
+      void main() {
+        vX = position.x;
+        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+        vViewPosition = -mvPosition.xyz;
+        vNormal = normalize(normalMatrix * normal);
+        gl_Position = projectionMatrix * mvPosition;
+      }
+    `,
+    fragmentShader: `
+      uniform sampler2D matcap;
+      uniform float uShift;
+      uniform float uGain;
+      varying vec3 vViewPosition;
+      varying vec3 vNormal;
+      varying float vX;
+      void main() {
+        vec3 normal = normalize(vNormal);
+        vec3 viewDir = normalize(vViewPosition);
+        vec3 x = normalize(vec3(viewDir.z, 0.0, -viewDir.x));
+        vec3 y = cross(viewDir, x);
+        vec2 uv = vec2(dot(x, normal), dot(y, normal)) * 0.495 + 0.5;
+        vec3 col = texture2D(matcap, uv).rgb;
+        col = min(vec3(1.0), col * 1.18 + 0.06);
+        float d = abs(vX - uShift);
+        float core = 1.0 - smoothstep(0.10, 0.24, d);
+        float halo = 1.0 - smoothstep(0.24, 0.52, d);
+        float a = max(core, halo * 0.55) * uGain;
+        col = mix(col, vec3(1.0), clamp(a, 0.0, 0.85));
+        float fres = pow(1.0 - abs(dot(normal, viewDir)), 2.6);
+        col = mix(col, vec3(0.62, 0.66, 0.70), fres * 0.18);
+        gl_FragColor = vec4(col, 1.0);
+      }
+    `,
+    toneMapped: false,
+  });
+}
+
+const camera = new THREE.PerspectiveCamera(28, 1, 0.05, 200);
+camera.position.set(0, 0, 42);
+
+const stage = new THREE.Group();
+scene.add(stage);
+const root = new THREE.Group();
+stage.add(root);
+
+/* Soft form lights — glances come from independent tight spots + stripe meshes */
+const key = new THREE.DirectionalLight(0xffffff, 1.55);
+key.position.set(-11, 9, 18);
+scene.add(key);
+const key2 = new THREE.DirectionalLight(0xffffff, 0.7);
+key2.position.set(4, 12, 10);
+scene.add(key2);
+const fill = new THREE.DirectionalLight(0xffe8e4, 0.08);
+fill.position.set(10, -4, 8);
+scene.add(fill);
+scene.add(new THREE.AmbientLight(0xfff8f4, 0.08));
+const rim = new THREE.DirectionalLight(0xffffff, 0.35);
+rim.position.set(6, 8, -16);
+scene.add(rim);
+const camFill = new THREE.DirectionalLight(0xffffff, 0.85);
+camFill.position.set(-2, 3, 28);
+scene.add(camFill);
+const sKey = new THREE.DirectionalLight(0xffffff, 1.85);
+sKey.position.set(-6, 8, 24);
+sKey.layers.set(1);
+scene.add(sKey);
+
+function makeGlanceSpot() {
+  const spot = new THREE.SpotLight(0xffffff, 22, 60, 0.055, 0.02);
+  scene.add(spot);
+  scene.add(spot.target);
+  return spot;
+}
+const iSpot = makeGlanceSpot();
+const sSpot = makeGlanceSpot();
+const bodySpot = makeGlanceSpot();
+bodySpot.intensity = 32;
+bodySpot.angle = 0.048;
+
+const flameLight = new THREE.PointLight(0xff7018, 0, 22, 1.7);
+root.add(flameLight);
+const flameLight2 = new THREE.PointLight(0xfff0a0, 0, 14, 2.1);
+root.add(flameLight2);
+
+function trap(t, a, b, c, d) {
+  if (t <= a || t >= d) return 0;
+  if (t < b) { const u = (t - a) / (b - a); return u * u * (3 - 2 * u); }
+  if (t < c) return 1;
+  const u = (t - c) / (d - c); return 1 - u * u * (3 - 2 * u);
+}
+
+function trapLoop(t, a, b, c, d) {
+  return Math.max(trap(t, a, b, c, d), trap(t + 1, a, b, c, d), trap(t - 1, a, b, c, d));
+}
+
+function sparkFlightK(t, t0, delay, flight) {
+  let best = -1;
+  for (const off of [-1, 0, 1]) {
+    const u = (t + off - t0 - delay) / flight;
+    if (u >= 0 && u < 1.18) best = u;
+  }
+  return best;
+}
+
+function seeded(n) {
+  return () => {
+    n = (n * 16807) % 2147483647;
+    return (n - 1) / 2147483646;
+  };
+}
+
+const brand = { i: null, s: null };
+let lighterPivot = null;
+let lighterSpin = null;
+let sparkWheel = null;
+let sparkGroup = null;
+let flameGroup = null;
+let flameAnchor = null;
+let lever = null;
+let nailFinger = null;
+let nailCharm = null;
+let nailGlints = [];
+let bodyShine = null;
+let hoodShine = null;
+let chromeShine = null;
+let iGlance = null;
+let sGlance = null;
+const flameParts = [];
+const sparks = [];
+const fx = new THREE.Group();
+scene.add(fx);
+const bolts = [];
+const centerFlames = [];
+
+function insetGlanceMat(bottomWide = 1) {
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      uGain: { value: 1 },
+      uBottomWide: { value: bottomWide },
+    },
+    vertexShader: `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform float uGain;
+      uniform float uBottomWide;
+      varying vec2 vUv;
+      void main() {
+        float widen = mix(uBottomWide, 1.0, vUv.y);
+        float d = abs(vUv.x - 0.5) / max(widen, 0.2);
+        float core = 1.0 - smoothstep(0.06, 0.16, d);
+        float halo = 1.0 - smoothstep(0.16, 0.38, d);
+        float fadeY = smoothstep(0.0, 0.04, vUv.y) * (1.0 - smoothstep(0.94, 1.0, vUv.y));
+        float a = max(core, halo * 0.42) * fadeY * uGain;
+        if (a < 0.05) discard;
+        gl_FragColor = vec4(1.0, 1.0, 1.0, a);
+      }
+    `,
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    toneMapped: false,
+    side: THREE.DoubleSide,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
+  });
+}
+
+function makeInsetGlance(w, h, bottomWide = 1) {
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), insetGlanceMat(bottomWide));
+  mesh.renderOrder = 3;
+  return mesh;
+}
+
+function glanceMat(width = 1) {
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      uShift: { value: 0 },
+      uGain: { value: 1 },
+      uWidth: { value: width },
+    },
+    vertexShader: `
+      varying float vX;
+      void main() {
+        vX = position.x;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform float uShift;
+      uniform float uGain;
+      uniform float uWidth;
+      varying float vX;
+      void main() {
+        float d = abs(vX - uShift) / max(uWidth, 0.001);
+        float core = 1.0 - smoothstep(0.09, 0.18, d);
+        float halo = 1.0 - smoothstep(0.18, 0.40, d);
+        float a = max(core, halo * 0.55) * uGain;
+        if (a < 0.04) discard;
+        gl_FragColor = vec4(1.0, 1.0, 1.0, a);
+      }
+    `,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthTest: true,
+    depthWrite: false,
+    toneMapped: false,
+    side: THREE.FrontSide,
+  });
+}
+
+function attachGlance(letter, ch) {
+  const body = letter.children[0];
+  const shape = ch === 'I' ? timesIShape() : timesSShape();
+  const geo = new THREE.ShapeGeometry(shape, 72);
+  const mesh = new THREE.Mesh(geo, glanceMat(1.15));
+  mesh.material.side = THREE.DoubleSide;
+  mesh.material.polygonOffset = true;
+  mesh.material.polygonOffsetFactor = -2;
+  mesh.material.polygonOffsetUnits = -2;
+  mesh.position.set(body.position.x, body.position.y, 0.52);
+  mesh.renderOrder = 4;
+  letter.add(mesh);
+  letter.userData.glance = mesh;
+  return mesh;
+}
+
+function plasticRed() {
+  /* Candy lacquer — saturated, high clearcoat, photo vertical glance */
+  return new THREE.MeshPhysicalMaterial({
+    color: 0xe80e08,
+    roughness: 0.01,
+    metalness: 0.04,
+    clearcoat: 1,
+    clearcoatRoughness: 0.01,
+    ior: 1.58,
+    specularIntensity: 1,
+    specularColor: new THREE.Color(0xffffff),
+    envMapIntensity: 2.6,
+    emissive: 0xff1a08,
+    emissiveIntensity: 0.22,
+    toneMapped: false,
+  });
+}
+
+/** Same family as the pad, a step darker so the plunger reads as a separate part. */
+function plasticRedDark() {
+  return new THREE.MeshPhysicalMaterial({
+    color: 0x8a0908,
+    roughness: 0.06,
+    metalness: 0.05,
+    clearcoat: 1,
+    clearcoatRoughness: 0.04,
+    ior: 1.58,
+    specularIntensity: 1,
+    specularColor: new THREE.Color(0xffffff),
+    envMapIntensity: 1.8,
+    emissive: 0x4a0604,
+    emissiveIntensity: 0.12,
+    toneMapped: false,
+  });
+}
+
+function plasticBlack() {
+  return new THREE.MeshPhysicalMaterial({
+    color: 0x020203,
+    roughness: 0.02,
+    metalness: 0.08,
+    clearcoat: 1,
+    clearcoatRoughness: 0.02,
+    ior: 1.52,
+    envMapIntensity: 2.4,
+    specularIntensity: 1,
+    specularColor: new THREE.Color(0xffffff),
+    toneMapped: false,
+  });
+}
+
+function steelMat() {
+  return new THREE.MeshPhysicalMaterial({
+    color: 0xb8c0c8,
+    roughness: 0.28,
+    metalness: 0.95,
+    envMapIntensity: 1.6,
+    toneMapped: false,
+  });
+}
+
+/** Polished liquid chrome — hyperreal light metal. */
+function liquidChromeMat(light = false) {
+  return new THREE.MeshPhysicalMaterial({
+    color: light ? 0xffffff : 0xeef2f6,
+    metalness: light ? 0.58 : 1.0,
+    roughness: light ? 0.09 : 0.042,
+    clearcoat: 1.0,
+    clearcoatRoughness: light ? 0.06 : 0.04,
+    reflectivity: 1,
+    ior: 1.5,
+    envMapIntensity: light ? 2.05 : 1.7,
+    emissive: light ? 0xe2e8ee : 0x000000,
+    emissiveIntensity: light ? 0.36 : 0,
+    specularIntensity: 1,
+    specularColor: new THREE.Color(0xffffff),
+    toneMapped: false,
+  });
+}
+
+/** Polished chrome windguard */
+function chromeMat() {
+  return new THREE.MeshPhysicalMaterial({
+    color: 0x9aa3ad,
+    metalness: 1.0,
+    roughness: 0.045,
+    clearcoat: 1.0,
+    clearcoatRoughness: 0.03,
+    reflectivity: 1,
+    ior: 1.5,
+    envMapIntensity: 2.0,
+    specularIntensity: 1,
+    specularColor: new THREE.Color(0xffffff),
+    toneMapped: false,
+  });
+}
+
+function hoodChromeMat() {
+  /* Matcap so the sleeve stays bright against the black collar (PBR chrome vanished into the env). */
+  return new THREE.MeshMatcapMaterial({
+    matcap: sChromeMatcap,
+    color: 0xffffff,
+    toneMapped: false,
+  });
+}
+
+function flamePath(ctx, cx, top, bot, halfW) {
+  const hh = bot - top;
+  const baseW = Math.max(8, halfW * 0.16);
+  ctx.beginPath();
+  ctx.moveTo(cx, top);
+  ctx.bezierCurveTo(cx + halfW * 0.18, top + hh * 0.16, cx + halfW * 0.92, top + hh * 0.38, cx + halfW, top + hh * 0.58);
+  ctx.bezierCurveTo(cx + halfW * 1.02, top + hh * 0.76, cx + baseW, bot - 2, cx + baseW, bot);
+  ctx.lineTo(cx - baseW, bot);
+  ctx.bezierCurveTo(cx - baseW, bot - 2, cx - halfW * 1.02, top + hh * 0.76, cx - halfW, top + hh * 0.58);
+  ctx.bezierCurveTo(cx - halfW * 0.92, top + hh * 0.38, cx - halfW * 0.18, top + hh * 0.16, cx, top);
+  ctx.closePath();
+}
+
+/** Opaque painted flame: dark-red outline + saturated body + yellow-white core. */
+function makeFlameSpriteTex() {
+  const w = 256;
+  const h = 512;
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  const ctx = c.getContext('2d');
+  const cx = w * 0.5;
+  const top = 12;
+  const bot = 508;
+  const hw = 102;
+
+  flamePath(ctx, cx, top, bot, hw);
+  ctx.fillStyle = '#2a0000';
+  ctx.fill();
+
+  flamePath(ctx, cx, top + 10, bot - 2, hw * 0.88);
+  ctx.fillStyle = '#9a0000';
+  ctx.fill();
+
+  flamePath(ctx, cx, top + 20, bot - 10, hw * 0.74);
+  const body = ctx.createLinearGradient(cx, bot, cx, top);
+  body.addColorStop(0.00, '#ff0a00');
+  body.addColorStop(0.12, '#ff1a00');
+  body.addColorStop(0.32, '#ff3a00');
+  body.addColorStop(0.52, '#ff6a00');
+  body.addColorStop(0.70, '#ffb000');
+  body.addColorStop(0.86, '#ffe56a');
+  body.addColorStop(1.00, '#fffce8');
+  ctx.fillStyle = body;
+  ctx.fill();
+
+  flamePath(ctx, cx, top + 110, bot - 95, hw * 0.32);
+  const core = ctx.createLinearGradient(cx, bot - 90, cx, top + 40);
+  core.addColorStop(0.00, '#ffb000');
+  core.addColorStop(0.35, '#ffe56a');
+  core.addColorStop(0.70, '#fffce0');
+  core.addColorStop(1.00, '#ffffff');
+  ctx.fillStyle = core;
+  ctx.fill();
+
+  const blue = ctx.createRadialGradient(cx, bot - 18, 3, cx, bot - 28, 40);
+  blue.addColorStop(0.00, 'rgba(210,235,255,1)');
+  blue.addColorStop(0.28, 'rgba(40,100,255,1)');
+  blue.addColorStop(0.70, 'rgba(20,50,220,0.55)');
+  blue.addColorStop(1.00, 'rgba(20,50,220,0)');
+  ctx.fillStyle = blue;
+  ctx.beginPath();
+  ctx.ellipse(cx, bot - 22, 34, 44, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.generateMipmaps = false;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+/** Irregular S-curve flame tongue — opaque so it reads on light chat backgrounds. */
+function makeWindingFlameTex(seed) {
+  const w = 256, h = 640;
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  const g = c.getContext('2d');
+  const rnd = seeded(seed * 97 + 13);
+  const cx = 128;
+  const tongue = (ox, sway, wBase, tipY, dark) => {
+    const baseY = 628;
+    g.beginPath();
+    g.moveTo(cx + ox, baseY);
+    g.bezierCurveTo(cx + ox - wBase, baseY - 80, cx + ox - wBase * 1.4 + sway * 0.4, baseY - 210, cx + ox + sway * 0.7, baseY - 340);
+    g.bezierCurveTo(cx + ox + sway * 1.5, tipY + 150, cx + ox + sway * 1.65, tipY + 70, cx + ox + sway * 0.8, tipY);
+    g.bezierCurveTo(cx + ox + sway * 0.1, tipY + 80, cx + ox - sway * 0.5, tipY + 200, cx + ox - sway * 0.15, baseY - 330);
+    g.bezierCurveTo(cx + ox + wBase, baseY - 180, cx + ox + wBase * 0.5, baseY - 70, cx + ox, baseY);
+    g.closePath();
+    const grd = g.createLinearGradient(cx + ox, baseY, cx + ox + sway * 0.6, tipY);
+    if (dark) {
+      grd.addColorStop(0.00, '#3a0000');
+      grd.addColorStop(0.25, '#c01400');
+      grd.addColorStop(0.60, '#ff4a00');
+      grd.addColorStop(1.00, '#ffb020');
+    } else {
+      grd.addColorStop(0.00, '#2a0000');
+      grd.addColorStop(0.12, '#ff1a00');
+      grd.addColorStop(0.40, '#ff6a00');
+      grd.addColorStop(0.70, '#ffd040');
+      grd.addColorStop(1.00, '#fff8e0');
+    }
+    g.fillStyle = grd;
+    g.fill();
+  };
+  tongue(-8, 70 + rnd() * 50, 58, 24 + rnd() * 30, true);
+  tongue(18, -88 - rnd() * 36, 50, 48 + rnd() * 28, true);
+  tongue(-2, 54 + rnd() * 40, 64, 8 + rnd() * 18, false);
+  tongue(12, -62 - rnd() * 30, 46, 36 + rnd() * 22, false);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.generateMipmaps = false;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+/** Wide jagged bolt with dark outline — survives 30×30. */
+function makeLightningTex(seed) {
+  const w = 256, h = 512;
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  const ctx = c.getContext('2d');
+  const rnd = seeded(seed * 131 + 7);
+  const pts = [];
+  let x = w * 0.5;
+  pts.push([x, h - 10]);
+  const segs = 8 + Math.floor(rnd() * 5);
+  for (let i = 1; i <= segs; i++) {
+    const u = i / segs;
+    x = w * 0.5 + (rnd() - 0.52) * 150 * Math.sin(u * Math.PI) + (rnd() - 0.5) * 36;
+    pts.push([x, h - 10 - u * (h - 22)]);
+  }
+  const stroke = (width, color) => {
+    ctx.lineJoin = 'miter';
+    ctx.lineCap = 'round';
+    ctx.miterLimit = 8;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+    ctx.stroke();
+  };
+  stroke(48, '#1a0600');
+  stroke(32, seed % 2 ? '#ff7a00' : '#3a7cff');
+  stroke(18, seed % 2 ? '#ffe566' : '#c8e8ff');
+  stroke(8, '#ffffff');
+  const mid = 3 + Math.floor(rnd() * 3);
+  const bx = pts[mid][0], by = pts[mid][1];
+  const bpts = [[bx, by]];
+  let bx2 = bx, by2 = by;
+  const bSeg = 3 + Math.floor(rnd() * 2);
+  const dir = rnd() > 0.5 ? 1 : -1;
+  for (let i = 1; i <= bSeg; i++) {
+    bx2 += dir * (28 + rnd() * 40);
+    by2 -= 28 + rnd() * 36;
+    bpts.push([bx2, by2]);
+  }
+  const strokeB = (width, color) => {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.beginPath();
+    ctx.moveTo(bpts[0][0], bpts[0][1]);
+    for (let i = 1; i < bpts.length; i++) ctx.lineTo(bpts[i][0], bpts[i][1]);
+    ctx.stroke();
+  };
+  strokeB(28, '#1a0600');
+  strokeB(18, seed % 2 ? '#ff9900' : '#4488ff');
+  strokeB(9, '#ffffff');
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.generateMipmaps = false;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+function makeSparkChipTex(seed) {
+  /* One short comet: bright head, taper tail — not a lightning stream. */
+  const w = 48;
+  const h = 128;
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  const ctx = c.getContext('2d');
+  const rnd = seeded(seed * 173 + 11);
+  ctx.clearRect(0, 0, w, h);
+  const cx = w * 0.5;
+  const lean = (rnd() - 0.5) * 8;
+  /* flipY: canvas top → plane +Y tip (head); canvas bottom → origin (tail). */
+  const grad = ctx.createLinearGradient(cx, h - 6, cx + lean, 10);
+  grad.addColorStop(0.00, 'rgba(255,40,0,0)');
+  grad.addColorStop(0.22, 'rgba(255,90,8,0.45)');
+  grad.addColorStop(0.52, '#ff9a20');
+  grad.addColorStop(0.78, '#ffe566');
+  grad.addColorStop(1.00, '#fffce8');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.moveTo(cx - 3, h - 10);
+  ctx.lineTo(cx + 3, h - 10);
+  ctx.lineTo(cx + 11 + rnd() * 4, 18);
+  ctx.lineTo(cx - 11 - rnd() * 4, 18);
+  ctx.closePath();
+  ctx.fill();
+  const head = ctx.createRadialGradient(cx, 16, 0, cx, 16, 18);
+  head.addColorStop(0.00, '#ffffff');
+  head.addColorStop(0.28, '#fff6c8');
+  head.addColorStop(0.62, '#ffcc44');
+  head.addColorStop(1.00, 'rgba(255,120,0,0)');
+  ctx.fillStyle = head;
+  ctx.beginPath();
+  ctx.arc(cx, 16, 18, 0, Math.PI * 2);
+  ctx.fill();
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.generateMipmaps = false;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+function buildFx() {
+  /* Lightning removed from the lighter — nozzle flame only. */
+}
+
+function sampleBezier(p0, p1, p2, p3, n) {
+  const pts = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n, u = 1 - t;
+    pts.push([
+      u * u * u * p0[0] + 3 * u * u * t * p1[0] + 3 * u * t * t * p2[0] + t * t * t * p3[0],
+      u * u * u * p0[1] + 3 * u * u * t * p1[1] + 3 * u * t * t * p2[1] + t * t * t * p3[1],
+    ]);
+  }
+  return pts;
+}
+
+/** Extra-bold antiqua capital I — thick stem, bracketed slab serifs. */
+function timesIShape() {
+  const s = new THREE.Shape();
+  const stem = 0.40;
+  const serifW = 0.90;
+  const serifH = 0.26;
+  const h = 1.52;
+  const br = 0.16;
+  s.moveTo(-serifW, -h);
+  s.lineTo(serifW, -h);
+  s.lineTo(serifW, -h + serifH * 0.55);
+  s.quadraticCurveTo(serifW * 0.22, -h + serifH, stem, -h + serifH + br);
+  s.lineTo(stem, h - serifH - br);
+  s.quadraticCurveTo(serifW * 0.22, h - serifH, serifW, h - serifH * 0.55);
+  s.lineTo(serifW, h);
+  s.lineTo(-serifW, h);
+  s.lineTo(-serifW, h - serifH * 0.55);
+  s.quadraticCurveTo(-serifW * 0.22, h - serifH, -stem, h - serifH - br);
+  s.lineTo(-stem, -h + serifH + br);
+  s.quadraticCurveTo(-serifW * 0.22, -h + serifH, -serifW, -h + serifH * 0.55);
+  s.closePath();
+  return s;
+}
+
+/** Times-like roman S — oval bowls, modest terminals (not comic bubble). */
+function timesSShape() {
+  const top = sampleBezier([0.42, 1.18], [-0.72, 1.28], [-0.74, 0.10], [0.04, 0.04], 28);
+  const bot = sampleBezier([0.04, 0.04], [0.80, -0.02], [0.76, -1.28], [-0.42, -1.18], 28);
+  return strokeShape(top.concat(bot.slice(1)), 0.27);
+}
+
+function circleShape(r) {
+  const s = new THREE.Shape();
+  s.absarc(0, 0, r, 0, Math.PI * 2, false);
+  return s;
+}
+
+function strokeShape(pts, radius) {
+  const left = [], right = [];
+  for (let i = 0; i < pts.length; i++) {
+    const i0 = Math.max(0, i - 1);
+    const i1 = Math.min(pts.length - 1, i + 1);
+    let dx = pts[i1][0] - pts[i0][0];
+    let dy = pts[i1][1] - pts[i0][1];
+    const len = Math.hypot(dx, dy) || 1;
+    dx /= len; dy /= len;
+    left.push([pts[i][0] - dy * radius, pts[i][1] + dx * radius]);
+    right.push([pts[i][0] + dy * radius, pts[i][1] - dx * radius]);
+  }
+  const shape = new THREE.Shape();
+  shape.moveTo(left[0][0], left[0][1]);
+  for (let i = 1; i < left.length; i++) shape.lineTo(left[i][0], left[i][1]);
+  const end = pts[pts.length - 1];
+  shape.absarc(
+    end[0], end[1], radius,
+    Math.atan2(left[left.length - 1][1] - end[1], left[left.length - 1][0] - end[0]),
+    Math.atan2(right[right.length - 1][1] - end[1], right[right.length - 1][0] - end[0]),
+    false,
+  );
+  for (let i = right.length - 1; i >= 0; i--) shape.lineTo(right[i][0], right[i][1]);
+  const start = pts[0];
+  shape.absarc(
+    start[0], start[1], radius,
+    Math.atan2(right[0][1] - start[1], right[0][0] - start[0]),
+    Math.atan2(left[0][1] - start[1], left[0][0] - start[0]),
+    false,
+  );
+  shape.closePath();
+  return shape;
+}
+
+function sCenterlinePts() {
+  const top = sampleBezier([0.42, 1.18], [-0.72, 1.28], [-0.74, 0.10], [0.04, 0.04], 28);
+  const bot = sampleBezier([0.04, 0.04], [0.80, -0.02], [0.76, -1.28], [-0.42, -1.18], 28);
+  return top.concat(bot.slice(1));
+}
+
+function distToPolyline(x, y, pts) {
+  let best = 1e9;
+  for (let i = 0; i < pts.length; i++) {
+    const dx = x - pts[i][0];
+    const dy = y - pts[i][1];
+    const d = dx * dx + dy * dy;
+    if (d < best) best = d;
+  }
+  return Math.sqrt(best);
+}
+
+/** Concave stroke valleys — bent metal that splits the glance into two ridges. */
+function channelChromeGeo(geo, kind, centerline) {
+  geo.computeVertexNormals();
+  const pos = geo.attributes.position;
+  const nrm = geo.attributes.normal;
+  const amp = kind === 'dot' ? 0.012 : 0.009;
+  for (let i = 0; i < pos.count; i++) {
+    const nz = nrm.getZ(i);
+    if (Math.abs(nz) < 0.5) continue;
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const z = pos.getZ(i);
+    let k = 0;
+    if (kind === 'I') {
+      const inStem = Math.abs(x) < 0.50 && Math.abs(y) < 1.14;
+      const inSerif = Math.abs(y) > 1.04;
+      if (inStem) {
+        const u = Math.min(1, Math.abs(x) / 0.40);
+        k = 1 - u * u;
+      } else if (inSerif) {
+        const yc = y > 0 ? 1.25 : -1.25;
+        const u = Math.min(1, Math.abs(y - yc) / 0.24);
+        k = (1 - u * u) * 0.72;
+      }
+    } else if (kind === 'S' && centerline) {
+      const d = distToPolyline(x, y, centerline);
+      const u = Math.min(1, d / 0.30);
+      k = 1 - u * u;
+    } else if (kind === 'dot') {
+      const u = Math.min(1, Math.hypot(x, y) / 0.20);
+      k = 1 - u * u;
+    }
+    pos.setZ(i, z - Math.sign(nz || 1) * amp * k);
+  }
+  geo.computeVertexNormals();
+}
+
+function extrudeOpts(depth) {
+  return {
+    depth,
+    bevelEnabled: true,
+    bevelThickness: 0.12,
+    bevelSize: 0.095,
+    bevelSegments: 12,
+    curveSegments: 96,
+    steps: 1,
+  };
+}
+
+function dentedChromeSphere(radius, seed) {
+  const geo = new THREE.SphereGeometry(radius, 48, 36);
+  const pos = geo.attributes.position;
+  const rnd = seeded(seed);
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const z = pos.getZ(i);
+    const n = Math.hypot(x, y, z) || 1;
+    const dent = 0.028 * Math.sin(x * 8.2 + y * 6.4)
+      + 0.02 * Math.sin(y * 9.5 + z * 7.1)
+      + 0.014 * Math.sin(z * 11.0 + x * 5.5)
+      + (rnd() - 0.5) * 0.012;
+    const s = (1 + dent) * radius / n;
+    pos.setXYZ(i, x * s, y * s, z * s);
+  }
+  geo.computeVertexNormals();
+  channelChromeGeo(geo, 'dot', null);
+  return new THREE.Mesh(geo, liquidChromeMat(false));
+}
+
+function attachEdgeShadow(mesh, xy = 1.028, z = 1.012) {
+  const shell = new THREE.Mesh(
+    mesh.geometry,
+    new THREE.MeshBasicMaterial({
+      color: 0x0c0e10,
+      side: THREE.BackSide,
+      toneMapped: false,
+    }),
+  );
+  shell.scale.set(xy, xy, z);
+  shell.renderOrder = -1;
+  mesh.add(shell);
+  mesh.userData.edgeShadow = shell;
+  return shell;
+}
+
+function makeLetter3D(ch) {
+  const g = new THREE.Group();
+  const isI = ch === 'I';
+  const chrome = isI ? liquidChromeMat(false) : sChromeMat(true);
+  const bodyShapes = [isI ? timesIShape() : timesSShape()];
+  const sLine = isI ? null : sCenterlinePts();
+
+  const depth = 0.92;
+  const geo = new THREE.ExtrudeGeometry(bodyShapes, extrudeOpts(depth));
+  geo.translate(0, 0, -depth * 0.5);
+  channelChromeGeo(geo, isI ? 'I' : 'S', sLine);
+  const body = new THREE.Mesh(geo, chrome);
+  g.add(body);
+
+  body.updateMatrixWorld(true);
+  const bb = new THREE.Box3().setFromObject(body);
+  const c = bb.getCenter(new THREE.Vector3());
+  body.position.x -= c.x;
+  body.position.y -= c.y;
+
+  const sphereR = isI ? 0.44 : 0.42;
+  const indent = isI ? 0.22 : 0.26;
+  const dot = dentedChromeSphere(sphereR, isI ? 4103 : 7721);
+  dot.material = dotChromeMat(!isI);
+  /* Gap (indent) from the glyph; bottom of the sphere sits on the text baseline. */
+  const letterRight = bb.max.x - c.x;
+  const letterBottom = bb.min.y - c.y;
+  dot.position.set(letterRight + indent + sphereR, letterBottom + sphereR, 0);
+  g.add(dot);
+  g.userData.dot = dot;
+  attachEdgeShadow(body, 1.03, 1.014);
+  attachEdgeShadow(dot, 1.024, 1.012);
+  const dotGlance = new THREE.Mesh(new THREE.CircleGeometry(sphereR * 0.90, 32), glanceMat(0.9));
+  if (dotGlance.material.uniforms) {
+    dotGlance.material.uniforms.uGain.value = isI ? 0.55 : 0.38;
+  }
+  dotGlance.material.side = THREE.DoubleSide;
+  dotGlance.material.polygonOffset = true;
+  dotGlance.material.polygonOffsetFactor = -2;
+  dotGlance.material.polygonOffsetUnits = -2;
+  dotGlance.position.z = sphereR + 0.04;
+  dotGlance.renderOrder = 4;
+  dot.add(dotGlance);
+  dot.userData.glance = dotGlance;
+  const fill = new THREE.PointLight(0xffffff, 2.4, 10, 1.1);
+  fill.position.set(0.35, 0.7, 4.2);
+  g.add(fill);
+  const dotFill = new THREE.PointLight(0xffffff, isI ? 1.65 : 1.15, 8, 1.15);
+  dotFill.position.set(dot.position.x + 0.25, dot.position.y + 0.4, 2.4);
+  g.add(dotFill);
+  return g;
+}
+
+/** Red gas lever: thin full-width finger pad; red neck + hidden stem drop into the black. */
+function buildRedFork(padLeft, padRight, depth, radius, stemX, stemH, padH = 0.22, neckH = 0.48) {
+  const g = new THREE.Group();
+  const red = plasticRed();
+  const padW = Math.max(0.36, padRight - padLeft);
+  const padR = Math.min(0.06, padH * 0.32, radius * 0.18);
+  const pad = new THREE.Mesh(
+    new RoundedBoxGeometry(padW, padH, depth, 5, padR),
+    red,
+  );
+  pad.position.x = (padLeft + padRight) * 0.5;
+  g.add(pad);
+  const stemW = Math.min(0.28, padW * 0.32);
+  const stemD = Math.min(0.42, depth * 0.38);
+  /* Neck matches the pad on the chrome (left) side only; right stays the narrow plunger. */
+  const stemRight = stemX + stemW * 0.5;
+  const neckW = Math.max(stemW, stemRight - padLeft);
+  const neckX = padLeft + neckW * 0.5;
+  const neck = new THREE.Mesh(
+    new RoundedBoxGeometry(neckW, neckH, stemD, 4, 0.05),
+    red,
+  );
+  neck.position.set(neckX, -padH * 0.5 - neckH * 0.5, 0);
+  g.add(neck);
+  /* Hidden plunger: black, inside the collar, never shows through the plastic. */
+  const stem = new THREE.Mesh(
+    new RoundedBoxGeometry(stemW, stemH, stemD, 4, 0.06),
+    new THREE.MeshBasicMaterial({ color: 0x050506, toneMapped: false }),
+  );
+  stem.position.set(stemX, -padH * 0.5 - neckH - stemH * 0.5, 0.18);
+  g.add(stem);
+  for (let i = 0; i < 3; i++) {
+    const ridge = new THREE.Mesh(
+      new RoundedBoxGeometry(Math.min(0.42, padW * 0.28), 0.018, 0.05, 2, 0.01),
+      red,
+    );
+    ridge.position.set(stemX, padH * 0.28, -0.16 + i * 0.16);
+    g.add(ridge);
+  }
+  g.userData.padH = padH;
+  g.userData.padD = depth;
+  g.userData.stemH = stemH;
+  g.userData.neckX = neckX;
+  g.userData.neckW = neckW;
+  return g;
+}
+
+/** Knurled flint wheel + two cheek discs (exploded part B). Axle along local Y. */
+function knurlWheel(radius = 0.34, width = 0.52) {
+  const grp = new THREE.Group();
+  const steel = new THREE.MeshPhysicalMaterial({
+    color: 0xb0b8c0,
+    roughness: 0.26,
+    metalness: 1.0,
+    envMapIntensity: 1.9,
+    emissive: 0x2c343c,
+    emissiveIntensity: 0.18,
+    toneMapped: false,
+  });
+  const core = new THREE.Mesh(
+    new THREE.CylinderGeometry(radius * 0.62, radius * 0.62, width * 0.78, 28),
+    steel,
+  );
+  grp.add(core);
+  const knurl = new THREE.MeshPhysicalMaterial({
+    color: 0x6a737c,
+    roughness: 0.38,
+    metalness: 0.92,
+    envMapIntensity: 1.4,
+    emissive: 0x1a2026,
+    emissiveIntensity: 0.22,
+    toneMapped: false,
+  });
+  const n = 10;
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2;
+    const ridge = new THREE.Mesh(
+      new THREE.BoxGeometry(radius * 0.40, width * 0.86, radius * 0.34),
+      knurl,
+    );
+    ridge.position.set(Math.sin(a) * radius * 0.86, 0, Math.cos(a) * radius * 0.86);
+    ridge.rotation.y = a;
+    grp.add(ridge);
+  }
+  const cheekGeo = new THREE.CylinderGeometry(radius * 0.88, radius * 0.88, 0.11, 28);
+  const cheekA = new THREE.Mesh(cheekGeo, chromeMat());
+  cheekA.position.y = width * 0.42;
+  const cheekB = cheekA.clone();
+  cheekB.position.y = -width * 0.42;
+  grp.add(cheekA, cheekB);
+  return grp;
+}
+
+function roundedRectShape(w, d, r) {
+  const s = new THREE.Shape();
+  const hw = w * 0.5;
+  const hd = d * 0.5;
+  r = Math.min(r, hw - 0.02, hd - 0.02);
+  s.moveTo(-hw + r, -hd);
+  s.lineTo(hw - r, -hd);
+  s.absarc(hw - r, -hd + r, r, -Math.PI / 2, 0, false);
+  s.lineTo(hw, hd - r);
+  s.absarc(hw - r, hd - r, r, 0, Math.PI / 2, false);
+  s.lineTo(-hw + r, hd);
+  s.absarc(-hw + r, hd - r, r, Math.PI / 2, Math.PI, false);
+  s.lineTo(-hw, -hd + r);
+  s.absarc(-hw + r, -hd + r, r, Math.PI, Math.PI * 1.5, false);
+  s.closePath();
+  return s;
+}
+
+/** Classic BIC shell: rounded-rect cross-section, not a square box or a tube. */
+function bicShell(width, height, depth, mat, radius) {
+  const geo = new THREE.ExtrudeGeometry(roundedRectShape(width, depth, radius), {
+    depth: height,
+    bevelEnabled: true,
+    bevelThickness: 0.09,
+    bevelSize: 0.08,
+    bevelSegments: 5,
+    curveSegments: 48,
+  });
+  geo.center();
+  geo.rotateX(-Math.PI / 2);
+  return new THREE.Mesh(geo, mat);
+}
+
+/** Front profile of the chrome hood: round top-right wheel well, square top-left. */
+function chromeHoodFrontShape(w, h, rTL, rTR, rBR, rBL) {
+  const s = new THREE.Shape();
+  const hw = w * 0.5;
+  const hh = h * 0.5;
+  rTL = Math.min(rTL, w * 0.46, h * 0.46);
+  rTR = Math.min(rTR, w * 0.50, h * 0.52);
+  rBR = Math.min(rBR, w * 0.18, h * 0.18);
+  rBL = Math.min(rBL, w * 0.22, h * 0.22);
+  s.moveTo(-hw + rBL, -hh);
+  s.lineTo(hw - rBR, -hh);
+  s.absarc(hw - rBR, -hh + rBR, rBR, -Math.PI / 2, 0, false);
+  s.lineTo(hw, hh - rTR);
+  s.absarc(hw - rTR, hh - rTR, rTR, 0, Math.PI / 2, false);
+  s.lineTo(-hw + rTL, hh);
+  s.absarc(-hw + rTL, hh - rTL, rTL, Math.PI / 2, Math.PI, false);
+  s.lineTo(-hw, -hh + rBL);
+  s.absarc(-hw + rBL, -hh + rBL, rBL, Math.PI, Math.PI * 1.5, false);
+  s.closePath();
+  return s;
+}
+
+function chromeHood(width, height, depth, rTL, rTR, rBR, rBL, mat) {
+  const geo = new THREE.ExtrudeGeometry(
+    chromeHoodFrontShape(width, height, rTL, rTR, rBR, rBL),
+    {
+      depth,
+      bevelEnabled: true,
+      bevelThickness: 0.12,
+      bevelSize: 0.11,
+      bevelSegments: 8,
+      curveSegments: 64,
+    },
+  );
+  geo.translate(0, 0, -depth * 0.5);
+  const m = new THREE.Mesh(geo, mat);
+  m.renderOrder = 2;
+  m.userData.part = 'hood';
+  return m;
+}
+
+function buildLighter() {
+  lighterPivot = new THREE.Group();
+  lighterSpin = new THREE.Group();
+  lighterPivot.add(lighterSpin);
+  root.add(lighterPivot);
+
+  /* Classic BIC body: rounded-rect red shell */
+  const bodyW = 2.58;
+  const bodyH0 = 7.55;
+  const bodyH = bodyH0 * 1.07;
+  const bodyD = 1.38;
+  const bodyR = 0.60;
+  const body = bicShell(bodyW, bodyH, bodyD, plasticRed(), bodyR);
+  body.position.y = (bodyH0 - bodyH) * 0.5;
+  body.userData.part = 'body';
+  lighterSpin.add(body);
+
+  /* Black collar + chrome: chrome is the same bicShell, slightly larger, so the rounds seat together. */
+  const collar = new THREE.Group();
+  lighterSpin.add(collar);
+
+  const headH0 = 1.12;
+  const headH = headH0 * 1.13;
+  const blackW = bodyW * 1.01;
+  const blackD = bodyD * 1.02;
+  const blackR = bodyR + 0.02;
+  const headTop = bodyH0 * 0.5 + headH0 * 0.72;
+  const head = bicShell(blackW, headH, blackD, plasticBlack(), blackR);
+  head.position.y = headTop - headH * 0.5;
+  head.userData.part = 'hood';
+  collar.add(head);
+
+  const sleevePad = 0.10;
+  /* Chrome ~68% so the wheel peek and a real button bay both fit on the right. */
+  const wrapW = blackW * 0.68 + sleevePad;
+  const wrapD = blackD + sleevePad;
+  const hoodX = -blackW * 0.5 - sleevePad * 0.4 + wrapW * 0.5;
+  const hoodRight = hoodX + wrapW * 0.5;
+  const hoodD = wrapD;
+
+  head.updateWorldMatrix(true, true);
+  const platformY = new THREE.Box3().setFromObject(head).max.y;
+
+  hoodShine = makeInsetGlance(0.50, headH * 0.92, 1.15);
+  hoodShine.position.set(-0.10, head.position.y, 0.66);
+  hoodShine.rotation.y = 0.08;
+  hoodShine.userData.restX = -0.10;
+  lighterSpin.add(hoodShine);
+
+  const wheelR = 0.66;
+  const wheelW = blackD * 0.82;
+  const overlap = 0.22;
+  const chromeBottom = platformY - overlap;
+  const rTR = 0.78;
+  /* A little taller than the last pass; wheel still peeks top-right third. */
+  const chromeH = rTR + 0.90;
+  const chromeTop = chromeBottom + chromeH;
+  const hoodY = (chromeTop + chromeBottom) * 0.5;
+  const wheelX = hoodRight - wheelR * (2 / 3);
+  const wheelY = chromeTop - wheelR * (2 / 3);
+  const wheelRight = wheelX + wheelR;
+
+  /* Full-width finger pad sits on the black; only a hidden stem goes into the collar. */
+  const padLeft = wheelX + wheelR * 0.08;
+  const padRight = blackW * 0.5 - 0.04;
+  const visibleX = (wheelRight + padRight) * 0.5;
+  const stemH = headH * 0.42;
+  const padH = 0.22;
+  const padTop = platformY + 0.62;
+  const padBottom = padTop - padH;
+  const neckH = Math.max(0.12, padBottom - platformY + 0.08);
+  const pressGap = padBottom - platformY;
+
+  lever = buildRedFork(padLeft, padRight, blackD * 0.82, blackR, visibleX, stemH, padH, neckH);
+  const restY = (padTop + padBottom) * 0.5;
+  lever.position.set(0, restY, -0.16);
+  lighterSpin.add(lever);
+  lever.userData.restY = restY;
+  lever.userData.restZ = lever.position.z;
+  lever.userData.pressGap = pressGap;
+
+  /* Dark well in the black so the stem enters it without showing on the outer collar. */
+  const stemWell = new THREE.Mesh(
+    new THREE.BoxGeometry(lever.userData.neckW, 0.16, blackD * 0.40),
+    new THREE.MeshBasicMaterial({ color: 0x050506, toneMapped: false }),
+  );
+  stemWell.position.set(lever.userData.neckX, platformY - 0.06, 0);
+  lighterSpin.add(stemWell);
+
+  const wheelZ = 0.14;
+  const hood = chromeHood(wrapW, chromeH, wrapD, 0.05, rTR, 0.12, 0.14, hoodChromeMat());
+  hood.position.set(hoodX, hoodY, 0);
+  collar.add(hood);
+
+  /* Square fastener on the visible lower-right of the chrome, just above the collar. */
+  const fastenerY = platformY + 0.22;
+  const fastenerX = hoodRight - 0.30;
+  const fastener = new THREE.Mesh(
+    new THREE.BoxGeometry(0.40, 0.42, 0.13),
+    hoodChromeMat(),
+  );
+  fastener.position.set(fastenerX, fastenerY, wrapD * 0.5 + 0.03);
+  fastener.userData.part = 'hood';
+  fastener.renderOrder = 2;
+  collar.add(fastener);
+  const fastenerSlot = new THREE.Mesh(
+    new THREE.BoxGeometry(0.24, 0.24, 0.07),
+    new THREE.MeshBasicMaterial({ color: 0x121316, toneMapped: false }),
+  );
+  fastenerSlot.position.set(fastenerX, fastenerY, wrapD * 0.5 + 0.09);
+  collar.add(fastenerSlot);
+
+  chromeShine = makeInsetGlance(0.58, chromeH * 0.98, 1.18);
+  chromeShine.position.set(hoodX - 0.06, hoodY + 0.04, hoodD * 0.5 + 0.08);
+  chromeShine.rotation.y = 0.06;
+  chromeShine.userData.baseX = hoodX - 0.06;
+  chromeShine.renderOrder = 4;
+  lighterSpin.add(chromeShine);
+
+  /* Jet hole in the LEFT of the chrome top — open cut, no rim. */
+  hood.updateWorldMatrix(true, true);
+  const chromeSkinY = new THREE.Box3().setFromObject(hood).max.y;
+  const jetX = hoodX - wrapW * 0.26;
+  const jetZ = 0;
+  const jetY = chromeSkinY;
+  const holeR = 0.30;
+  const cutMat = new THREE.MeshBasicMaterial({
+    color: 0x050506,
+    toneMapped: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
+  });
+
+  const jetWell = new THREE.Mesh(
+    new THREE.CircleGeometry(holeR, 36),
+    cutMat,
+  );
+  jetWell.rotation.x = -Math.PI / 2;
+  jetWell.position.set(jetX, jetY + 0.004, jetZ);
+  jetWell.renderOrder = 3;
+  collar.add(jetWell);
+
+  /* Factory slit across the chrome top: hole → edge by the wheel. */
+  const slitLeft = jetX + holeR * 0.12;
+  const slitRight = Math.min(wheelX - 0.10, hoodRight - rTR * 0.28);
+  const slitW = Math.max(0.20, slitRight - slitLeft);
+  const slit = new THREE.Mesh(
+    new THREE.BoxGeometry(slitW, 0.05, 0.18),
+    cutMat,
+  );
+  slit.position.set(slitLeft + slitW * 0.5, jetY + 0.008, jetZ);
+  slit.renderOrder = 3;
+  collar.add(slit);
+
+  const wheelMount = new THREE.Group();
+  wheelMount.position.set(wheelX, wheelY, wheelZ);
+  wheelMount.rotation.x = Math.PI / 2;
+  const wheel = knurlWheel(wheelR, wheelW);
+  wheelMount.add(wheel);
+  lighterSpin.add(wheelMount);
+  sparkWheel = wheel;
+
+  /* Chrome washer on the disk — the axle is attached under the damper, hub stays covered. */
+  const hubCap = new THREE.Mesh(new THREE.CircleGeometry(wheelR * 0.42, 28), hoodChromeMat());
+  hubCap.position.set(wheelX, wheelY, wheelZ + wheelW * 0.52);
+  lighterSpin.add(hubCap);
+  const hub = new THREE.Mesh(new THREE.CylinderGeometry(wheelR * 0.16, wheelR * 0.16, 0.07, 16), steelMat());
+  hub.rotation.x = Math.PI / 2;
+  hub.position.set(wheelX, wheelY, wheelZ + wheelW * 0.56);
+  lighterSpin.add(hub);
+
+  const flint = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.055, 0.055, 0.22, 14),
+    steelMat(),
+  );
+  flint.position.set(wheelX, wheelY - wheelR * 0.70, wheelZ + 0.08);
+  lighterSpin.add(flint);
+
+  flameAnchor = new THREE.Group();
+  flameAnchor.position.set(jetX, jetY + 0.02, jetZ);
+  lighterSpin.add(flameAnchor);
+
+  flameGroup = new THREE.Group();
+  flameAnchor.add(flameGroup);
+
+  /* Teardrop rooted at the nozzle; origin is the flame base */
+  const flameH = 4.15;
+  const flameGeo = new THREE.PlaneGeometry(2.45, flameH);
+  flameGeo.translate(0, flameH * 0.5, 0);
+  const sprite = new THREE.Mesh(
+    flameGeo,
+    new THREE.MeshBasicMaterial({
+      map: makeFlameSpriteTex(),
+      transparent: true,
+      alphaTest: 0.12,
+      depthWrite: false,
+      toneMapped: false,
+      side: THREE.DoubleSide,
+    }),
+  );
+  sprite.position.set(0, -0.06, 0);
+  sprite.renderOrder = 2;
+
+  flameGroup.add(sprite);
+  flameParts.push({ mesh: sprite, kind: 'sprite' });
+
+  sparkGroup = new THREE.Group();
+  /* Flint burst from the jet: individual sparks in a 45° fan aimed +Y. */
+  sparkGroup.position.set(jetX, jetY + 0.02, jetZ);
+  lighterSpin.add(sparkGroup);
+  const sparkDepth = {
+    transparent: true,
+    opacity: 1,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    depthTest: true,
+    toneMapped: false,
+  };
+  const flash = new THREE.Mesh(
+    new THREE.SphereGeometry(0.16, 12, 12),
+    new THREE.MeshBasicMaterial({
+      color: 0xfff4c0,
+      ...sparkDepth,
+    }),
+  );
+  flash.renderOrder = 3;
+  sparkGroup.add(flash);
+  sparks.push({ mesh: flash, kind: 'flash', seed: 0.1, ax: 0, ay: 0.12 });
+
+  const sector = Math.PI / 4;
+  const nSpark = 9;
+  for (let i = 0; i < nSpark; i++) {
+    const rnd = seeded(i * 97 + 19);
+    const u = i / (nSpark - 1);
+    const ang = (u - 0.5) * sector + (rnd() - 0.5) * 0.07;
+    const len = 0.58 + rnd() * 0.22;
+    const wid = 0.26 + rnd() * 0.10;
+    const chipGeo = new THREE.PlaneGeometry(wid, len);
+    chipGeo.translate(0, len * 0.5, 0);
+    const chip = new THREE.Mesh(
+      chipGeo,
+      new THREE.MeshBasicMaterial({
+        map: makeSparkChipTex(i + 3),
+        ...sparkDepth,
+        side: THREE.DoubleSide,
+      }),
+    );
+    chip.renderOrder = 3;
+    const head = new THREE.Mesh(
+      new THREE.SphereGeometry(0.11 + rnd() * 0.04, 10, 10),
+      new THREE.MeshBasicMaterial({
+        color: 0xfff6d0,
+        transparent: true,
+        opacity: 1,
+        depthWrite: false,
+        depthTest: true,
+        toneMapped: false,
+      }),
+    );
+    head.position.y = len * 0.92;
+    head.renderOrder = 4;
+    const grp = new THREE.Group();
+    grp.add(chip);
+    grp.add(head);
+    grp.rotation.z = -ang;
+    sparkGroup.add(grp);
+    sparks.push({
+      mesh: grp,
+      chip,
+      head,
+      kind: 'spark',
+      seed: i * 0.73 + 0.2,
+      ang,
+      reach: 2.35 + rnd() * 0.85,
+      delay: u * 0.028 + rnd() * 0.008,
+    });
+  }
+
+  lighterSpin.updateMatrixWorld(true, true);
+  const shineBox = new THREE.Box3();
+  shineBox.expandByObject(body);
+  shineBox.expandByObject(head);
+  shineBox.expandByObject(hood);
+  const shineSize = shineBox.getSize(new THREE.Vector3());
+  const shineCenter = shineBox.getCenter(new THREE.Vector3());
+  bodyShine = makeInsetGlance(0.78, shineSize.y * 0.98, 1.32);
+  bodyShine.position.set(-0.10, shineCenter.y, 0.72);
+  bodyShine.rotation.y = 0.08;
+  bodyShine.userData.restY = shineCenter.y;
+  bodyShine.userData.restZ = 0.72;
+  lighterSpin.add(bodyShine);
+
+  lighterPivot.rotation.z = -0.72;
+  lighterPivot.rotation.x = 0.48;
+  lighterPivot.position.set(0, 0, 0);
+
+  lighterSpin.userData.hit = {
+    wheelX, wheelY, wheelZ, wheelR, wheelW,
+    padX: visibleX, padY: restY, padZ: -0.16,
+  };
+}
+
+function buildLetters() {
+  brand.i = makeLetter3D('I');
+  brand.i.scale.setScalar(1);
+  brand.i.rotation.z = THREE.MathUtils.degToRad(-30);
+  iGlance = attachGlance(brand.i, 'I');
+  stage.add(brand.i);
+
+  brand.s = makeLetter3D('S');
+  brand.s.scale.setScalar(1);
+  brand.s.rotation.z = THREE.MathUtils.degToRad(-30);
+  sGlance = attachGlance(brand.s, 'S');
+  brand.s.traverse((o) => { o.layers.enable(1); });
+  stage.add(brand.s);
+
+  brand.iScale0 = brand.i.scale.x;
+  brand.sScale0 = brand.s.scale.x;
+  brand.iScale = brand.iScale0;
+  brand.sScale = brand.sScale0;
+  brand.iRotZ = brand.i.rotation.z;
+  brand.sRotZ = brand.s.rotation.z;
+  brand.iDot = brand.i.userData.dot;
+  brand.sDot = brand.s.userData.dot;
+  brand.iDotRest = brand.iDot.position.clone();
+  brand.sDotRest = brand.sDot.position.clone();
+}
+
+function objectSize(obj) {
+  const saved = obj.position.clone();
+  obj.position.set(0, 0, 0);
+  obj.updateMatrixWorld(true);
+  const b = new THREE.Box3().setFromObject(obj);
+  const s = b.getSize(new THREE.Vector3());
+  obj.position.copy(saved);
+  return s;
+}
+
+function spinToStage(x, y, z) {
+  const v = new THREE.Vector3(x, y, z);
+  lighterSpin.updateMatrixWorld(true);
+  lighterSpin.localToWorld(v);
+  stage.worldToLocal(v);
+  return v;
+}
+
+/* Move in Z while keeping the same screen position and apparent size. */
+function keepScreenAtZ(obj, zWorld) {
+  obj.updateMatrixWorld(true);
+  const w = new THREE.Vector3();
+  obj.getWorldPosition(w);
+  const k = (camera.position.z - zWorld) / camera.position.z;
+  w.x *= k;
+  w.y *= k;
+  w.z = zWorld;
+  obj.parent.worldToLocal(w);
+  obj.position.copy(w);
+  obj.scale.multiplyScalar(k);
+}
+
+function expandFlameTip(box) {
+  const spinY = lighterSpin.rotation.y;
+  const spinX = lighterSpin.rotation.x;
+  const pivX = lighterPivot.rotation.x;
+  const pivZ = lighterPivot.rotation.z;
+  const fs = flameGroup.scale.clone();
+  /* Cover flick scale + lighter yaw/pitch so the flame never leaves the square. */
+  flameGroup.scale.set(1.14, 1.12, 1.14);
+  const poses = [
+    [-0.60, -0.05, 0.45],
+    [-0.52, 0.00, 0.48],
+    [-0.44, 0.05, 0.52],
+  ];
+  for (const [y, sx, px] of poses) {
+    lighterSpin.rotation.y = y;
+    lighterSpin.rotation.x = sx;
+    lighterPivot.rotation.x = px;
+    stage.updateMatrixWorld(true);
+    for (const xy of [[0, 4.15], [-0.55, 3.95], [0.6, 4.1], [-0.85, 3.55], [0.85, 3.55]]) {
+      const p = new THREE.Vector3(xy[0], xy[1], 0);
+      flameAnchor.localToWorld(p);
+      box.expandByPoint(p);
+    }
+  }
+  lighterSpin.rotation.y = spinY;
+  lighterSpin.rotation.x = spinX;
+  lighterPivot.rotation.x = pivX;
+  lighterPivot.rotation.z = pivZ;
+  flameGroup.scale.copy(fs);
+  stage.updateMatrixWorld(true);
+}
+
+function expandLighterSweep(box) {
+  const spinY = lighterSpin.rotation.y;
+  const spinX = lighterSpin.rotation.x;
+  const pivX = lighterPivot.rotation.x;
+  const pivZ = lighterPivot.rotation.z;
+  const poses = [
+    [-0.30, -0.05, 0.45, -0.74],
+    [-0.14, 0.05, 0.51, -0.70],
+    [-0.22, 0.00, 0.48, -0.72],
+    [-0.30, 0.05, 0.51, -0.74],
+    [-0.14, -0.05, 0.45, -0.70],
+  ];
+  for (const [y, sx, px, pz] of poses) {
+    lighterSpin.rotation.y = y;
+    lighterSpin.rotation.x = sx;
+    lighterPivot.rotation.x = px;
+    lighterPivot.rotation.z = pz;
+    stage.updateMatrixWorld(true);
+    box.union(boxFromVisibleMeshes(root, flameGroup));
+  }
+  lighterSpin.rotation.y = spinY;
+  lighterSpin.rotation.x = spinX;
+  lighterPivot.rotation.x = pivX;
+  lighterPivot.rotation.z = pivZ;
+  stage.updateMatrixWorld(true);
+}
+
+function expandNailSweep(box) {
+  if (!nailFinger) return;
+  for (const t of [0, 0.30, 0.58, 0.64, 0.78]) {
+    poseNailFinger(t);
+    stage.updateMatrixWorld(true);
+    box.union(boxFromVisibleMeshes(root, flameGroup));
+  }
+  poseNailFinger(0);
+  stage.updateMatrixWorld(true);
+}
+
+function boxFromVisibleMeshes(rootObj, skip) {
+  const box = new THREE.Box3();
+  rootObj.updateMatrixWorld(true);
+  rootObj.traverse((node) => {
+    if (!node.isMesh || !node.geometry) return;
+    let p = node;
+    while (p) {
+      if (p === skip || p.visible === false) return;
+      if (p === rootObj) break;
+      p = p.parent;
+    }
+    if (!node.geometry.boundingBox) node.geometry.computeBoundingBox();
+    const b = node.geometry.boundingBox.clone().applyMatrix4(node.matrixWorld);
+    box.union(b);
+  });
+  return box;
+}
+
+function placeLetterContact(letter, lx, ly, lighterX, lighterY, lighterZ) {
+  const z = letter.position.z;
+  letter.position.set(0, 0, z);
+  stage.updateMatrixWorld(true);
+  letter.updateMatrixWorld(true);
+  const from = new THREE.Vector3(lx, ly, 0);
+  letter.localToWorld(from);
+  stage.worldToLocal(from);
+  const to = spinToStage(lighterX, lighterY, lighterZ);
+  letter.position.set(to.x - from.x, to.y - from.y, z);
+}
+
+function worldSafeRect() {
+  const half = Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) * camera.position.z;
+  const inset = half * 2 * 0.08;
+  return { minX: -half + inset, maxX: half - inset, minY: -half + inset, maxY: half - inset, half };
+}
+
+function localGlyphBox(letter) {
+  const pos = letter.position.clone();
+  const scl = letter.scale.clone();
+  const rot = letter.rotation.clone();
+  letter.position.set(0, 0, 0);
+  letter.scale.setScalar(1);
+  letter.rotation.set(0, 0, 0);
+  letter.updateMatrixWorld(true);
+  const b = new THREE.Box3().setFromObject(letter);
+  letter.position.copy(pos);
+  letter.scale.copy(scl);
+  letter.rotation.copy(rot);
+  letter.updateMatrixWorld(true);
+  return b;
+}
+
+function letterFitsSafe(letter, safe) {
+  letter.updateMatrixWorld(true);
+  const b = new THREE.Box3().setFromObject(letter);
+  return (
+    b.min.x >= safe.minX && b.max.x <= safe.maxX
+    && b.min.y >= safe.minY && b.max.y <= safe.maxY
+  );
+}
+
+function setLetterWorldXY(letter, x, y) {
+  letter.updateMatrixWorld(true);
+  const w = new THREE.Vector3();
+  letter.getWorldPosition(w);
+  w.x = x;
+  w.y = y;
+  letter.parent.worldToLocal(w);
+  letter.position.x = w.x;
+  letter.position.y = w.y;
+}
+
+function dropLetterToFloor(letter, floorY) {
+  letter.updateMatrixWorld(true);
+  const b = new THREE.Box3().setFromObject(letter);
+  const dy = b.min.y - floorY;
+  if (dy <= 0) return;
+  const w = new THREE.Vector3();
+  letter.getWorldPosition(w);
+  w.y -= dy;
+  letter.parent.worldToLocal(w);
+  letter.position.copy(w);
+}
+
+/** Disk vs square with Android-style rounded corners (not a full inscribed circle). */
+function diskInRoundRect(x, y, rad, half, corner) {
+  const lim = half - rad;
+  if (Math.abs(x) > lim || Math.abs(y) > lim) return false;
+  const cr = Math.max(0, corner - rad);
+  const inset = lim - cr;
+  if (Math.abs(x) <= inset || Math.abs(y) <= inset) return true;
+  const dx = Math.abs(x) - inset;
+  const dy = Math.abs(y) - inset;
+  return dx * dx + dy * dy <= cr * cr + 1e-8;
+}
+
+/**
+ * Move only the S period: sit on the S visual baseline, keep a wide gap from the
+ * letter, and pull in only as far as Android rounded corners require.
+ */
+function placeSDotOnBaseline(letter, dot, gap) {
+  if (!letter || !dot) return;
+  const was = dot.visible;
+  dot.visible = false;
+  letter.updateMatrixWorld(true);
+  const sbox = new THREE.Box3().setFromObject(letter);
+  dot.visible = was;
+  letter.updateMatrixWorld(true);
+  const dbox = new THREE.Box3().setFromObject(dot);
+  const rad = Math.max(dbox.max.x - dbox.min.x, dbox.max.y - dbox.min.y) * 0.5;
+  const z0 = dot.position.z;
+  const cy = sbox.min.y + rad;
+  const xWide = sbox.max.x + gap + rad;
+  const xMin = sbox.max.x + Math.min(gap, 0.35) + rad;
+
+  const half = Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) * camera.position.z;
+  const A = half * 0.93;
+  const CR = half * 0.36;
+
+  const setWorldXY = (wx, wy) => {
+    letter.updateMatrixWorld(true);
+    const w = new THREE.Vector3();
+    dot.getWorldPosition(w);
+    w.x = wx;
+    w.y = wy;
+    letter.worldToLocal(w);
+    w.z = z0;
+    dot.position.copy(w);
+  };
+
+  const fits = (wx, wy) => {
+    setWorldXY(wx, wy);
+    letter.updateMatrixWorld(true);
+    const b = new THREE.Box3().setFromObject(dot);
+    const c = b.getCenter(new THREE.Vector3());
+    const r = Math.max(b.max.x - b.min.x, b.max.y - b.min.y) * 0.5 + 0.07;
+    return diskInRoundRect(c.x, c.y, r, A, CR);
+  };
+
+  let cx = xWide;
+  if (!fits(cx, cy)) {
+    let lo = xMin;
+    let hi = xWide;
+    for (let i = 0; i < 18; i++) {
+      const mid = (lo + hi) * 0.5;
+      if (fits(mid, cy)) lo = mid;
+      else hi = mid;
+    }
+    cx = lo;
+  }
+  if (!fits(cx, cy)) {
+    letter.updateMatrixWorld(true);
+    const b = new THREE.Box3().setFromObject(dot);
+    const c = b.getCenter(new THREE.Vector3());
+    const r = Math.max(b.max.x - b.min.x, b.max.y - b.min.y) * 0.5 + 0.07;
+    const lim = A - r;
+    const cr = Math.max(0, CR - r);
+    c.x = THREE.MathUtils.clamp(c.x, -lim, lim);
+    c.y = THREE.MathUtils.clamp(c.y, -lim, lim);
+    const inset = lim - cr;
+    if (Math.abs(c.x) > inset && Math.abs(c.y) > inset) {
+      const ox = Math.sign(c.x) * inset;
+      const oy = Math.sign(c.y) * inset;
+      const dx = c.x - ox;
+      const dy = c.y - oy;
+      const d = Math.hypot(dx, dy) || 1;
+      if (d > cr) {
+        c.x = ox + (dx / d) * cr;
+        c.y = oy + (dy / d) * cr;
+      }
+    }
+    const local = c.clone();
+    letter.worldToLocal(local);
+    local.z = z0;
+    dot.position.copy(local);
+    return;
+  }
+  setWorldXY(cx, cy);
+}
+
+function growAtWorldPos(letter, wx, wy, safe) {
+  let lo = 0.5;
+  let hi = 9;
+  for (let n = 0; n < 20; n++) {
+    const mid = (lo + hi) * 0.5;
+    letter.scale.setScalar(mid);
+    setLetterWorldXY(letter, wx, wy);
+    if (letterFitsSafe(letter, safe)) lo = mid;
+    else hi = mid;
+  }
+  letter.scale.setScalar(lo);
+  setLetterWorldXY(letter, wx, wy);
+}
+
+function letterArea(letter) {
+  letter.updateMatrixWorld(true);
+  const s = new THREE.Box3().setFromObject(letter).getSize(new THREE.Vector3());
+  return s.x * s.y + 1e-6;
+}
+
+function nudgeToBody(letter, tx, ty, bodyBox, hoodBox, minBody, maxHood, safe) {
+  const step = 0.14;
+  for (let i = 0; i < 70; i++) {
+    letter.updateMatrixWorld(true);
+    const b = new THREE.Box3().setFromObject(letter);
+    const area = letterArea(letter);
+    const bodyHit = xyOverlapArea(b, bodyBox) / area;
+    const hoodHit = hoodBox ? xyOverlapArea(b, hoodBox) / area : 0;
+    if (bodyHit >= minBody && hoodHit <= maxHood) break;
+    let dx = 0;
+    let dy = 0;
+    if (hoodHit > maxHood) {
+      dx = -tx;
+      dy = -ty;
+    } else if (bodyHit < minBody) {
+      dx = tx;
+      dy = ty;
+    } else break;
+    letter.position.x += dx * step;
+    letter.position.y += dy * step;
+    if (!letterFitsSafe(letter, safe)) {
+      letter.position.x -= dx * step;
+      letter.position.y -= dy * step;
+      if (letter.scale.x > 1.4) letter.scale.multiplyScalar(0.97);
+      else break;
+    }
+  }
+}
+
+function packLeaningLetter(letter, deg, wx, wy, tx, ty, bodyBox, hoodBox, minBody, maxHood, safe) {
+  letter.rotation.z = THREE.MathUtils.degToRad(-deg);
+  growAtWorldPos(letter, wx, wy, safe);
+  nudgeToBody(letter, tx, ty, bodyBox, hoodBox, minBody, maxHood, safe);
+  return letter.scale.x;
+}
+
+function partWorldBox(part) {
+  const box = new THREE.Box3();
+  lighterSpin.updateMatrixWorld(true);
+  lighterSpin.traverse((node) => {
+    if (!node.isMesh || !node.geometry) return;
+    let p = node;
+    let ok = false;
+    while (p && p !== lighterSpin.parent) {
+      if (p.userData && p.userData.part === part) { ok = true; break; }
+      p = p.parent;
+    }
+    if (!ok) return;
+    if (!node.geometry.boundingBox) node.geometry.computeBoundingBox();
+    box.union(node.geometry.boundingBox.clone().applyMatrix4(node.matrixWorld));
+  });
+  return box;
+}
+
+function xyOverlapArea(a, b) {
+  const ox = Math.min(a.max.x, b.max.x) - Math.max(a.min.x, b.min.x);
+  const oy = Math.min(a.max.y, b.max.y) - Math.max(a.min.y, b.min.y);
+  if (ox <= 0 || oy <= 0) return 0;
+  return ox * oy;
+}
+
+function packLetterAngle(letter, degClockwise, lx, ly, lighterX, lighterY, lighterZ, safe) {
+  /* Design-tool +deg is clockwise = top to the right = negative Three.js Z. */
+  letter.rotation.z = THREE.MathUtils.degToRad(-degClockwise);
+  letter.scale.setScalar(1);
+  growLetterToSafe(letter, lx, ly, lighterX, lighterY, lighterZ, safe);
+  return letterFitsSafe(letter, safe) ? letter.scale.x : 0;
+}
+
+function bestLetterAngle(letter, degrees, lx, ly, lighterX, lighterY, lighterZ, safe, reject) {
+  let bestDeg = degrees[0];
+  let bestScale = 0;
+  let bestPos = letter.position.clone();
+  for (const deg of degrees) {
+    const sc = packLetterAngle(letter, deg, lx, ly, lighterX, lighterY, lighterZ, safe);
+    if (reject && reject(letter)) continue;
+    if (sc > bestScale) {
+      bestScale = sc;
+      bestDeg = deg;
+      bestPos = letter.position.clone();
+    }
+  }
+  packLetterAngle(letter, bestDeg, lx, ly, lighterX, lighterY, lighterZ, safe);
+  if (bestScale > 0) {
+    letter.scale.setScalar(bestScale);
+    letter.position.copy(bestPos);
+    letter.rotation.z = THREE.MathUtils.degToRad(-bestDeg);
+  }
+  return bestDeg;
+}
+
+function overlapFrac(letter, lighterBox) {
+  letter.updateMatrixWorld(true);
+  const b = new THREE.Box3().setFromObject(letter);
+  const ox = Math.min(b.max.x, lighterBox.max.x) - Math.max(b.min.x, lighterBox.min.x);
+  const oy = Math.min(b.max.y, lighterBox.max.y) - Math.max(b.min.y, lighterBox.min.y);
+  if (ox <= 0 || oy <= 0) return 0;
+  const ls = b.getSize(new THREE.Vector3());
+  return (ox * oy) / (ls.x * ls.y + 1e-6);
+}
+
+function nudgeLetter(letter, dirX, dirY, lighterBox, maxFrac, safe) {
+  if (lighterBox.isEmpty()) return;
+  const step = 0.16;
+  for (let i = 0; i < 80; i++) {
+    const frac = overlapFrac(letter, lighterBox);
+    if (frac > 0.06 && frac <= maxFrac) break;
+    const s = frac > maxFrac ? 1 : -1;
+    letter.position.x += dirX * step * s;
+    letter.position.y += dirY * step * s;
+    if (!letterFitsSafe(letter, safe)) {
+      letter.position.x -= dirX * step * s;
+      letter.position.y -= dirY * step * s;
+      if (letter.scale.x > 1.35) letter.scale.multiplyScalar(0.97);
+      else break;
+    }
+  }
+  while (!letterFitsSafe(letter, safe) && letter.scale.x > 0.3) {
+    letter.scale.multiplyScalar(0.96);
+  }
+}
+
+function makeGlitterNailTex() {
+  const s = 512;
+  const c = document.createElement('canvas');
+  c.width = c.height = s;
+  const g = c.getContext('2d');
+  const bg = g.createLinearGradient(s * 0.15, 0, s * 0.85, s);
+  bg.addColorStop(0.00, '#8a5a32');
+  bg.addColorStop(0.28, '#c4894a');
+  bg.addColorStop(0.55, '#6e3e24');
+  bg.addColorStop(1.00, '#3a2014');
+  g.fillStyle = bg;
+  g.fillRect(0, 0, s, s);
+  const glass = g.createRadialGradient(s * 0.42, s * 0.28, 8, s * 0.42, s * 0.28, s * 0.72);
+  glass.addColorStop(0.00, 'rgba(255,236,210,0.22)');
+  glass.addColorStop(0.45, 'rgba(200,140,90,0.08)');
+  glass.addColorStop(1.00, 'rgba(0,0,0,0)');
+  g.fillStyle = glass;
+  g.fillRect(0, 0, s, s);
+  const cols = [
+    '#f4d48a', '#ffe7b0', '#e8b86a', '#c9a06a', '#fff6dc',
+    '#e8c4b8', '#d4a0a0', '#eee8e0', '#b8860b', '#ffd700',
+    '#f0c8c0', '#c0c4cc', '#d8d0c4', '#a87840',
+  ];
+  const rnd = seeded(77);
+  for (let i = 0; i < 1400; i++) {
+    const x = rnd() * s;
+    const y = rnd() * s;
+    const w = 1.1 + rnd() * 5.2;
+    g.save();
+    g.translate(x, y);
+    g.rotate(rnd() * Math.PI);
+    g.fillStyle = cols[(rnd() * cols.length) | 0];
+    g.globalAlpha = 0.50 + rnd() * 0.50;
+    g.fillRect(-w * 0.5, -w * 0.16, w, w * 0.34);
+    if (rnd() > 0.72) {
+      g.fillStyle = '#fffaf0';
+      g.globalAlpha = 0.85;
+      g.fillRect(-0.6, -0.6, 1.3, 1.3);
+    }
+    g.restore();
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+function makeStarGlintTex() {
+  const s = 128;
+  const c = document.createElement('canvas');
+  c.width = c.height = s;
+  const g = c.getContext('2d');
+  const cx = s * 0.5;
+  const cy = s * 0.5;
+  g.translate(cx, cy);
+  const spike = (len, wid, col) => {
+    g.fillStyle = col;
+    g.beginPath();
+    g.moveTo(0, -len);
+    g.lineTo(wid, 0);
+    g.lineTo(0, len);
+    g.lineTo(-wid, 0);
+    g.closePath();
+    g.fill();
+  };
+  spike(56, 3.2, 'rgba(255,255,255,0.95)');
+  g.rotate(Math.PI * 0.5);
+  spike(56, 3.2, 'rgba(255,255,255,0.95)');
+  g.rotate(Math.PI * 0.25);
+  spike(28, 1.6, 'rgba(255,248,230,0.75)');
+  g.rotate(Math.PI * 0.5);
+  spike(28, 1.6, 'rgba(255,248,230,0.75)');
+  const rg = g.createRadialGradient(0, 0, 0, 0, 0, 18);
+  rg.addColorStop(0, 'rgba(255,255,255,1)');
+  rg.addColorStop(0.35, 'rgba(255,244,220,0.55)');
+  rg.addColorStop(1, 'rgba(255,244,220,0)');
+  g.fillStyle = rg;
+  g.beginPath();
+  g.arc(0, 0, 18, 0, Math.PI * 2);
+  g.fill();
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+function stilettoShape(scale = 1) {
+  const sh = new THREE.Shape();
+  const s = scale;
+  sh.moveTo(-0.30 * s, 0);
+  sh.bezierCurveTo(-0.36 * s, 0.22 * s, -0.26 * s, 0.85 * s, -0.11 * s, 1.72 * s);
+  sh.lineTo(0, 2.28 * s);
+  sh.lineTo(0.11 * s, 1.72 * s);
+  sh.bezierCurveTo(0.26 * s, 0.85 * s, 0.36 * s, 0.22 * s, 0.30 * s, 0);
+  sh.closePath();
+  return sh;
+}
+
+function heartShape(s = 1) {
+  const sh = new THREE.Shape();
+  sh.moveTo(0, -0.22 * s);
+  sh.bezierCurveTo(-0.55 * s, 0.28 * s, -0.62 * s, -0.42 * s, 0, -0.85 * s);
+  sh.bezierCurveTo(0.62 * s, -0.42 * s, 0.55 * s, 0.28 * s, 0, -0.22 * s);
+  return sh;
+}
+
+function goldMat() {
+  return new THREE.MeshPhysicalMaterial({
+    color: 0xe2b13a,
+    metalness: 1,
+    roughness: 0.22,
+    envMapIntensity: 1.45,
+    clearcoat: 0.35,
+    clearcoatRoughness: 0.18,
+  });
+}
+
+function diamondMat() {
+  return new THREE.MeshPhysicalMaterial({
+    color: 0xf6fbff,
+    metalness: 0.15,
+    roughness: 0.045,
+    envMapIntensity: 1.8,
+    clearcoat: 1,
+    clearcoatRoughness: 0.04,
+    iridescence: 0.55,
+    iridescenceIOR: 2.2,
+    iridescenceThicknessRange: [120, 420],
+  });
+}
+
+function skinMat() {
+  return new THREE.MeshPhysicalMaterial({
+    color: 0xf3c4b0,
+    roughness: 0.42,
+    metalness: 0.0,
+    sheen: 0.55,
+    sheenColor: new THREE.Color(0xf0a090),
+    sheenRoughness: 0.45,
+    clearcoat: 0.18,
+    clearcoatRoughness: 0.45,
+    envMapIntensity: 0.55,
+  });
+}
+
+function buildNailFinger() {
+  nailFinger = new THREE.Group();
+  nailGlints = [];
+  const glitterMap = makeGlitterNailTex();
+  const starMap = makeStarGlintTex();
+  const gold = goldMat();
+  const gem = diamondMat();
+  const skin = skinMat();
+  const blush = new THREE.MeshPhysicalMaterial({
+    color: 0xe8a898,
+    roughness: 0.48,
+    metalness: 0.0,
+    sheen: 0.4,
+    sheenColor: new THREE.Color(0xd08078),
+    envMapIntensity: 0.4,
+  });
+
+  const pts = [
+    new THREE.Vector2(0.46, 0.00),
+    new THREE.Vector2(0.52, 0.18),
+    new THREE.Vector2(0.54, 0.52),
+    new THREE.Vector2(0.50, 0.95),
+    new THREE.Vector2(0.44, 1.32),
+    new THREE.Vector2(0.36, 1.62),
+    new THREE.Vector2(0.26, 1.82),
+    new THREE.Vector2(0.14, 1.95),
+    new THREE.Vector2(0.00, 2.02),
+  ];
+  const digit = new THREE.Mesh(new THREE.LatheGeometry(pts, 36), skin);
+  digit.rotation.y = Math.PI;
+  nailFinger.add(digit);
+
+  const pad = new THREE.Mesh(
+    new THREE.SphereGeometry(0.38, 22, 16, 0, Math.PI * 2, 0, Math.PI * 0.55),
+    blush,
+  );
+  pad.position.set(0, 1.55, -0.16);
+  pad.scale.set(1.05, 0.72, 0.85);
+  pad.rotation.x = 0.55;
+  nailFinger.add(pad);
+
+  for (const y of [0.42, 0.50, 1.18]) {
+    const crease = new THREE.Mesh(
+      new THREE.TorusGeometry(0.49, 0.010, 8, 28),
+      new THREE.MeshPhysicalMaterial({
+        color: 0xeab5a4,
+        roughness: 0.55,
+        metalness: 0.0,
+        envMapIntensity: 0.25,
+      }),
+    );
+    crease.rotation.x = Math.PI / 2;
+    crease.position.set(0, y, 0.01);
+    crease.scale.set(1.0, 0.82, 1);
+    nailFinger.add(crease);
+  }
+
+  const nailG = new THREE.Group();
+  nailG.position.set(0, 1.70, 0.22);
+  nailG.rotation.x = -0.22;
+  nailFinger.add(nailG);
+
+  const nailBevel = {
+    depth: 0.15,
+    bevelEnabled: true,
+    bevelThickness: 0.035,
+    bevelSize: 0.028,
+    bevelSegments: 3,
+    curveSegments: 28,
+  };
+  const glitterNail = new THREE.Mesh(
+    new THREE.ExtrudeGeometry(stilettoShape(1), nailBevel),
+    new THREE.MeshPhysicalMaterial({
+      map: glitterMap,
+      color: 0xffe6c8,
+      metalness: 0.82,
+      roughness: 0.12,
+      clearcoat: 1,
+      clearcoatRoughness: 0.03,
+      iridescence: 0.55,
+      iridescenceIOR: 1.8,
+      iridescenceThicknessRange: [80, 320],
+      envMapIntensity: 1.75,
+      reflectivity: 1,
+    }),
+  );
+  glitterNail.geometry.translate(0, 0, -0.075);
+  nailG.add(glitterNail);
+
+  const rim = new THREE.Mesh(
+    new THREE.ExtrudeGeometry(stilettoShape(1.07), {
+      depth: 0.05,
+      bevelEnabled: true,
+      bevelThickness: 0.012,
+      bevelSize: 0.012,
+      bevelSegments: 2,
+      curveSegments: 28,
+    }),
+    gold,
+  );
+  rim.geometry.translate(0, 0, -0.028);
+  rim.position.z = -0.02;
+  nailG.add(rim);
+
+  const cuticle = new THREE.Mesh(
+    new THREE.TorusGeometry(0.22, 0.035, 8, 20, Math.PI),
+    blush,
+  );
+  cuticle.position.set(0, 0.02, 0.04);
+  cuticle.rotation.x = Math.PI * 0.15;
+  nailG.add(cuticle);
+
+  function glint(x, y, z, s) {
+    const spr = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: starMap,
+      color: 0xffffff,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      toneMapped: false,
+    }));
+    spr.position.set(x, y, z);
+    spr.scale.setScalar(s);
+    spr.renderOrder = 8;
+    nailG.add(spr);
+    nailGlints.push(spr);
+  }
+  glint(0, 2.22, 0.12, 0.42);
+  glint(-0.06, 1.35, 0.14, 0.22);
+  glint(0.08, 0.72, 0.13, 0.18);
+
+  const ring = new THREE.Group();
+  ring.position.set(0, 0.40, 0);
+  nailFinger.add(ring);
+
+  const band = new THREE.Mesh(new THREE.TorusGeometry(0.51, 0.038, 10, 36), gold);
+  band.rotation.x = Math.PI / 2;
+  ring.add(band);
+  const braid = new THREE.Mesh(new THREE.TorusGeometry(0.51, 0.016, 8, 48), gold);
+  braid.rotation.x = Math.PI / 2;
+  braid.rotation.z = 0.4;
+  ring.add(braid);
+
+  const butterfly = new THREE.Group();
+  butterfly.position.set(0, 0.02, 0.54);
+  butterfly.rotation.x = -0.15;
+  butterfly.scale.setScalar(1.28);
+  ring.add(butterfly);
+
+  const thorax = new THREE.Mesh(new THREE.CapsuleGeometry(0.035, 0.16, 6, 10), gold);
+  thorax.rotation.z = Math.PI / 2;
+  butterfly.add(thorax);
+  const headB = new THREE.Mesh(new THREE.SphereGeometry(0.04, 12, 10), gold);
+  headB.position.set(0.12, 0, 0);
+  butterfly.add(headB);
+
+  function wing(px, py, rz, sx, sy) {
+    const w = new THREE.Mesh(new THREE.OctahedronGeometry(0.12, 0), gem);
+    w.position.set(px, py, 0.02);
+    w.rotation.z = rz;
+    w.scale.set(sx, sy, 0.28);
+    butterfly.add(w);
+    const set = new THREE.Mesh(
+      new THREE.TorusGeometry(0.08, 0.012, 6, 16),
+      gold,
+    );
+    set.position.copy(w.position);
+    set.rotation.z = rz;
+    set.scale.set(sx * 1.05, sy * 1.05, 1);
+    butterfly.add(set);
+  }
+  wing(0.02, 0.13, 0.45, 1.15, 1.55);
+  wing(0.02, -0.13, -0.45, 1.15, 1.55);
+  wing(-0.05, 0.10, 0.85, 0.85, 1.15);
+  wing(-0.05, -0.10, -0.85, 0.85, 1.15);
+
+  nailCharm = new THREE.Group();
+  nailCharm.position.set(0, -0.02, 0.50);
+  ring.add(nailCharm);
+  const chain = new THREE.Group();
+  chain.position.set(0, 0, 0.02);
+  nailCharm.add(chain);
+  for (let i = 0; i < 5; i++) {
+    const link = new THREE.Mesh(new THREE.TorusGeometry(0.048, 0.012, 6, 12), gold);
+    link.position.y = -0.07 - i * 0.085;
+    link.rotation.y = (i % 2) ? Math.PI / 2 : 0;
+    link.rotation.x = 0.12;
+    chain.add(link);
+  }
+  const heart = new THREE.Mesh(
+    new THREE.ExtrudeGeometry(heartShape(0.42), {
+      depth: 0.07,
+      bevelEnabled: true,
+      bevelThickness: 0.012,
+      bevelSize: 0.012,
+      bevelSegments: 2,
+      curveSegments: 16,
+    }),
+    gem,
+  );
+  heart.geometry.translate(0, 0, -0.035);
+  heart.position.set(0, -0.58, 0.02);
+  heart.rotation.x = 0.2;
+  nailCharm.add(heart);
+  const heartRim = new THREE.Mesh(
+    new THREE.ExtrudeGeometry(heartShape(0.48), {
+      depth: 0.03,
+      bevelEnabled: true,
+      bevelThickness: 0.008,
+      bevelSize: 0.008,
+      bevelSegments: 1,
+      curveSegments: 16,
+    }),
+    gold,
+  );
+  heartRim.geometry.translate(0, 0, -0.015);
+  heartRim.position.copy(heart.position);
+  heartRim.position.z -= 0.02;
+  heartRim.rotation.copy(heart.rotation);
+  nailCharm.add(heartRim);
+  const heartGlint = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: starMap,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    toneMapped: false,
+  }));
+  heartGlint.position.set(0, -0.58, 0.08);
+  heartGlint.scale.setScalar(0.28);
+  heartGlint.renderOrder = 8;
+  nailCharm.add(heartGlint);
+  nailGlints.push(heartGlint);
+
+  const nailKey = new THREE.PointLight(0xfff0d8, 1.35, 10, 2);
+  nailKey.position.set(-0.4, 2.4, 1.6);
+  nailFinger.add(nailKey);
+
+  nailFinger.userData.contact = new THREE.Vector3(0.04, 3.05, 0.28);
+  nailFinger.userData.flick0 = 0.58;
+  nailFinger.userData.flick1 = 0.655;
+  nailFinger.scale.setScalar(1.18);
+  lighterSpin.add(nailFinger);
+}
+
+const _nfY = new THREE.Vector3();
+const _nfX = new THREE.Vector3();
+const _nfZ = new THREE.Vector3();
+const _nfM = new THREE.Matrix4();
+const _nfQ = new THREE.Quaternion();
+const _nfOff = new THREE.Vector3();
+const _nfContact = new THREE.Vector3();
+const _nfAim = new THREE.Vector3();
+const _nfOrbit = new THREE.Vector3();
+const _nfWheel = new THREE.Vector3();
+const _nfPad = new THREE.Vector3();
+const _nfRest = new THREE.Vector3();
+const _nfPre = new THREE.Vector3();
+
+function nailOrbitPoint(u, hit, out) {
+  const ang = -0.12 + u * 1.28;
+  return out.set(
+    hit.wheelX + Math.cos(ang) * 3.05 + 0.85,
+    hit.wheelY + 1.55 + Math.sin(u * Math.PI) * 0.32,
+    hit.wheelZ + 2.55 + Math.sin(ang) * 0.55,
+  );
+}
+
+function poseNailFinger(t) {
+  if (!nailFinger) return;
+  const hit = lighterSpin.userData.hit;
+  if (!hit) return;
+  const tFlick0 = nailFinger.userData.flick0;
+  const tFlick1 = nailFinger.userData.flick1;
+  nailOrbitPoint(0, hit, _nfRest);
+  nailOrbitPoint(1, hit, _nfPre);
+  _nfWheel.set(
+    hit.wheelX + hit.wheelR * 0.35,
+    hit.wheelY + hit.wheelR * 0.70,
+    hit.wheelZ + hit.wheelW * 0.85,
+  );
+  _nfPad.set(
+    hit.padX + 0.12,
+    hit.padY + 0.52,
+    hit.padZ + 1.05,
+  );
+
+  const glamAim = new THREE.Vector3(hit.wheelX - 0.35, hit.wheelY + 2.4, hit.wheelZ - 0.4);
+  const holdAim = new THREE.Vector3(hit.padX - 0.25, hit.padY + 1.25, hit.padZ + 0.2);
+
+  if (t < tFlick0) {
+    const u = t / tFlick0;
+    const e = u * u * (3 - 2 * u);
+    _nfContact.lerpVectors(_nfRest, _nfPre, e);
+    _nfAim.copy(glamAim);
+  } else if (t < tFlick1) {
+    const u = (t - tFlick0) / (tFlick1 - tFlick0);
+    const e = u * u * u * u;
+    if (u < 0.46) {
+      const k = Math.min(1, e / (0.46 ** 4));
+      _nfContact.lerpVectors(_nfPre, _nfWheel, k);
+      _nfAim.lerpVectors(glamAim, holdAim, k);
+    } else {
+      const k = (u - 0.46) / 0.54;
+      const ek = 1 - (1 - k) * (1 - k) * (1 - k);
+      _nfContact.lerpVectors(_nfWheel, _nfPad, ek);
+      _nfAim.copy(holdAim);
+    }
+  } else if (t < 0.78) {
+    _nfContact.copy(_nfPad);
+    _nfAim.copy(holdAim);
+  } else {
+    const u = (t - 0.78) / 0.22;
+    const e = u * u * (3 - 2 * u);
+    _nfContact.lerpVectors(_nfPad, _nfRest, e);
+    _nfAim.lerpVectors(holdAim, glamAim, e);
+  }
+
+  _nfY.subVectors(_nfAim, _nfContact);
+  if (_nfY.lengthSq() < 1e-8) _nfY.set(-0.2, 1, -0.15);
+  _nfY.normalize();
+  _nfZ.set(0.22, 0.35, 1).normalize();
+  _nfX.crossVectors(_nfY, _nfZ).normalize();
+  if (_nfX.lengthSq() < 1e-8) {
+    _nfZ.set(1, 0, 0);
+    _nfX.crossVectors(_nfY, _nfZ).normalize();
+  }
+  _nfZ.crossVectors(_nfX, _nfY).normalize();
+  _nfM.makeBasis(_nfX, _nfY, _nfZ);
+  _nfQ.setFromRotationMatrix(_nfM);
+  nailFinger.quaternion.copy(_nfQ);
+  const twist = 0.62 + Math.sin(t * Math.PI * 2) * 0.07;
+  nailFinger.rotateOnAxis(new THREE.Vector3(0, 1, 0), twist);
+  _nfOff.copy(nailFinger.userData.contact).applyQuaternion(nailFinger.quaternion);
+  nailFinger.position.copy(_nfContact).sub(_nfOff);
+
+  if (nailCharm) {
+    const flick = (t >= tFlick0 && t <= tFlick1)
+      ? (t - tFlick0) / (tFlick1 - tFlick0)
+      : 0;
+    const lag = flick > 0 ? Math.sin(flick * Math.PI) : Math.sin(t * Math.PI * 2) * 0.14;
+    nailCharm.rotation.x = 0.18 + lag * 0.95;
+    nailCharm.rotation.z = flick > 0 ? (flick - 0.5) * 0.7 : Math.sin(t * 3.1) * 0.12;
+  }
+  const ph = t * Math.PI * 2;
+  for (let i = 0; i < nailGlints.length; i++) {
+    const g = nailGlints[i];
+    const pulse = 0.55 + 0.45 * Math.max(0, Math.sin(ph * 3 + i * 1.7));
+    g.material.opacity = 0.35 + 0.65 * pulse;
+    const base = i === 0 ? 0.42 : i === 1 ? 0.22 : 0.20;
+    g.scale.setScalar(base * (0.75 + 0.45 * pulse));
+  }
+}
+
+function containRoot() {
+  stage.scale.setScalar(1);
+  stage.position.set(0, 0, 0);
+  root.scale.setScalar(1);
+  root.position.set(0, 0, 0);
+  brand.i.visible = false;
+  brand.s.visible = false;
+  flameGroup.visible = false;
+  flameGroup.scale.setScalar(1);
+  if (nailFinger) {
+    nailFinger.visible = true;
+    poseNailFinger(0);
+  }
+
+  /* 1. Fit the lighter + flame + fingertip to the diagonal. Ignore the letters. */
+  stage.updateMatrixWorld(true);
+  const viewSpan = 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) * camera.position.z;
+  const box = boxFromVisibleMeshes(root, flameGroup);
+  expandFlameTip(box);
+  expandLighterSweep(box);
+  expandNailSweep(box);
+  const spanSize = box.getSize(new THREE.Vector3());
+  const span = Math.max(spanSize.x, spanSize.y, 1e-6);
+  stage.scale.setScalar((viewSpan * 0.90) / span);
+  stage.updateMatrixWorld(true);
+  const box2 = boxFromVisibleMeshes(root, flameGroup);
+  expandFlameTip(box2);
+  expandLighterSweep(box2);
+  expandNailSweep(box2);
+  const c = box2.getCenter(new THREE.Vector3());
+  stage.position.x -= c.x;
+  stage.position.y -= c.y;
+  stage.updateMatrixWorld(true);
+
+  const safe = worldSafeRect();
+  const h = safe.half;
+  const bodyBox = partWorldBox('body');
+  const hoodBox = partWorldBox('hood');
+
+  /* 2. I. +30° clockwise — top to the right. Fill the left pocket; period + stem may kiss the red. */
+  brand.i.visible = true;
+  packLeaningLetter(brand.i, 30, -h * 0.32, h * 0.30, 1, -1, bodyBox, null, 0.13, 1, safe);
+  const iChosen = 30;
+
+  /* 3. S. +30° clockwise — top to the right. Fill the lower-right pocket; red body may
+     bite the top curve, black hood must not. */
+  brand.s.visible = true;
+  packLeaningLetter(brand.s, 30, h * 0.30, -h * 0.28, -1, 1, bodyBox, hoodBox, 0.15, 0.008, safe);
+  const sChosen = 30;
+
+  brand.i.traverse((o) => { if (o.isMesh) o.material.depthTest = true; });
+  brand.s.traverse((o) => { if (o.isMesh) o.material.depthTest = true; });
+
+  keepScreenAtZ(brand.i, 1.8);
+  keepScreenAtZ(brand.s, -1.4);
+  while (!letterFitsSafe(brand.i, safe) && brand.i.scale.x > 0.3) brand.i.scale.multiplyScalar(0.97);
+  while (!letterFitsSafe(brand.s, safe) && brand.s.scale.x > 0.3) brand.s.scale.multiplyScalar(0.97);
+  /* Sit S almost on the canvas floor (period is the lowest point). */
+  dropLetterToFloor(brand.s, -safe.half + 0.12);
+  placeSDotOnBaseline(brand.s, brand.sDot, 0.70);
+
+  brand.iScale = brand.i.scale.x;
+  brand.sScale = brand.s.scale.x;
+  brand.iRotZ = brand.i.rotation.z;
+  brand.sRotZ = brand.s.rotation.z;
+  console.log('letter angles I', iChosen, 'S', sChosen, 'scale', brand.iScale.toFixed(2), brand.sScale.toFixed(2));
+
+  fx.position.set(0, 0, 0);
+  flameGroup.scale.setScalar(1);
+  brand.iRest = brand.i.position.clone();
+  brand.sRest = brand.s.position.clone();
+  if (brand.iDot) brand.iDotRest = brand.iDot.position.clone();
+  if (brand.sDot) brand.sDotRest = brand.sDot.position.clone();
+  stage.userData.baseScale = stage.scale.x;
+  stage.userData.basePos = { x: stage.position.x, y: stage.position.y };
+}
+
+function applyDot(dot, rest, t, phase) {
+  const ph = t * Math.PI * 2 + phase;
+  dot.position.set(
+    rest.x + Math.sin(ph * 3) * 0.010,
+    rest.y + Math.cos(ph * 2) * 0.008,
+    rest.z,
+  );
+  dot.rotation.set(
+    Math.sin(ph * 3) * 0.10,
+    Math.cos(ph * 2) * 0.12,
+    Math.sin(ph * 2 + 0.4) * 0.08,
+  );
+  dot.scale.setScalar(1 + Math.sin(ph * 4) * 0.018);
+}
+
+function applyLetter(letter, rest, restZ, scale, t, phase, yaw, pitch) {
+  const ph = t * Math.PI * 2 + phase;
+  letter.position.set(
+    rest.x + Math.sin(ph * 2) * 0.025,
+    rest.y + Math.cos(ph * 2) * 0.02,
+    rest.z,
+  );
+  letter.rotation.set(
+    Math.sin(ph * 2) * pitch * 0.4,
+    Math.cos(ph * 2) * yaw * 0.45,
+    restZ + Math.sin(ph * 2) * 0.025,
+  );
+  letter.scale.setScalar(scale * (1 + Math.sin(ph * 2) * 0.01));
+}
+
+function applyFrame(fr) {
+  /* Open interval [0, 1) so frame TOTAL steps into frame 1 with no pose jump.
+     Telegram thumbs / paused avatars / data-saver show the FIRST encoded frame. */
+  const t = (fr - 1) / TOTAL;
+  const ph = t * Math.PI * 2;
+
+  /* Thumb at t=0: glamorous fingertip beside an unlit lighter.
+     Slow orbit, then one fast roll+press; flame after the strike. */
+  const flick0 = nailFinger?.userData.flick0 ?? 0.58;
+  const flick1 = nailFinger?.userData.flick1 ?? 0.655;
+  const flickU = t <= flick0 || t >= flick1
+    ? 0
+    : (t - flick0) / (flick1 - flick0);
+  const flickEase = flickU * flickU * flickU * flickU;
+  const sparkOn = trap(t, flick0 - 0.01, flick0 + 0.012, flick1 - 0.01, flick1 + 0.06);
+  const press = trap(t, flick0 + (flick1 - flick0) * 0.38, flick1 - 0.012, 0.78, 0.90);
+  const flameOn = trap(t, flick0 + (flick1 - flick0) * 0.55, flick1, 0.78, 0.90);
+  const wheelRoll = t < flick0
+    ? 0
+    : t < flick1
+      ? flickEase * 13.5
+      : trap(t, flick1, flick1, 0.78, 0.96) * 13.5;
+
+  lighterSpin.rotation.y = -0.22 + Math.sin(ph) * 0.06;
+  lighterSpin.rotation.x = Math.sin(ph * 2) * 0.035;
+  lighterPivot.rotation.x = 0.48 + Math.sin(ph) * 0.02;
+  lighterPivot.rotation.z = -0.72 + Math.sin(ph) * 0.015;
+
+  sparkWheel.rotation.y = wheelRoll;
+  poseNailFinger(t);
+  /* Press down the long body axis — not sideways. */
+  lever.rotation.x = 0;
+  lever.rotation.z = 0;
+  lever.position.y = (lever.userData.restY ?? lever.position.y)
+    - (lever.userData.pressGap ?? 0.28) * press;
+  lever.position.z = lever.userData.restZ ?? lever.position.z;
+
+  const flick = 0.9 + 0.1 * Math.sin(ph * 8);
+  const on = flameOn * flick;
+  flameGroup.visible = on > 0.02;
+  flameGroup.scale.set(
+    1.04 + 0.06 * on + 0.02 * Math.sin(ph * 8),
+    1.0 + 0.08 * on * (0.96 + 0.04 * Math.sin(ph * 6)),
+    1.04 + 0.06 * on + 0.02 * Math.cos(ph * 8),
+  );
+  flameGroup.rotation.set(0, 0, 0);
+  for (const p of flameParts) {
+    p.mesh.visible = on > 0.03;
+  }
+
+  const sparkBursts = [
+    { t0: flick0 - 0.008, flight: 0.18 },
+  ];
+  for (const sp of sparks) {
+    if (sp.kind === 'flash') {
+      const u = sparkOn;
+      if (u < 0.12) {
+        sp.mesh.visible = false;
+        continue;
+      }
+      sp.mesh.visible = true;
+      sp.mesh.position.set(0, 0.02, 0);
+      sp.mesh.scale.setScalar(0.40 + 0.95 * u);
+      sp.mesh.material.opacity = 0.30 + 0.40 * u;
+      continue;
+    }
+    const k = sparkFlightK(t, sparkBursts[0].t0, sp.delay, sparkBursts[0].flight);
+    if (k < 0 || sparkOn < 0.02) {
+      sp.mesh.visible = false;
+      continue;
+    }
+    sp.mesh.visible = true;
+    const travel = Math.min(1, k);
+    const e = 1 - (1 - travel) * (1 - travel);
+    const dist = 0.10 + e * sp.reach;
+    sp.mesh.position.set(Math.sin(sp.ang) * dist, Math.cos(sp.ang) * dist, 0);
+    sp.mesh.rotation.z = -sp.ang;
+    const fade = k < 0.10 ? k / 0.10 : k > 0.70 ? Math.max(0, 1 - (k - 0.70) / 0.45) : 1;
+    const pop = 0.88 + 0.12 * Math.sin(ph * 22 + sp.seed * 9);
+    if (sp.chip) {
+      sp.chip.material.opacity = fade * pop;
+      sp.chip.scale.set(1, 0.78 + 0.40 * (1 - travel), 1);
+    }
+    if (sp.head) {
+      sp.head.material.opacity = fade * pop;
+      const hs = (0.85 + 0.45 * (1 - travel)) * (0.92 + 0.08 * pop);
+      sp.head.scale.setScalar(hs);
+    }
+  }
+
+  flameLight.intensity = 7.5 * on;
+  flameLight2.intensity = 5.5 * on;
+  flameLight.color.setHex(0xff3a10);
+  flameLight2.color.setHex(0xffc040);
+  flameLight.position.set(0, 0.85, 0);
+  flameAnchor.localToWorld(flameLight.position);
+  root.worldToLocal(flameLight.position);
+  flameLight2.position.set(0, 1.7, 0);
+  flameAnchor.localToWorld(flameLight2.position);
+  root.worldToLocal(flameLight2.position);
+
+  function sweepGlance(spot, obj, tOff, xAmp) {
+    if (!obj) return;
+    const aim = new THREE.Vector3();
+    obj.getWorldPosition(aim);
+    spot.target.position.copy(aim);
+    const u = Math.sin(ph + tOff);
+    spot.position.set(aim.x - 6.5 + u * xAmp, aim.y + 2.2 + Math.cos(ph + tOff) * 3.5, aim.z + 16);
+    spot.intensity = 22 + 8 * (0.5 + 0.5 * Math.sin(ph * 2 + tOff));
+  }
+  sweepGlance(iSpot, brand.i, 0.0, 7.5);
+  sweepGlance(sSpot, brand.s, 2.094, 7.5);
+  sweepGlance(bodySpot, lighterSpin, 4.189, 8.0);
+  bodySpot.intensity = 8 + 3 * (0.5 + 0.5 * Math.sin(ph * 2));
+
+  if (iGlance?.material.uniforms) {
+    iGlance.material.uniforms.uShift.value = Math.sin(ph) * 0.38;
+    iGlance.material.uniforms.uGain.value = 0.92 + 0.08 * (0.5 + 0.5 * Math.sin(ph * 2));
+  }
+  const sShift = Math.sin(ph + 2.094) * 0.38;
+  const sGain = 0.92 + 0.08 * (0.5 + 0.5 * Math.sin(ph * 2 + 2.094));
+  sGlanceU.uShift.value = sShift;
+  sGlanceU.uGain.value = sGain;
+  if (sGlance?.material.uniforms) {
+    sGlance.material.uniforms.uShift.value = sShift;
+    sGlance.material.uniforms.uGain.value = sGain;
+  }
+  const iDotG = brand.iDot?.userData.glance;
+  if (iDotG?.material.uniforms) {
+    iDotG.material.uniforms.uShift.value = Math.sin(ph) * 0.16;
+    iDotG.material.uniforms.uGain.value = 0.50 + 0.08 * (0.5 + 0.5 * Math.sin(ph * 2));
+  }
+  const sDotG = brand.sDot?.userData.glance;
+  if (sDotG?.material.uniforms) {
+    sDotG.material.uniforms.uShift.value = Math.sin(ph + 2.094) * 0.16;
+    sDotG.material.uniforms.uGain.value = 0.34 + 0.06 * (0.5 + 0.5 * Math.sin(ph * 2 + 2.094));
+  }
+  const u = Math.sin(ph + 4.189);
+  const gx = u * 0.34;
+  if (bodyShine) {
+    bodyShine.position.set(
+      gx,
+      bodyShine.userData.restY ?? bodyShine.position.y,
+      bodyShine.userData.restZ ?? 0.72,
+    );
+    if (bodyShine.material.uniforms) bodyShine.material.uniforms.uGain.value = 1.0;
+  }
+  if (hoodShine) {
+    hoodShine.position.x = (hoodShine.userData.restX ?? -0.10) + gx;
+    if (hoodShine.material.uniforms) hoodShine.material.uniforms.uGain.value = 1.0;
+  }
+  if (chromeShine) {
+    chromeShine.position.x = (chromeShine.userData.baseX || 0) + gx;
+    if (chromeShine.material.uniforms) chromeShine.material.uniforms.uGain.value = 1.15;
+  }
+  if (scene.environmentRotation) {
+    scene.environmentRotation.y = ph;
+  }
+
+  applyLetter(brand.i, brand.iRest, brand.iRotZ, brand.iScale, t, 0.0, 0.018, 0.012);
+  applyLetter(brand.s, brand.sRest, brand.sRotZ, brand.sScale, t, 2.094, 0.018, 0.012);
+  applyDot(brand.iDot, brand.iDotRest, t, 0.7);
+  applyDot(brand.sDot, brand.sDotRest, t, 2.3);
+
+  const base = stage.userData.basePos || { x: 0, y: 0 };
+  stage.position.x = base.x + Math.sin(ph) * 0.02;
+  stage.position.y = base.y + Math.cos(ph) * 0.016;
+  const bs = stage.userData.baseScale || 1;
+  stage.scale.setScalar(bs * (1 + Math.sin(ph * 2) * 0.004));
+
+  camera.lookAt(0, 0, 0);
+  renderer.clear(true, true, true);
+  renderer.render(scene, camera);
+}
+
+window.setFrame = (fr) => { applyFrame(fr); return fr; };
+window.TOTAL = TOTAL;
+window.ready = false;
+
+(async () => {
+  try {
+    buildLighter();
+    buildNailFinger();
+    buildLetters();
+    buildFx();
+    containRoot();
+    applyFrame(1);
+    window.ready = true;
+    console.log('LIGHTER_NAIL_READY');
+  } catch (e) {
+    console.error('LIGHTER_FAIL', e);
+  }
+})();
+</script>
+</body>
+</html>

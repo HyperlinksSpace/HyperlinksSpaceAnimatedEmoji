@@ -64,11 +64,11 @@ async function encode(size, name, crf, br, maxBytes) {
     '-start_number', '1',
     '-i', join(FRAMES, 'frame_%04d.png'),
     '-frames:v', String(TOTAL),
-    '-vf', `scale=${size}:${size}:flags=lanczos,format=yuva420p`,
+    '-vf', `scale=${size}:${size}:flags=lanczos${size <= 100 ? ',unsharp=5:5:1.0:3:3:0.0' : ''},format=yuva420p`,
     '-c:v', 'libvpx-vp9', '-pix_fmt', 'yuva420p', '-auto-alt-ref', '0',
     '-metadata:s:v:0', 'alpha_mode=1',
     '-b:v', br, '-crf', String(crf), '-an', '-r', '30', '-row-mt', '1',
-    '-deadline', 'good', '-cpu-used', '2',
+    '-deadline', 'good', '-cpu-used', size <= 100 ? '1' : '2',
   ];
   await run(FFMPEG, ['-y', ...common, '-pass', '1', '-f', 'null', process.platform === 'win32' ? 'NUL' : '/dev/null']);
   await run(FFMPEG, ['-y', ...common, '-pass', '2', out]);
@@ -116,7 +116,7 @@ async function main() {
   server.close();
 
   await encode(512, 'hyperlinks-space-sticker-sign.webm', 60, '160k', 256 * 1024);
-  await encode(100, 'hyperlinks-space-emoji-sign.webm', 58, '45k', 64 * 1024);
+  await encode(100, 'hyperlinks-space-emoji-sign.webm', 36, '90k', 64 * 1024);
 
   copyFileSync(join(ROOT, 'hyperlinks-space-sticker-sign.webm'), join(VARIANT, 'hyperlinks-space-sticker-sign.webm'));
   copyFileSync(join(ROOT, 'hyperlinks-space-emoji-sign.webm'), join(VARIANT, 'hyperlinks-space-emoji-sign.webm'));
