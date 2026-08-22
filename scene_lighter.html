@@ -1217,7 +1217,6 @@ function buildLighter() {
 
   const wheelR = 0.66;
   const wheelW = 0.48;
-  const pressGap = 0.10;
   const overlap = 0.22;
   const chromeBottom = platformY - overlap;
   const rTR = 0.78;
@@ -1234,10 +1233,11 @@ function buildLighter() {
   const padRight = blackW * 0.5 - 0.04;
   const visibleX = (wheelRight + padRight) * 0.5;
   const stemH = headH * 0.42;
-  const padTop = platformY + 0.70;
   const padH = 0.22;
+  const padTop = platformY + 0.62;
   const padBottom = padTop - padH;
   const neckH = Math.max(0.12, padBottom - platformY + 0.08);
+  const pressGap = padBottom - platformY;
 
   lever = buildRedFork(padLeft, padRight, blackD * 0.82, blackR, visibleX, stemH, padH, neckH);
   const restY = (padTop + padBottom) * 0.5;
