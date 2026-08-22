@@ -1316,10 +1316,10 @@ function buildLighter() {
   const slitRight = Math.min(wheelX - 0.10, hoodRight - rTR * 0.28);
   const slitW = Math.max(0.20, slitRight - slitLeft);
   const slit = new THREE.Mesh(
-    new THREE.BoxGeometry(slitW, 0.035, 0.055),
+    new THREE.BoxGeometry(slitW, 0.05, 0.18),
     cutMat,
   );
-  slit.position.set(slitLeft + slitW * 0.5, jetY + 0.004, jetZ);
+  slit.position.set(slitLeft + slitW * 0.5, jetY + 0.008, jetZ);
   slit.renderOrder = 3;
   collar.add(slit);
 
@@ -1442,7 +1442,7 @@ function buildLighter() {
   }
 
   lighterPivot.rotation.z = -0.72;
-  lighterPivot.rotation.x = 0.36;
+  lighterPivot.rotation.x = 0.48;
   lighterPivot.position.set(0, 0, 0);
 }
 
@@ -1513,9 +1513,9 @@ function expandFlameTip(box) {
   /* Cover flick scale + lighter yaw/pitch so the flame never leaves the square. */
   flameGroup.scale.set(1.14, 1.12, 1.14);
   const poses = [
-    [-0.60, -0.05, 0.33],
-    [-0.52, 0.00, 0.36],
-    [-0.44, 0.05, 0.40],
+    [-0.60, -0.05, 0.45],
+    [-0.52, 0.00, 0.48],
+    [-0.44, 0.05, 0.52],
   ];
   for (const [y, sx, px] of poses) {
     lighterSpin.rotation.y = y;
@@ -1542,11 +1542,11 @@ function expandLighterSweep(box) {
   const pivX = lighterPivot.rotation.x;
   const pivZ = lighterPivot.rotation.z;
   const poses = [
-    [-0.30, -0.05, 0.33, -0.74],
-    [-0.14, 0.05, 0.39, -0.70],
-    [-0.22, 0.00, 0.36, -0.72],
-    [-0.30, 0.05, 0.39, -0.74],
-    [-0.14, -0.05, 0.33, -0.70],
+    [-0.30, -0.05, 0.45, -0.74],
+    [-0.14, 0.05, 0.51, -0.70],
+    [-0.22, 0.00, 0.48, -0.72],
+    [-0.30, 0.05, 0.51, -0.74],
+    [-0.14, -0.05, 0.45, -0.70],
   ];
   for (const [y, sx, px, pz] of poses) {
     lighterSpin.rotation.y = y;
@@ -1915,7 +1915,7 @@ function applyFrame(fr) {
 
   lighterSpin.rotation.y = -0.22 + Math.sin(ph) * 0.08;
   lighterSpin.rotation.x = Math.sin(ph * 2) * 0.05;
-  lighterPivot.rotation.x = 0.36 + Math.sin(ph) * 0.03;
+  lighterPivot.rotation.x = 0.48 + Math.sin(ph) * 0.03;
   lighterPivot.rotation.z = -0.72 + Math.sin(ph) * 0.02;
 
   sparkWheel.rotation.y = t * 4.2
