@@ -1011,12 +1011,15 @@ function buildRedFork(padLeft, padRight, depth, radius, stemX, stemH, padH = 0.2
   g.add(pad);
   const stemW = Math.min(0.28, padW * 0.32);
   const stemD = Math.min(0.42, depth * 0.38);
-  /* Visible red neck under the pad, down to the black. Narrow so it does not read as a cube. */
+  /* Neck matches the pad on the chrome (left) side only; right stays the narrow plunger. */
+  const stemRight = stemX + stemW * 0.5;
+  const neckW = Math.max(stemW, stemRight - padLeft);
+  const neckX = padLeft + neckW * 0.5;
   const neck = new THREE.Mesh(
-    new RoundedBoxGeometry(stemW, neckH, stemD, 4, 0.05),
+    new RoundedBoxGeometry(neckW, neckH, stemD, 4, 0.05),
     red,
   );
-  neck.position.set(stemX, -padH * 0.5 - neckH * 0.5, 0);
+  neck.position.set(neckX, -padH * 0.5 - neckH * 0.5, 0);
   g.add(neck);
   /* Hidden plunger: black, inside the collar, never shows through the plastic. */
   const stem = new THREE.Mesh(
@@ -1036,6 +1039,8 @@ function buildRedFork(padLeft, padRight, depth, radius, stemX, stemH, padH = 0.2
   g.userData.padH = padH;
   g.userData.padD = depth;
   g.userData.stemH = stemH;
+  g.userData.neckX = neckX;
+  g.userData.neckW = neckW;
   return g;
 }
 
@@ -1244,10 +1249,10 @@ function buildLighter() {
 
   /* Dark well in the black so the stem enters it without showing on the outer collar. */
   const stemWell = new THREE.Mesh(
-    new THREE.BoxGeometry(Math.min(0.36, (padRight - padLeft) * 0.42), 0.16, blackD * 0.40),
+    new THREE.BoxGeometry(lever.userData.neckW, 0.16, blackD * 0.40),
     new THREE.MeshBasicMaterial({ color: 0x050506, toneMapped: false }),
   );
-  stemWell.position.set(visibleX, platformY - 0.06, 0);
+  stemWell.position.set(lever.userData.neckX, platformY - 0.06, 0);
   lighterSpin.add(stemWell);
 
   const wheelZ = 0.14;
