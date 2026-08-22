@@ -302,6 +302,7 @@ const brand = { i: null, s: null };
 let lighterPivot = null;
 let lighterSpin = null;
 let sparkWheel = null;
+let sparkGroup = null;
 let flameGroup = null;
 let flameAnchor = null;
 let lever = null;
@@ -494,64 +495,75 @@ function chromeMat() {
   });
 }
 
-/** Photo chrome hood: silver rounded shell, open top, front slot */
-function buildChromeWindguard() {
+function hoodChromeMat() {
+  /* Matcap so the sleeve stays bright against the black collar (PBR chrome vanished into the env). */
+  return new THREE.MeshMatcapMaterial({
+    matcap: sChromeMatcap,
+    color: 0xffffff,
+    toneMapped: false,
+  });
+}
+
+/** Side-plate silhouette: square top-left, rounded top-right damper (schematic). */
+function chromeDamperShape(w, h, roundR) {
+  const s = new THREE.Shape();
+  const hw = w * 0.5;
+  const hh = h * 0.5;
+  /* Keep the round modest — a large fillet cuts away the metal that covers the wheel hub. */
+  const r = Math.min(roundR, w * 0.16, h * 0.14);
+  s.moveTo(-hw, -hh);
+  s.lineTo(hw, -hh);
+  s.lineTo(hw, hh - r);
+  s.absarc(hw - r, hh - r, r, 0, Math.PI / 2, false);
+  s.lineTo(-hw, hh);
+  s.closePath();
+  return s;
+}
+
+/**
+ * Solid chrome sleeve over the black collar (not a hollow shell you can see into).
+ * Wheel hub is buried in the top-right metal; only the rim pokes out.
+ */
+function buildChromeWindguard(W, D, H, roundR) {
   const g = new THREE.Group();
-  const chrome = chromeMat();
+  const ch = hoodChromeMat();
+  const profile = chromeDamperShape(W, H, roundR);
+  const depth = D * 0.90;
+  const geo = new THREE.ExtrudeGeometry(profile, {
+    depth,
+    bevelEnabled: true,
+    bevelThickness: 0.04,
+    bevelSize: 0.03,
+    bevelSegments: 2,
+    curveSegments: 24,
+  });
+  geo.translate(0, 0, -depth * 0.5);
+  geo.computeVertexNormals();
+  g.add(new THREE.Mesh(geo, ch));
 
-  /* Outer chrome cylinder with rounded proportions */
-  const shell = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.72, 0.74, 1.15, 64, 1, false),
-    chrome,
+  const vent = new THREE.Mesh(
+    new THREE.BoxGeometry(0.20, 0.20, 0.12),
+    new THREE.MeshBasicMaterial({ color: 0x121316, toneMapped: false }),
   );
-  g.add(shell);
+  vent.position.set(W * 0.16, -H * 0.16, depth * 0.5 + 0.01);
+  g.add(vent);
 
-  /* Soften top/bottom with chrome torus lips */
-  const topLip = new THREE.Mesh(new THREE.TorusGeometry(0.68, 0.07, 14, 48), chromeMat());
-  topLip.rotation.x = Math.PI / 2;
-  topLip.position.y = 0.54;
-  g.add(topLip);
-  const botLip = new THREE.Mesh(new THREE.TorusGeometry(0.70, 0.055, 12, 48), chromeMat());
-  botLip.rotation.x = Math.PI / 2;
-  botLip.position.y = -0.54;
-  g.add(botLip);
-
-  /* Inner dark well (recessed) */
   const well = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.52, 0.52, 0.95, 48),
+    new THREE.CylinderGeometry(0.22, 0.26, 0.18, 24),
     new THREE.MeshPhysicalMaterial({
       color: 0x0a0a0c,
-      roughness: 0.55,
+      roughness: 0.5,
       metalness: 0.2,
       toneMapped: false,
     }),
   );
-  well.position.y = 0.05;
+  well.position.set(-W * 0.22, H * 0.5 - 0.02, 0);
   g.add(well);
 
-  /* Front rectangular window cutout (visual inset) */
-  const slotFrame = new THREE.Mesh(
-    new RoundedBoxGeometry(0.62, 0.34, 0.12, 3, 0.04),
-    chromeMat(),
-  );
-  slotFrame.position.set(0, 0.05, 0.68);
-  g.add(slotFrame);
-  const slotHole = new THREE.Mesh(
-    new THREE.BoxGeometry(0.48, 0.22, 0.08),
-    new THREE.MeshBasicMaterial({ color: 0x050506, toneMapped: false }),
-  );
-  slotHole.position.set(0, 0.05, 0.74);
-  g.add(slotHole);
-
-  /* Domed chrome top ring around flame opening */
-  const crown = new THREE.Mesh(
-    new THREE.TorusGeometry(0.38, 0.055, 12, 40),
-    chromeMat(),
-  );
-  crown.rotation.x = Math.PI / 2;
-  crown.position.set(0, 0.58, 0.05);
-  g.add(crown);
-
+  g.userData.shellH = H;
+  g.userData.frontH = H;
+  g.userData.size = { W, D, H };
+  g.userData.roundR = roundR;
   return g;
 }
 
@@ -739,32 +751,60 @@ function makeLightningTex(seed) {
   return tex;
 }
 
-function deformFlamePlane(geo, bend, twist, phase, taper = 0.55) {
-  const pos = geo.attributes.position;
-  if (!geo.userData.base) {
-    const base = new Float32Array(pos.count * 3);
-    for (let i = 0; i < pos.count; i++) {
-      base[i * 3] = pos.getX(i);
-      base[i * 3 + 1] = pos.getY(i);
-      base[i * 3 + 2] = pos.getZ(i);
-    }
-    geo.userData.base = base;
+function makeSparkStreakTex(seed) {
+  const w = 256;
+  const h = 512;
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  const ctx = c.getContext('2d');
+  const rnd = seeded(seed * 173 + 11);
+  ctx.clearRect(0, 0, w, h);
+  const cx = w * 0.5;
+  const pts = [];
+  let x = cx;
+  pts.push([x, h - 6]);
+  const segs = 5 + Math.floor(rnd() * 3);
+  for (let i = 1; i <= segs; i++) {
+    const u = i / segs;
+    x = cx + (rnd() - 0.5) * 70 * u;
+    pts.push([x, h - 6 - u * (h - 18)]);
   }
-  const base = geo.userData.base;
-  for (let i = 0; i < pos.count; i++) {
-    const x0 = base[i * 3];
-    const y0 = base[i * 3 + 1];
-    const u = y0 + 0.5;
-    const s1 = Math.sin(u * Math.PI * 2.35 + phase) * bend * (0.25 + 0.9 * u);
-    const s2 = Math.sin(u * Math.PI * 3.8 + phase * 1.6) * bend * 0.28 * u;
-    const z1 = Math.sin(u * Math.PI * 1.7 + twist) * bend * 0.55 * u;
-    const tw = 1 - u * taper;
-    const yaw = twist * u * 0.85;
-    const xr = x0 * Math.cos(yaw) - z1 * Math.sin(yaw);
-    const zr = x0 * Math.sin(yaw) + z1 * Math.cos(yaw);
-    pos.setXYZ(i, xr * tw + s1 + s2, y0, zr);
-  }
-  pos.needsUpdate = true;
+  const stroke = (width, color) => {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+    ctx.stroke();
+  };
+  stroke(54, 'rgba(80,20,0,0.85)');
+  stroke(32, '#ff6a00');
+  stroke(18, '#ffd24a');
+  stroke(8, '#fffce8');
+  const mid = 2 + Math.floor(rnd() * 2);
+  let bx = pts[mid][0];
+  let by = pts[mid][1];
+  const dir = rnd() > 0.5 ? 1 : -1;
+  ctx.strokeStyle = '#ffe566';
+  ctx.lineWidth = 10;
+  ctx.beginPath();
+  ctx.moveTo(bx, by);
+  ctx.lineTo(bx + dir * (36 + rnd() * 40), by - 40 - rnd() * 50);
+  ctx.stroke();
+  ctx.fillStyle = '#fff8e0';
+  ctx.beginPath();
+  ctx.arc(cx, h - 10, 16 + rnd() * 8, 0, Math.PI * 2);
+  ctx.fill();
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.generateMipmaps = false;
+  tex.needsUpdate = true;
+  return tex;
 }
 
 function buildFx() {
@@ -1002,51 +1042,72 @@ function makeLetter3D(ch) {
   return g;
 }
 
-function buildRedFork() {
+/** Red gas lever: left tucked under chrome, visible part comes out the right. */
+function buildRedFork(width, depth) {
   const g = new THREE.Group();
   const red = plasticRed();
-  /* BIC thumb pad — sits on the TOP, behind the flame */
+  const padW = width;
+  const padH = 0.30;
+  const padD = depth;
   const pad = new THREE.Mesh(
-    new RoundedBoxGeometry(1.05, 0.18, 0.58, 5, 0.08),
+    new RoundedBoxGeometry(padW, padH, padD, 5, 0.07),
     red,
   );
-  pad.position.set(0, 0.04, 0);
   g.add(pad);
-  const stem = new THREE.Mesh(
-    new RoundedBoxGeometry(0.42, 0.28, 0.36, 4, 0.06),
+  /* Slight downward lip on the far-right thumb edge (schematic). */
+  const lip = new THREE.Mesh(
+    new RoundedBoxGeometry(padW * 0.22, 0.08, padD * 0.92, 3, 0.04),
     red,
   );
-  stem.position.set(0, -0.14, 0.04);
-  g.add(stem);
+  lip.position.set(padW * 0.36, -padH * 0.28, 0);
+  g.add(lip);
+  for (let i = 0; i < 3; i++) {
+    const ridge = new THREE.Mesh(
+      new RoundedBoxGeometry(padW * 0.42, 0.04, 0.07, 2, 0.02),
+      red,
+    );
+    ridge.position.set(padW * 0.18, padH * 0.38, -padD * 0.22 + i * 0.16);
+    g.add(ridge);
+  }
+  g.userData.padH = padH;
+  g.userData.padD = padD;
   return g;
 }
 
-function knurlWheel(radius = 0.32, width = 0.38) {
+/** Knurled flint wheel + two cheek discs (exploded part B). Axle along local Y. */
+function knurlWheel(radius = 0.34, width = 0.52) {
   const grp = new THREE.Group();
-  const darkSteel = new THREE.MeshPhysicalMaterial({
-    color: 0x1a1c20,
-    roughness: 0.42,
-    metalness: 0.85,
-    envMapIntensity: 0.9,
+  const steel = new THREE.MeshPhysicalMaterial({
+    color: 0xb0b8c0,
+    roughness: 0.26,
+    metalness: 1.0,
+    envMapIntensity: 1.9,
+    emissive: 0x2c343c,
+    emissiveIntensity: 0.18,
     toneMapped: false,
   });
-  const cyl = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, width, 48), darkSteel);
-  cyl.rotation.z = Math.PI / 2;
-  grp.add(cyl);
-  const ridgeMat = new THREE.MeshPhysicalMaterial({
-    color: 0x2a2e34,
-    roughness: 0.5,
-    metalness: 0.9,
-    toneMapped: false,
-  });
-  const n = 24;
+  const core = new THREE.Mesh(
+    new THREE.CylinderGeometry(radius * 0.72, radius * 0.72, width * 0.72, 36),
+    steel,
+  );
+  grp.add(core);
+  const n = 18;
   for (let i = 0; i < n; i++) {
     const a = (i / n) * Math.PI * 2;
-    const r = new THREE.Mesh(new THREE.BoxGeometry(width * 0.92, 0.04, 0.045), ridgeMat);
-    r.position.set(0, Math.sin(a) * (radius - 0.012), Math.cos(a) * (radius - 0.012));
-    r.rotation.x = a;
-    grp.add(r);
+    const ridge = new THREE.Mesh(
+      new THREE.BoxGeometry(radius * 0.22, width * 0.72, radius * 0.22),
+      steel,
+    );
+    ridge.position.set(Math.sin(a) * radius * 0.88, 0, Math.cos(a) * radius * 0.88);
+    ridge.rotation.y = a;
+    grp.add(ridge);
   }
+  const cheekGeo = new THREE.CylinderGeometry(radius * 0.96, radius * 0.96, 0.07, 32);
+  const cheekA = new THREE.Mesh(cheekGeo, chromeMat());
+  cheekA.position.y = width * 0.42;
+  const cheekB = cheekA.clone();
+  cheekB.position.y = -width * 0.42;
+  grp.add(cheekA, cheekB);
   return grp;
 }
 
@@ -1090,10 +1151,10 @@ function buildLighter() {
   root.add(lighterPivot);
 
   /* Classic BIC body: rounded-rect red shell */
-  const bodyW = 2.22;
+  const bodyW = 2.58;
   const bodyH = 7.55;
-  const bodyD = 1.14;
-  const bodyR = 0.54;
+  const bodyD = 1.38;
+  const bodyR = 0.60;
   const body = bicShell(bodyW, bodyH, bodyD, plasticRed(), bodyR);
   body.userData.part = 'body';
   lighterSpin.add(body);
@@ -1104,10 +1165,10 @@ function buildLighter() {
   bodyShine.rotation.y = 0.10;
   lighterSpin.add(bodyShine);
 
-  /* Black plastic collar under the chrome (photo) */
-  const headH = 1.05;
+  /* Tall black collar — chrome overlays the top of it (schematic + photo). */
+  const headH = 1.22;
   const head = bicShell(bodyW * 1.01, headH, bodyD * 1.02, plasticBlack(), bodyR + 0.02);
-  head.position.y = bodyH * 0.5 + headH * 0.48;
+  head.position.y = bodyH * 0.5 + headH * 0.42;
   head.userData.part = 'hood';
   lighterSpin.add(head);
 
@@ -1116,40 +1177,60 @@ function buildLighter() {
   hoodShine.rotation.y = 0.10;
   lighterSpin.add(hoodShine);
 
-  const topY = bodyH * 0.5 + headH + 0.38;
-  /* Flame on the left of the top; wheel + button on the right of the top. */
-  const flameX = -0.55;
-  const flameZ = 0.10;
+  /* Chrome fully wraps the black collar: top 1/3 of its height, 2/3 of its width (right of the fireplace). */
+  const hoodW = bodyW * (2 / 3);
+  const hoodD = bodyD * 1.22;
+  const headTop = head.position.y + headH * 0.5;
+  const overlap = headH * (1 / 3);
+  const wheelR = 0.75;
+  const wheelW = 0.48;
+  /* Chrome tall enough that the wheel's bottom tangent sits at the black top. */
+  const hoodH = overlap + (4 / 3) * wheelR;
+  const roundR = 0.22;
+  const hoodX = -bodyW * 0.5 + hoodW * 0.5;
+  const hoodY = headTop - overlap + hoodH * 0.5;
 
-  const deck = new THREE.Mesh(
-    new RoundedBoxGeometry(bodyW * 0.94, 0.18, bodyD * 1.04, 4, 0.06),
-    plasticBlack(),
-  );
-  deck.position.set(0, bodyH * 0.5 + headH + 0.06, 0);
-  deck.userData.part = 'hood';
-  lighterSpin.add(deck);
-
-  const hood = buildChromeWindguard();
-  hood.scale.set(0.78, 0.88, 0.78);
-  hood.position.set(flameX, topY, flameZ);
+  const hood = buildChromeWindguard(hoodW, hoodD, hoodH, roundR);
+  hood.position.set(hoodX, hoodY, 0);
   hood.userData.part = 'hood';
   lighterSpin.add(hood);
 
-  chromeShine = makeInsetGlance(0.28, 0.92, 1.15);
-  chromeShine.position.set(flameX, topY, flameZ + 0.58);
-  chromeShine.rotation.y = 0.08;
-  chromeShine.userData.baseX = flameX;
+  /* Cuff: wrap the black itself (front, back, right) so that region is fully sleeved. */
+  const cuff = new THREE.Mesh(
+    new RoundedBoxGeometry(hoodW, overlap, bodyD * 1.18, 3, 0.10),
+    hoodChromeMat(),
+  );
+  cuff.position.set(hoodX, headTop - overlap * 0.5, 0);
+  cuff.userData.part = 'hood';
+  lighterSpin.add(cuff);
+  const cuffRight = new THREE.Mesh(
+    new RoundedBoxGeometry(0.16, overlap, bodyD * 1.18, 2, 0.05),
+    hoodChromeMat(),
+  );
+  cuffRight.position.set(hoodX + hoodW * 0.5 - 0.04, headTop - overlap * 0.5, 0);
+  cuffRight.userData.part = 'hood';
+  lighterSpin.add(cuffRight);
+
+  chromeShine = makeInsetGlance(0.28, hoodH * 0.70, 1.18);
+  chromeShine.position.set(hoodX - 0.12, hoodY + 0.06, hoodD * 0.52);
+  chromeShine.rotation.y = 0.06;
+  chromeShine.userData.baseX = hoodX - 0.12;
   lighterSpin.add(chromeShine);
 
+  /* Fireplace: hole in the LEFT of the chrome, not at the wheel. */
+  const jetX = hoodX - hoodW * 0.22;
+  const jetZ = 0;
+  const jetY = hoodY + hoodH * 0.5 - 0.10;
+
   const chimney = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.11, 0.13, 0.28, 28),
+    new THREE.CylinderGeometry(0.10, 0.12, 0.26, 24),
     steelMat(),
   );
-  chimney.position.set(flameX, topY - 0.18, flameZ);
+  chimney.position.set(jetX, jetY - 0.16, jetZ);
   lighterSpin.add(chimney);
 
   const nozzleTip = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.08, 0.1, 0.08, 24),
+    new THREE.CylinderGeometry(0.07, 0.09, 0.08, 20),
     new THREE.MeshPhysicalMaterial({
       color: 0x2a2e34,
       metalness: 0.7,
@@ -1157,39 +1238,61 @@ function buildLighter() {
       toneMapped: false,
     }),
   );
-  nozzleTip.position.set(flameX, topY, flameZ);
+  nozzleTip.position.set(jetX, jetY - 0.02, jetZ);
   lighterSpin.add(nozzleTip);
 
   const hole = new THREE.Mesh(
-    new THREE.CircleGeometry(0.075, 24),
+    new THREE.CircleGeometry(0.16, 24),
     new THREE.MeshBasicMaterial({ color: 0x050505, toneMapped: false }),
   );
   hole.rotation.x = -Math.PI * 0.5;
-  hole.position.set(flameX, topY + 0.06, flameZ);
+  hole.position.set(jetX, jetY + 0.06, jetZ);
   lighterSpin.add(hole);
 
-  const wheel = knurlWheel(0.28, 0.58);
-  wheel.position.set(0.18, topY + 0.14, 0.06);
-  lighterSpin.add(wheel);
-  sparkWheel = wheel;
+  /* 1/3 of each diameter visible at the right and the top → center is R/3 inside both edges. */
+  const hoodRight = hoodX + hoodW * 0.5;
+  const chromeTop = hoodY + hoodH * 0.5;
+  const wheelZ = 0;
+  const wheelX = hoodRight - wheelR / 3;
+  const wheelY = chromeTop - wheelR / 3;
 
-  lever = buildRedFork();
-  lever.scale.setScalar(0.78);
-  lever.position.set(0.62, topY - 0.02, 0.04);
+  /* Thin button: top edge on the wheel's bottom tangent, peeking out from under chrome. */
+  const padW = bodyW * 0.30;
+  const padD = bodyD * 0.70;
+  lever = buildRedFork(padW, padD);
+  const padH = lever.userData.padH;
+  const wheelBottom = wheelY - wheelR;
+  lever.position.set(hoodRight + padW * 0.18, wheelBottom - padH * 0.5, 0);
   lighterSpin.add(lever);
   lever.userData.restY = lever.position.y;
   lever.userData.restZ = lever.position.z;
 
+  const wheelMount = new THREE.Group();
+  wheelMount.position.set(wheelX, wheelY, wheelZ);
+  wheelMount.rotation.x = Math.PI / 2;
+  const wheel = knurlWheel(wheelR, wheelW);
+  wheelMount.add(wheel);
+  lighterSpin.add(wheelMount);
+  sparkWheel = wheel;
+
+  /* Chrome washer on the disk — the axle is attached under the damper, hub stays covered. */
+  const hubCap = new THREE.Mesh(new THREE.CircleGeometry(wheelR * 0.42, 28), hoodChromeMat());
+  hubCap.position.set(wheelX, wheelY, wheelZ + wheelW * 0.52);
+  lighterSpin.add(hubCap);
+  const hub = new THREE.Mesh(new THREE.CylinderGeometry(wheelR * 0.16, wheelR * 0.16, 0.07, 16), steelMat());
+  hub.rotation.x = Math.PI / 2;
+  hub.position.set(wheelX, wheelY, wheelZ + wheelW * 0.56);
+  lighterSpin.add(hub);
+
   const flint = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.07, 0.07, 0.20, 16),
+    new THREE.CylinderGeometry(0.055, 0.055, 0.22, 14),
     steelMat(),
   );
-  flint.rotation.z = Math.PI / 2;
-  flint.position.set(0.32, topY + 0.02, 0.0);
+  flint.position.set(wheelX, wheelY - wheelR * 0.70, wheelZ + 0.08);
   lighterSpin.add(flint);
 
   flameAnchor = new THREE.Group();
-  flameAnchor.position.set(flameX, topY + 0.48, flameZ);
+  flameAnchor.position.set(jetX, jetY + 0.10, jetZ);
   lighterSpin.add(flameAnchor);
 
   flameGroup = new THREE.Group();
@@ -1217,21 +1320,68 @@ function buildLighter() {
   flameParts.push({ mesh: sprite, kind: 'sprite' });
 
   const sparkMat = new THREE.MeshBasicMaterial({
-    color: 0xffe8aa,
+    color: 0xfff4c8,
     transparent: true,
-    opacity: 0.8,
+    opacity: 1,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
+    depthTest: true,
     toneMapped: false,
   });
-  for (let i = 0; i < 3; i++) {
-    const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.022, 8, 8), sparkMat.clone());
-    flameAnchor.add(mesh);
+  sparkGroup = new THREE.Group();
+  /* Same opening as the flame: sparks leave the chrome through the jet, up only. */
+  sparkGroup.position.set(jetX, jetY + 0.10, jetZ);
+  lighterSpin.add(sparkGroup);
+  const sparkDepth = {
+    transparent: true,
+    opacity: 1,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    depthTest: true,
+    toneMapped: false,
+  };
+  const flash = new THREE.Mesh(
+    new THREE.SphereGeometry(0.16, 12, 12),
+    new THREE.MeshBasicMaterial({
+      color: 0xfff4c0,
+      ...sparkDepth,
+    }),
+  );
+  flash.renderOrder = 3;
+  sparkGroup.add(flash);
+  sparks.push({ mesh: flash, kind: 'flash', seed: 0.1, ax: 0, ay: 0.12 });
+  for (let i = 0; i < 8; i++) {
+    const boltGeo = new THREE.PlaneGeometry(0.95, 2.20);
+    boltGeo.translate(0, 1.10, 0);
+    const bolt = new THREE.Mesh(
+      boltGeo,
+      new THREE.MeshBasicMaterial({
+        map: makeSparkStreakTex(i + 3),
+        ...sparkDepth,
+        side: THREE.DoubleSide,
+      }),
+    );
+    bolt.renderOrder = 3;
+    sparkGroup.add(bolt);
+    sparks.push({
+      mesh: bolt,
+      kind: 'bolt',
+      seed: i * 0.73 + 0.2,
+      ax: (i % 2 === 0 ? 1 : -1) * (0.06 + i * 0.018),
+      ay: 1.15 + (i % 3) * 0.12,
+    });
+  }
+  for (let i = 0; i < 8; i++) {
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 8), sparkMat.clone());
+    mesh.material.depthTest = true;
+    mesh.renderOrder = 3;
+    sparkGroup.add(mesh);
     sparks.push({
       mesh,
-      seed: i * 0.73 + 0.2,
-      ax: (i % 2 ? 1 : -1) * (0.06 + i * 0.03),
-      ay: 0.12 + i * 0.08,
+      kind: 'dot',
+      seed: i * 0.91 + 0.4,
+      ax: (i % 2 === 0 ? 0.10 : -0.08) * (0.4 + i * 0.04),
+      ay: 0.85 + i * 0.12,
     });
   }
 
@@ -1307,9 +1457,9 @@ function expandFlameTip(box) {
   /* Cover flick scale + lighter yaw/pitch so the flame never leaves the square. */
   flameGroup.scale.set(1.14, 1.12, 1.14);
   const poses = [
-    [0.02, -0.05, 0.07],
-    [0.12, 0.00, 0.10],
-    [0.22, 0.05, 0.13],
+    [-0.60, -0.05, 0.07],
+    [-0.52, 0.00, 0.10],
+    [-0.44, 0.05, 0.13],
   ];
   for (const [y, sx, px] of poses) {
     lighterSpin.rotation.y = y;
@@ -1601,7 +1751,7 @@ function containRoot() {
   brand.i.traverse((o) => { if (o.isMesh) o.material.depthTest = true; });
   brand.s.traverse((o) => { if (o.isMesh) o.material.depthTest = true; });
 
-  keepScreenAtZ(brand.i, 6.5);
+  keepScreenAtZ(brand.i, 1.8);
   keepScreenAtZ(brand.s, -1.4);
   while (!letterFitsSafe(brand.i, safe) && brand.i.scale.x > 0.3) brand.i.scale.multiplyScalar(0.97);
   while (!letterFitsSafe(brand.s, safe) && brand.s.scale.x > 0.3) brand.s.scale.multiplyScalar(0.97);
@@ -1658,24 +1808,39 @@ function applyFrame(fr) {
   const t = (fr - 1) / TOTAL;
   const ph = t * Math.PI * 2;
 
-  const flameOn = Math.max(
-    trap(t, 0.10, 0.16, 0.36, 0.46),
-    trap(t, 0.54, 0.60, 0.82, 0.93),
+  /* Strike sequence: slow idle spin → fast wheel → lightning sparks → button → flame. */
+  const strikeSpin = (t0, t1) => {
+    if (t <= t0) return 0;
+    if (t >= t1) return 1;
+    const u = (t - t0) / (t1 - t0);
+    return u * u * (3 - 2 * u);
+  };
+  const sparkOn = Math.max(
+    trap(t, 0.085, 0.095, 0.118, 0.145),
+    trap(t, 0.555, 0.565, 0.588, 0.615),
   );
-  const ignite = Math.max(
-    trap(t, 0.08, 0.12, 0.16, 0.22),
-    trap(t, 0.52, 0.56, 0.60, 0.66),
+  const press = Math.max(
+    trap(t, 0.13, 0.16, 0.40, 0.47),
+    trap(t, 0.61, 0.64, 0.88, 0.95),
+  );
+  const flameOn = Math.max(
+    trap(t, 0.15, 0.18, 0.40, 0.47),
+    trap(t, 0.63, 0.66, 0.88, 0.95),
   );
 
-  lighterSpin.rotation.y = 0.12 + Math.sin(ph) * 0.10;
+  lighterSpin.rotation.y = -0.22 + Math.sin(ph) * 0.08;
   lighterSpin.rotation.x = Math.sin(ph * 2) * 0.05;
-  lighterPivot.rotation.x = 0.10 + Math.sin(ph) * 0.03;
+  lighterPivot.rotation.x = 0.18 + Math.sin(ph) * 0.03;
   lighterPivot.rotation.z = -0.72 + Math.sin(ph) * 0.02;
 
-  sparkWheel.rotation.x = ignite * 16 + ph * 2;
-  const press = flameOn;
-  lever.rotation.x = 0.32 * press;
-  lever.position.y = (lever.userData.restY ?? lever.position.y) - 0.11 * press;
+  sparkWheel.rotation.y = t * 4.2
+    + strikeSpin(0.06, 0.14) * 11
+    + strikeSpin(0.54, 0.62) * 11;
+  /* Press down the long body axis — not sideways. */
+  lever.rotation.x = 0;
+  lever.rotation.z = 0;
+  lever.position.y = (lever.userData.restY ?? lever.position.y) - 0.16 * press;
+  lever.position.z = lever.userData.restZ ?? lever.position.z;
 
   const flick = 0.9 + 0.1 * Math.sin(ph * 8);
   const on = flameOn * flick;
@@ -1691,19 +1856,40 @@ function applyFrame(fr) {
   }
 
   for (const sp of sparks) {
-    const u = ignite * (0.55 + 0.45 * ((Math.sin(ph * 6 + sp.seed * 9) + 1) * 0.5));
-    if (u < 0.08) {
+    const u = sparkOn * (0.55 + 0.45 * ((Math.sin(ph * 18 + sp.seed * 11) + 1) * 0.5));
+    if (u < 0.10) {
       sp.mesh.visible = false;
       continue;
     }
     sp.mesh.visible = true;
-    const k = (t * 6 + sp.seed) % 1;
-    sp.mesh.position.set(
-      sp.ax * (0.12 + k * 0.22),
-      0.06 + sp.ay * k * 0.55,
-      (sp.seed - 0.5) * 0.35,
-    );
-    sp.mesh.scale.setScalar((0.5 + 0.7 * (1 - k)) * u);
+    const k = (t * 14 + sp.seed) % 1;
+    const flick = 0.70 + 0.30 * Math.sin(ph * 32 + sp.seed * 7);
+    if (sp.kind === 'flash') {
+      sp.mesh.position.set(0, 0.04, 0);
+      sp.mesh.scale.setScalar((0.55 + 1.05 * u * flick));
+      sp.mesh.material.opacity = 0.45 + 0.40 * u;
+    } else if (sp.kind === 'bolt') {
+      /* Out of the jet opening, +Y only — never down, never across the body. */
+      sp.mesh.position.set(
+        sp.ax * k * 0.22,
+        0.02 + k * 0.55,
+        0,
+      );
+      sp.mesh.rotation.set(
+        0.06,
+        Math.sin(ph * 16 + sp.seed) * 0.08,
+        sp.ax * 0.12,
+      );
+      sp.mesh.scale.set(0.85 + 0.20 * flick, 0.70 + 0.55 * u, 1);
+      sp.mesh.material.opacity = 0.72 + 0.28 * u * flick;
+    } else {
+      sp.mesh.position.set(
+        sp.ax * k * 0.35,
+        0.08 + sp.ay * k * 0.95,
+        0,
+      );
+      sp.mesh.scale.setScalar((0.70 + 0.85 * (1 - k)) * u * flick);
+    }
   }
 
   flameLight.intensity = 7.5 * on;
