@@ -1462,8 +1462,8 @@ function buildLighter() {
       kind: 'spark',
       seed: i * 0.73 + 0.2,
       ang,
-      reach: 1.25 + rnd() * 0.90,
-      delay: u * 0.032 + rnd() * 0.010,
+      reach: 2.35 + rnd() * 0.85,
+      delay: u * 0.028 + rnd() * 0.008,
     });
   }
 
@@ -1687,6 +1687,27 @@ function dropLetterToFloor(letter, floorY) {
   letter.position.copy(w);
 }
 
+/** Screen-right nudge for the S period; stay inside the square and its inscribed circle. */
+function nudgeSDotScreenRight(letter, dot, wantDx) {
+  if (!letter || !dot) return;
+  letter.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(dot);
+  const w = box.getCenter(new THREE.Vector3());
+  const sz = box.getSize(new THREE.Vector3());
+  const rad = Math.max(sz.x, sz.y) * 0.5;
+  const half = Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) * camera.position.z;
+  const lip = 0.94;
+  const lim = Math.max(rad + 0.08, half * lip - rad);
+  w.x = Math.min(w.x + wantDx, half * lip - rad, lim * 0.78);
+  const maxAbsY = Math.sqrt(Math.max(0, lim * lim - w.x * w.x));
+  if (w.y < -maxAbsY) w.y = -maxAbsY;
+  if (w.y > maxAbsY) w.y = maxAbsY;
+  const local = w.clone();
+  letter.worldToLocal(local);
+  local.z = dot.position.z;
+  dot.position.copy(local);
+}
+
 function growAtWorldPos(letter, wx, wy, safe) {
   let lo = 0.5;
   let hi = 9;
@@ -1882,6 +1903,7 @@ function containRoot() {
   while (!letterFitsSafe(brand.s, safe) && brand.s.scale.x > 0.3) brand.s.scale.multiplyScalar(0.97);
   /* Sit S almost on the canvas floor (period is the lowest point). */
   dropLetterToFloor(brand.s, -safe.half + 0.12);
+  nudgeSDotScreenRight(brand.s, brand.sDot, 1.15);
 
   brand.iScale = brand.i.scale.x;
   brand.sScale = brand.s.scale.x;
@@ -1893,6 +1915,8 @@ function containRoot() {
   flameGroup.scale.setScalar(1);
   brand.iRest = brand.i.position.clone();
   brand.sRest = brand.s.position.clone();
+  if (brand.iDot) brand.iDotRest = brand.iDot.position.clone();
+  if (brand.sDot) brand.sDotRest = brand.sDot.position.clone();
   stage.userData.baseScale = stage.scale.x;
   stage.userData.basePos = { x: stage.position.x, y: stage.position.y };
 }
@@ -1933,7 +1957,8 @@ function applyFrame(fr) {
   const t = (fr - 1) / TOTAL;
   const ph = t * Math.PI * 2;
 
-  /* Hero at t=0: flame + mid-flight sparks + pressed button, letters at rest. */
+  /* Hero at t=0: flame on, sparks halfway up the tongue, button pressed.
+     Sparks always strike a little before the flame. */
   const strikeSpin = (t0, t1) => {
     const tt = t < t0 - 0.5 ? t + 1 : t;
     if (tt <= t0) return 0;
@@ -1942,16 +1967,16 @@ function applyFrame(fr) {
     return u * u * (3 - 2 * u);
   };
   const sparkOn = Math.max(
-    trapLoop(t, -0.06, -0.04, 0.05, 0.12),
-    trapLoop(t, 0.44, 0.46, 0.55, 0.62),
+    trapLoop(t, -0.14, -0.11, 0.05, 0.14),
+    trapLoop(t, 0.36, 0.39, 0.52, 0.62),
   );
   const press = Math.max(
-    trapLoop(t, -0.04, -0.01, 0.26, 0.34),
-    trapLoop(t, 0.46, 0.49, 0.76, 0.84),
+    trapLoop(t, -0.05, -0.02, 0.26, 0.34),
+    trapLoop(t, 0.45, 0.48, 0.76, 0.84),
   );
   const flameOn = Math.max(
-    trapLoop(t, -0.03, -0.005, 0.26, 0.34),
-    trapLoop(t, 0.47, 0.50, 0.76, 0.84),
+    trapLoop(t, -0.05, -0.015, 0.26, 0.34),
+    trapLoop(t, 0.46, 0.50, 0.76, 0.84),
   );
 
   lighterSpin.rotation.y = -0.22 + Math.sin(ph) * 0.08;
@@ -1960,8 +1985,8 @@ function applyFrame(fr) {
   lighterPivot.rotation.z = -0.72 + Math.sin(ph) * 0.02;
 
   sparkWheel.rotation.y = t * 4.2
-    + strikeSpin(0.90, 0.985) * 11
-    + strikeSpin(0.40, 0.48) * 11;
+    + strikeSpin(0.84, 0.93) * 11
+    + strikeSpin(0.34, 0.43) * 11;
   /* Press down the long body axis — not sideways. */
   lever.rotation.x = 0;
   lever.rotation.z = 0;
@@ -1983,8 +2008,8 @@ function applyFrame(fr) {
   }
 
   const sparkBursts = [
-    { t0: -0.08, flight: 0.14 },
-    { t0: 0.42, flight: 0.14 },
+    { t0: -0.125, flight: 0.20 },
+    { t0: 0.365, flight: 0.20 },
   ];
   for (const sp of sparks) {
     if (sp.kind === 'flash') {

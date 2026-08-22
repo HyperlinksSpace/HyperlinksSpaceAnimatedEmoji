@@ -70,9 +70,9 @@ let signShineBase = null;
 let signShineTex = null;
 let svgSignGlance = null; /* { ctx, tex, S, mats: [] } */
 const nGlanceU = {
-  uShift: { value: 0 },
-  uGain: { value: 0.92 },
-  uWidth: { value: 8.5 },
+  uShift: { value: 46 },
+  uGain: { value: 1.18 },
+  uWidth: { value: 15 },
 };
 
 const renderer = new THREE.WebGLRenderer({
@@ -1332,11 +1332,12 @@ function makeCleanGreenPlateTex(img) {
 }
 
 function updateSignShineGlance(t, life) {
-  /* Thin traveling chrome window (half the old painted band). */
+  /* Telegram thumb is t=0: one studio chrome window across the intact N. */
   if (SIGN_ONLY) {
-    const u = (t * 1.25) % 1;
-    nGlanceU.uShift.value = 16 + u * 72;
-    nGlanceU.uGain.value = 0.9;
+    const ph = t * Math.PI * 2;
+    nGlanceU.uShift.value = 46 + Math.sin(ph) * 8;
+    nGlanceU.uGain.value = (1.05 + 0.22 * Math.max(0, Math.cos(ph))) * Math.max(0.35, life);
+    nGlanceU.uWidth.value = 15;
     if (brand.n && brand.n.userData.glanceBar) {
       brand.n.userData.glanceBar.visible = false;
     }
@@ -1719,10 +1720,10 @@ function makeSvgSignFaceMat(x0 = 0) {
         col *= mix(vec3(0.42, 1.06, 0.34), vec3(1.0), smoothstep(0.58, 0.94, chrome));
         col = min(vec3(1.0), col * 1.18 + 0.04);
         float d = abs(vX - uShift) / max(uWidth, 0.001);
-        float core = 1.0 - smoothstep(0.06, 0.14, d);
-        float halo = 1.0 - smoothstep(0.14, 0.28, d);
-        float a = max(core, halo * 0.50) * uGain;
-        col = mix(col, vec3(1.0), clamp(a, 0.0, 0.82));
+        float core = 1.0 - smoothstep(0.08, 0.28, d);
+        float halo = 1.0 - smoothstep(0.28, 0.68, d);
+        float a = max(core, halo * 0.55) * uGain;
+        col = mix(col, vec3(1.0), clamp(a, 0.0, 0.90));
         gl_FragColor = vec4(col, 1.0);
       }
     `,
@@ -2260,7 +2261,8 @@ function containRoot() {
 }
 
 function applyFrame(fr) {
-  const t = (fr - 1) / Math.max(1, TOTAL - 1);
+  /* Sign-only: [0, 1) so Telegram's first frame is the hero and the loop joins. */
+  const t = SIGN_ONLY ? (fr - 1) / TOTAL : (fr - 1) / Math.max(1, TOTAL - 1);
   const boomAmt = trap(t, 0.08, 0.22, 0.52, 0.88);
   const zoomN = trap(t, 0.12, 0.28, 0.46, 0.76);
   const zoomT = trap(t, 0.30, 0.46, 0.60, 0.86);
@@ -2489,13 +2491,14 @@ function applyFrame(fr) {
   }
 
   if (SIGN_ONLY && shineSweep) {
-    const ang = t * Math.PI * 2 * 1.4;
-    shineSweep.position.set(Math.cos(ang) * 12, 4 + Math.sin(ang * 0.7) * 3, 10 + Math.sin(ang) * 4);
-    shineSweep.intensity = 4.2 * life * (0.55 + 0.45 * Math.sin(t * Math.PI * 4));
+    const ph = t * Math.PI * 2;
+    shineSweep.position.set(7.2 + Math.sin(ph) * 1.4, 7.6, 13.5);
+    shineSweep.intensity = 5.8 * life;
   }
   if (SIGN_ONLY && shineKick) {
-    shineKick.intensity = 3.5 * life * (0.6 + 0.4 * Math.sin(t * Math.PI * 5.5));
-    shineKick.position.set(Math.sin(t * 6) * 2.5, 1.5 + Math.cos(t * 4) * 1.2, 5);
+    const ph = t * Math.PI * 2;
+    shineKick.intensity = 4.4 * life;
+    shineKick.position.set(-1.1 + Math.sin(ph) * 0.4, 2.3, 6.2);
   }
   updateSignShineGlance(t, life);
 
