@@ -228,6 +228,126 @@ function makeLighterFlameTex(seed) {
   return tex;
 }
 
+function sparkFlightK(t, t0, delay, flight) {
+  let best = -1;
+  for (const off of [-1, 0, 1]) {
+    const u = (t + off - t0 - delay) / flight;
+    if (u >= 0 && u < 1.18) best = u;
+  }
+  return best;
+}
+
+function makeSignSparkChipTex(seed) {
+  const w = 48;
+  const h = 128;
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  const ctx = c.getContext('2d');
+  const rnd = seeded(seed * 173 + 11);
+  const cx = w * 0.5;
+  const lean = (rnd() - 0.5) * 8;
+  const grad = ctx.createLinearGradient(cx, h - 6, cx + lean, 10);
+  grad.addColorStop(0.00, 'rgba(255,40,0,0)');
+  grad.addColorStop(0.22, 'rgba(255,90,8,0.45)');
+  grad.addColorStop(0.52, '#ff9a20');
+  grad.addColorStop(0.78, '#ffe566');
+  grad.addColorStop(1.00, '#fffce8');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.moveTo(cx - 2.2, h - 10);
+  ctx.lineTo(cx + 2.2, h - 10);
+  ctx.lineTo(cx + 8 + rnd() * 3, 18);
+  ctx.lineTo(cx - 8 - rnd() * 3, 18);
+  ctx.closePath();
+  ctx.fill();
+  const head = ctx.createRadialGradient(cx, 16, 0, cx, 16, 16);
+  head.addColorStop(0.00, '#ffffff');
+  head.addColorStop(0.28, '#fff6c8');
+  head.addColorStop(0.62, '#ffcc44');
+  head.addColorStop(1.00, 'rgba(255,120,0,0)');
+  ctx.fillStyle = head;
+  ctx.beginPath();
+  ctx.arc(cx, 16, 16, 0, Math.PI * 2);
+  ctx.fill();
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.generateMipmaps = false;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+function buildSignSphereFx() {
+  const nSpark = 18;
+  const golden = Math.PI * (3 - Math.sqrt(5));
+  const sparkMat = {
+    transparent: true,
+    opacity: 1,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    depthTest: true,
+    toneMapped: false,
+  };
+  for (let i = 0; i < nSpark; i++) {
+    const rnd = seeded(i * 131 + 19);
+    const y = 1 - (i / (nSpark - 1)) * 2;
+    const rxy = Math.sqrt(Math.max(0, 1 - y * y));
+    const th = golden * i + (rnd() - 0.5) * 0.7;
+    const dir = new THREE.Vector3(
+      Math.cos(th) * rxy + (rnd() - 0.5) * 0.28,
+      y + (rnd() - 0.5) * 0.22,
+      Math.sin(th) * rxy + (rnd() - 0.5) * 0.28,
+    ).normalize();
+    const len = 0.48 + rnd() * 0.26;
+    const wid = 0.10 + rnd() * 0.055;
+    const chipGeo = new THREE.PlaneGeometry(wid, len);
+    chipGeo.translate(0, len * 0.5, 0);
+    const grp = new THREE.Group();
+    const chip = new THREE.Mesh(
+      chipGeo,
+      new THREE.MeshBasicMaterial({ map: makeSignSparkChipTex(i + 5), ...sparkMat }),
+    );
+    const head = new THREE.Mesh(
+      new THREE.CircleGeometry(0.055 + rnd() * 0.03, 14),
+      new THREE.MeshBasicMaterial({ color: 0xfff4c8, ...sparkMat }),
+    );
+    head.position.y = len;
+    chip.renderOrder = 6;
+    head.renderOrder = 7;
+    grp.add(chip);
+    grp.add(head);
+    grp.visible = false;
+    fx.add(grp);
+    signSparks.push({
+      mesh: grp,
+      chip,
+      head,
+      dir,
+      delay: rnd() * 0.09,
+      reach: 8.4 + rnd() * 4.2,
+      seed: rnd(),
+      burst: i % 3,
+    });
+  }
+  signEmber = new THREE.Mesh(
+    new THREE.CircleGeometry(0.42, 22),
+    new THREE.MeshBasicMaterial({
+      color: 0xffe8a0,
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      toneMapped: false,
+    }),
+  );
+  signEmber.position.z = 0.2;
+  signEmber.renderOrder = 5;
+  signEmber.visible = false;
+  fx.add(signEmber);
+}
+
 function clampXY(v, maxR) {
   const r = Math.hypot(v.x, v.y);
   if (r > maxR) {
@@ -268,6 +388,8 @@ const boltBranches = [];
 const camTongues = [];
 const camBolts = [];
 const signFlames = [];
+const signSparks = [];
+let signEmber = null;
 let crackGroup = null;
 const crackOverlays = [];
 let screenBurst = null;
@@ -713,14 +835,14 @@ async function buildFireBomb() {
 
   if (SIGN_ONLY) {
     const layout = [
-      { ang: 0.18, elev: 0.42, len: 4.4, wide: 1.15, seed: 3, delay: 0.00, spin: 0.35 },
-      { ang: 0.95, elev: -0.55, len: 3.6, wide: 0.95, seed: 11, delay: 0.03, spin: -0.42 },
-      { ang: 1.72, elev: 0.12, len: 4.8, wide: 1.25, seed: 19, delay: 0.01, spin: 0.28 },
-      { ang: 2.45, elev: 0.68, len: 3.2, wide: 0.9, seed: 29, delay: 0.05, spin: -0.22 },
-      { ang: 3.15, elev: -0.22, len: 4.1, wide: 1.1, seed: 37, delay: 0.02, spin: 0.5 },
-      { ang: 3.92, elev: 0.38, len: 3.8, wide: 1.0, seed: 41, delay: 0.06, spin: -0.33 },
-      { ang: 4.7, elev: -0.62, len: 4.5, wide: 1.2, seed: 53, delay: 0.015, spin: 0.18 },
-      { ang: 5.55, elev: 0.08, len: 3.4, wide: 0.95, seed: 61, delay: 0.04, spin: -0.48 },
+      { ang: 0.31, elev: 0.48, len: 4.2, wide: 0.28, seed: 3, delay: 0.00, spin: 0.35 },
+      { ang: 1.18, elev: -0.58, len: 3.4, wide: 0.22, seed: 11, delay: 0.03, spin: -0.42 },
+      { ang: 2.04, elev: 0.16, len: 4.6, wide: 0.32, seed: 19, delay: 0.01, spin: 0.28 },
+      { ang: 2.88, elev: 0.72, len: 3.1, wide: 0.20, seed: 29, delay: 0.05, spin: -0.22 },
+      { ang: 3.62, elev: -0.28, len: 3.9, wide: 0.26, seed: 37, delay: 0.02, spin: 0.5 },
+      { ang: 4.41, elev: 0.36, len: 3.6, wide: 0.24, seed: 41, delay: 0.06, spin: -0.33 },
+      { ang: 5.22, elev: -0.64, len: 4.4, wide: 0.30, seed: 53, delay: 0.015, spin: 0.18 },
+      { ang: 5.95, elev: 0.08, len: 3.2, wide: 0.21, seed: 61, delay: 0.04, spin: -0.48 },
     ];
     for (const L of layout) {
       const geo = new THREE.PlaneGeometry(1, 1, 4, 16);
@@ -805,7 +927,7 @@ function setBoltGeom(bolt, from, to, frameKey, thickScale) {
   const curve = new THREE.CatmullRomCurve3(pts);
   /* Sign-only: fat bolts so they survive 30×30; main scene stays hairline */
   const thick = SIGN_ONLY
-    ? (0.028 + rnd() * 0.022) * thickScale
+    ? (0.0075 + rnd() * 0.0045) * thickScale
     : (0.0055 + rnd() * 0.0035) * thickScale;
   bolt.glow.geometry.dispose();
   bolt.core.geometry.dispose();
@@ -1362,7 +1484,7 @@ function svgPathToShape(d, box = 100) {
 
 function makeGreenChromeMatcapTex() {
   /* Same studio chrome as the lighter — silver window, tinted green in the shader. */
-  const s = 256;
+  const s = 512;
   const c = document.createElement('canvas');
   c.width = s;
   c.height = s;
@@ -1448,7 +1570,7 @@ function makeSvgSignFaceMat(x0 = 0) {
       }
     `,
     toneMapped: false,
-    side: THREE.DoubleSide,
+    side: THREE.FrontSide,
   });
 }
 
@@ -1557,10 +1679,10 @@ function buildSvgSign() {
     const geo = new THREE.ExtrudeGeometry(shape, {
       depth: SVG_N_DEPTH,
       bevelEnabled: true,
-      bevelThickness: 0.28,
-      bevelSize: 0.22,
-      bevelSegments: 2,
-      curveSegments: 8,
+      bevelThickness: 0.34,
+      bevelSize: 0.26,
+      bevelSegments: 5,
+      curveSegments: 20,
       steps: 1,
     });
     geo.computeVertexNormals();
@@ -1666,7 +1788,7 @@ function addCrackOverlay(mesh, onWhole) {
 }
 
 function makeCrackFaceTex() {
-  const S = 512;
+  const S = 1024;
   const cvs = document.createElement('canvas');
   cvs.width = cvs.height = S;
   const ctx = cvs.getContext('2d');
@@ -1744,7 +1866,7 @@ function traceBlobContour(labels, S, id) {
 }
 
 function buildCrackShards(group, faceMat, sideMat) {
-  const S = 400;
+  const S = 480;
   const cvs = document.createElement('canvas');
   cvs.width = cvs.height = S;
   const ctx = cvs.getContext('2d');
@@ -1814,7 +1936,7 @@ function buildCrackShards(group, faceMat, sideMat) {
       const last = dedup[dedup.length - 1];
       if (!last || last.x !== p.x || last.y !== p.y) dedup.push(p);
     }
-    ring = simplifyPolyline(dedup, 0.75);
+    ring = simplifyPolyline(dedup, 0.52);
     if (ring.length < 5) continue;
     const shape = new THREE.Shape();
     const toLocal = (p) => ({
@@ -1830,8 +1952,11 @@ function buildCrackShards(group, faceMat, sideMat) {
     shape.closePath();
     const geo = new THREE.ExtrudeGeometry(shape, {
       depth: SVG_N_DEPTH,
-      bevelEnabled: false,
-      curveSegments: 2,
+      bevelEnabled: true,
+      bevelThickness: 0.16,
+      bevelSize: 0.10,
+      bevelSegments: 2,
+      curveSegments: 6,
       steps: 1,
     });
     applySvgFaceUVs(geo);
@@ -1914,6 +2039,7 @@ async function build() {
 
   await buildFireBomb();
   buildLightnings();
+  if (SIGN_ONLY) buildSignSphereFx();
 }
 
 function containRoot() {
@@ -1988,7 +2114,7 @@ function applyFrame(fr) {
 
   /* Wholes punch then shatter into reference-textured chunks */
   const crack = SIGN_ONLY ? trap(t, 0.06, 0.12, 0.20, 0.28) : 0;
-  const coreFlash = 0;
+  const coreFlash = SIGN_ONLY ? trap(t, 0.30, 0.38, 0.58, 0.68) : 0;
   const rebuild = SIGN_ONLY ? trap(t, 0.62, 0.72, 0.86, 0.94) : 0;
   const sphereAmt = SIGN_ONLY ? trap(t, 0.28, 0.40, 0.54, 0.68) : 0;
   const showWhole = SIGN_ONLY ? (t < 0.20 || t > 0.92) : (destroy < 0.28);
@@ -2228,10 +2354,10 @@ function applyFrame(fr) {
   const blast = trap(t, 0.10, 0.20, 0.52, 0.9);
   const flash = trap(t, 0.13, 0.17, 0.22, 0.32);
 
-  fireLight.intensity = SIGN_ONLY ? 0 : (8 + 50 * blast + 25 * flash + 55 * tear + 70 * fill);
-  fireLight2.intensity = SIGN_ONLY ? 0 : (4 + 35 * blast + 35 * tear + 50 * fill);
-  fireLight.color.setHex(SIGN_ONLY ? 0xff5a12 : 0xff5511);
-  fireLight2.color.setHex(SIGN_ONLY ? 0x3399ff : 0xffcc44);
+  fireLight.intensity = SIGN_ONLY ? (7.5 * coreFlash) : (8 + 50 * blast + 25 * flash + 55 * tear + 70 * fill);
+  fireLight2.intensity = SIGN_ONLY ? (5.5 * coreFlash) : (4 + 35 * blast + 35 * tear + 50 * fill);
+  fireLight.color.setHex(SIGN_ONLY ? 0xff3a10 : 0xff5511);
+  fireLight2.color.setHex(SIGN_ONLY ? 0xffc040 : 0xffcc44);
   fireLight.position.set(0, 0, SIGN_ONLY ? 0 : (2 + 4 * tear + 3 * fill));
 
   /* ——— Tongues: skip red winding ribbons in sign-only ——— */
@@ -2287,8 +2413,46 @@ function applyFrame(fr) {
     const len = f.len * e * flutter;
     f.mesh.position.copy(dir).multiplyScalar(0.2);
     f.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
-    f.mesh.scale.set(f.wide * (0.9 + 0.12 * e), len, 1);
+    f.mesh.scale.set(f.wide * (0.9 + 0.12 * e), len * 1.35, 1);
     f.mesh.material.opacity = Math.min(1, e * 1.2);
+  }
+
+  if (SIGN_ONLY) {
+    const sparkBursts = [
+      { t0: 0.32, flight: 0.15 },
+      { t0: 0.44, flight: 0.15 },
+      { t0: 0.54, flight: 0.14 },
+    ];
+    if (signEmber) {
+      const on = coreFlash;
+      signEmber.visible = on > 0.04;
+      signEmber.material.opacity = 0.18 + 0.55 * on;
+      const es = 0.55 + 0.85 * on * (0.85 + 0.15 * Math.sin(t * 28));
+      signEmber.scale.setScalar(es);
+    }
+    for (const sp of signSparks) {
+      const k = Math.max(
+        sparkFlightK(t, sparkBursts[sp.burst].t0, sp.delay, sparkBursts[sp.burst].flight),
+        sparkFlightK(t, sparkBursts[(sp.burst + 1) % 3].t0, sp.delay * 0.6, sparkBursts[(sp.burst + 1) % 3].flight),
+      );
+      if (k < 0 || coreFlash < 0.04) {
+        sp.mesh.visible = false;
+        continue;
+      }
+      sp.mesh.visible = true;
+      const travel = Math.min(1, k);
+      const e = 1 - (1 - travel) * (1 - travel);
+      const dist = 0.25 + e * sp.reach;
+      sp.mesh.position.copy(sp.dir).multiplyScalar(dist);
+      sp.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), sp.dir);
+      const fade = k < 0.10 ? k / 0.10 : k > 0.68 ? Math.max(0, 1 - (k - 0.68) / 0.5) : 1;
+      const pop = 0.88 + 0.12 * Math.sin(t * 22 + sp.seed * 9);
+      sp.chip.material.opacity = fade * pop * coreFlash;
+      sp.chip.scale.set(1, 0.78 + 0.40 * (1 - travel), 1);
+      sp.head.material.opacity = fade * pop * coreFlash;
+      const hs = (0.85 + 0.45 * (1 - travel)) * (0.92 + 0.08 * pop);
+      sp.head.scale.setScalar(hs);
+    }
   }
 
   /* Elegant thin yellow/blue lightning + branches */
@@ -2319,15 +2483,15 @@ function applyFrame(fr) {
       _tmpA.set((rnd() - 0.5) * 0.35, (rnd() - 0.5) * 0.35, (rnd() - 0.5) * 0.25);
       const ang = rnd() * Math.PI * 2;
       const elev = (rnd() - 0.5) * 1.6;
-      const reach = 4.6 + rnd() * 1.6;
+      const reach = 8.8 + rnd() * 3.2;
       _tmpB.set(
         Math.cos(ang) * Math.cos(elev) * reach,
         Math.sin(ang) * Math.cos(elev) * reach,
         Math.sin(elev) * reach,
       );
-      clampXY(_tmpB, 7.4);
+      clampXY(_tmpB, 12.5);
       if (bolt.lastKey !== frameKey) {
-        setBoltGeom(bolt, _tmpA, _tmpB, frameKey + bi * 3 + (bolt.seed | 0), 1.55);
+        setBoltGeom(bolt, _tmpA, _tmpB, frameKey + bi * 3 + (bolt.seed | 0), 0.62);
         bolt.lastKey = frameKey;
       }
       const flick = Math.sin(t * 110 + bi) > -0.2 ? 1 : 0.12;
@@ -2388,7 +2552,7 @@ function applyFrame(fr) {
       const ang = rnd() * Math.PI * 2;
       const elev = (rnd() - 0.5) * 1.5;
       const midR = 1.6 + rnd() * 1.4;
-      const tipR = 4.2 + rnd() * 1.5;
+      const tipR = 8.6 + rnd() * 2.8;
       const mid = new THREE.Vector3(
         Math.cos(ang) * Math.cos(elev) * midR,
         Math.sin(ang) * Math.cos(elev) * midR,
@@ -2399,9 +2563,9 @@ function applyFrame(fr) {
         Math.sin(ang + 0.4) * Math.cos(elev * 0.8) * tipR,
         Math.sin(elev * 0.8) * tipR,
       );
-      clampXY(tip, 7.2);
+      clampXY(tip, 12.2);
       if (bolt.lastKey !== frameKey) {
-        setBoltGeom(bolt, mid, tip, frameKey + bi + 9, 1.15);
+        setBoltGeom(bolt, mid, tip, frameKey + bi + 9, 0.48);
         bolt.lastKey = frameKey;
       }
       const flick = Math.sin(t * 130 + bolt.seed) > 0 ? 1 : 0.1;
@@ -2453,7 +2617,7 @@ function applyFrame(fr) {
     bolt.glowMat.opacity = on * (SIGN_ONLY ? 1.0 : 0.55) * flick;
     bolt.coreMat.opacity = on * (SIGN_ONLY ? 1.2 : 0.85) * flick;
   }
-  boltLight.intensity = SIGN_ONLY ? 22 * coreFlash : 12 * blast + 25 * tear + 35 * fill;
+  boltLight.intensity = SIGN_ONLY ? 10 * coreFlash : 12 * blast + 25 * tear + 35 * fill;
   boltLight.color.setHex(SIGN_ONLY ? (Math.sin(t * 28) > 0 ? 0xff6a10 : 0x2a8cff) : (Math.sin(t * 28) > 0 ? 0xffee66 : 0x66eeff));
   boltLight.position.set(0, 0, SIGN_ONLY ? 0 : (4 + 5 * fill));
 

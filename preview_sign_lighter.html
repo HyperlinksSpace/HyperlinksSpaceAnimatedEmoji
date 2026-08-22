@@ -112,6 +112,74 @@
       height: 30px;
       image-rendering: pixelated;
     }
+    .avatars-block {
+      margin-top: 36px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--panel);
+      overflow: hidden;
+    }
+    .avatars-block > header {
+      padding: 14px 18px 10px;
+      border-bottom: 1px solid var(--line);
+    }
+    .avatars-block h2 { margin: 0 0 6px; font-size: 15px; font-weight: 650; }
+    .avatars-block .why {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      max-width: 920px;
+    }
+    .avatar-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+    }
+    @media (max-width: 960px) {
+      .avatar-grid { grid-template-columns: 1fr; }
+    }
+    .avatar-col {
+      padding: 18px 16px 22px;
+      border-right: 1px solid var(--line);
+    }
+    .avatar-col:last-child { border-right: none; }
+    .avatar-col h3 { margin: 0 0 4px; font-size: 14px; }
+    .avatar-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 18px;
+      margin-top: 14px;
+    }
+    .avatar-slot { display: grid; gap: 8px; justify-items: center; width: 168px; }
+    .avatar-slot .name { font-size: 11px; font-weight: 650; text-align: center; }
+    .circle {
+      width: 156px; height: 156px; border-radius: 50%; overflow: hidden;
+      box-shadow: 0 0 0 2px #2a384a, 0 10px 22px rgba(0,0,0,.35);
+      display: grid; place-items: center;
+      background: #111;
+    }
+    /* Official: custom emoji occupies at most 67% of the profile picture. */
+    .circle video { width: 67%; height: 67%; }
+    .swatches { display: flex; gap: 4px; }
+    .swatches i {
+      width: 18px; height: 18px; border-radius: 4px;
+      border: 1px solid rgba(255,255,255,.18);
+      display: block;
+    }
+    .hexes {
+      font: 10px/1.45 ui-monospace, Consolas, monospace;
+      color: #cfe0ee;
+      background: #0c1118;
+      padding: 7px 8px;
+      border-radius: 6px;
+      width: 100%;
+      text-align: left;
+    }
+    .legend {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 10px;
+    }
   </style>
 </head>
 <body>
@@ -146,6 +214,24 @@
     </section>
   </div>
 
+  <section class="avatars-block">
+    <header>
+      <h2>Telegram avatar backgrounds</h2>
+      <p class="why">
+        Custom emoji avatars occupy <strong>67%</strong> of the circle.
+        Color count splits the rest of the disc:
+        <strong>1</strong> = solid,
+        <strong>2</strong> = linear top→bottom (rotation 0),
+        <strong>3–4</strong> = freeform blobs (① top-right, ② top-left, ③ bottom-left, ④ bottom-right).
+        Enter colors in that order in Telegram.
+      </p>
+    </header>
+    <div class="avatar-grid">
+      <div class="avatar-col" id="sign-avatars"></div>
+      <div class="avatar-col" id="lighter-avatars"></div>
+    </div>
+  </section>
+
   <script>
     const BGS = [
       ['dark', 'Telegram dark'],
@@ -174,6 +260,107 @@
           </div>
         </div>`).join('');
     }
+
+    /* Telegram videoSizeEmojiMarkup fills. 3–4 colors: inverse-distance blobs. */
+    const TG_BLOB = [
+      [0.80, 0.10],
+      [0.20, 0.20],
+      [0.30, 0.90],
+      [0.90, 0.80],
+    ];
+    const TG_LABEL = ['① TR', '② TL', '③ BL', '④ BR'];
+
+    function hexToRgb(hex) {
+      const n = parseInt(hex.slice(1), 16);
+      return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+    }
+
+    function telegramFillUrl(colors, size = 256) {
+      const c = document.createElement('canvas');
+      c.width = c.height = size;
+      const ctx = c.getContext('2d');
+      if (colors.length === 1) {
+        ctx.fillStyle = colors[0];
+        ctx.fillRect(0, 0, size, size);
+        return c.toDataURL();
+      }
+      if (colors.length === 2) {
+        const g = ctx.createLinearGradient(0, 0, 0, size);
+        g.addColorStop(0, colors[0]);
+        g.addColorStop(1, colors[1]);
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, size, size);
+        return c.toDataURL();
+      }
+      const rgb = colors.map(hexToRgb);
+      const n = colors.length;
+      const img = ctx.createImageData(size, size);
+      const d = img.data;
+      for (let y = 0; y < size; y++) {
+        for (let x = 0; x < size; x++) {
+          const px = x / (size - 1);
+          const py = y / (size - 1);
+          let wr = 0, wg = 0, wb = 0, wsum = 0;
+          for (let i = 0; i < n; i++) {
+            const dx = px - TG_BLOB[i][0];
+            const dy = py - TG_BLOB[i][1];
+            const w = 1 / (dx * dx + dy * dy + 0.0007);
+            wr += rgb[i][0] * w;
+            wg += rgb[i][1] * w;
+            wb += rgb[i][2] * w;
+            wsum += w;
+          }
+          const o = (y * size + x) * 4;
+          d[o] = wr / wsum;
+          d[o + 1] = wg / wsum;
+          d[o + 2] = wb / wsum;
+          d[o + 3] = 255;
+        }
+      }
+      ctx.putImageData(img, 0, 0);
+      return c.toDataURL();
+    }
+
+    function avatarCard(sticker, pack) {
+      const v = Date.now();
+      return pack.sets.map((set) => `
+        <div class="avatar-slot">
+          <div class="name">${set.name}${set.best ? ' ★' : ''}</div>
+          <div class="circle" style="background-image:url('${telegramFillUrl(set.colors)}');background-size:cover">
+            <video src="${sticker}?v=${v}" autoplay loop muted playsinline></video>
+          </div>
+          <div class="swatches">${set.colors.map((c, i) => `<i title="${TG_LABEL[i]} ${c}" style="background:${c}"></i>`).join('')}</div>
+          <div class="hexes">${set.colors.map((c, i) => `${i + 1} ${c}`).join('<br>')}</div>
+        </div>`).join('');
+    }
+
+    const SIGN_SETS = {
+      title: 'Sign — recommended',
+      note: 'Dark plum so green chrome and fire read through the gaps. Avoid green slots — they swallow the N.',
+      sets: [
+        { name: '4 colors (best)', best: true, colors: ['#2c1a4a', '#0c1018', '#16101c', '#241436'] },
+        { name: '3 colors', colors: ['#2a1848', '#0e1018', '#1a1028'] },
+        { name: '2 colors', colors: ['#120c1c', '#241436'] },
+        { name: '1 color', colors: ['#140e1c'] },
+      ],
+    };
+    const LIGHTER_SETS = {
+      title: 'Lighter — recommended',
+      note: 'I sits top-left (slot 2). S sits bottom-right (slot 4). Stay in this teal — #042830 ate the S.',
+      sets: [
+        { name: '4 colors (best)', best: true, colors: ['#168898', '#22b4c4', '#127e8c', '#1fa8b8'] },
+        { name: '3 colors', colors: ['#1793a3', '#1fa8b8', '#127e8c'] },
+        { name: '2 colors', colors: ['#127e8c', '#1fa8b8'] },
+        { name: '1 color', colors: ['#1793a3'] },
+      ],
+    };
+
+    function fillCol(id, title, note, sticker, pack) {
+      const el = document.getElementById(id);
+      el.innerHTML = `<h3>${title}</h3><p class="legend">${note}</p><div class="avatar-row">${avatarCard(sticker, pack)}</div>`;
+    }
+    fillCol('sign-avatars', SIGN_SETS.title, SIGN_SETS.note, 'hyperlinks-space-sticker-sign.webm', SIGN_SETS);
+    fillCol('lighter-avatars', LIGHTER_SETS.title, LIGHTER_SETS.note, 'hyperlinks-space-sticker-lighter.webm', LIGHTER_SETS);
   </script>
 </body>
 </html>

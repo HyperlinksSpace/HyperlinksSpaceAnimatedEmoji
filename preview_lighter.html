@@ -54,17 +54,19 @@
     box-shadow: 0 0 0 3px #2a384a, 0 12px 28px rgba(0,0,0,.35);
     display: grid; place-items: center;
   }
-  .circle video { width: 92%; height: 92%; }
+  .circle video { width: 67%; height: 67%; }
   .ideal {
-    /* Lightest toward bottom-right — Telegram puts color 1 there. */
-    background:
-      radial-gradient(120% 90% at 28% 16%, #4ec9d6 0%, transparent 44%),
-      linear-gradient(165deg, #127e8c 0%, #1793a3 48%, #1fa8b8 100%);
+    /* replaced at runtime by Telegram 4-color freeform */
+    background: #127e8c;
   }
-  .bright-cyan { background: #0ee1f1; }
+  .swatches { display: flex; gap: 4px; }
+  .swatches i {
+    width: 16px; height: 16px; border-radius: 4px;
+    border: 1px solid rgba(255,255,255,.18); display: block;
+  }
   .settings {
-    font: 12px/1.5 ui-monospace, Consolas, monospace;
-    background: #0c1118; color: #cfe8ee; padding: 10px 12px; border-radius: 8px;
+    font: 11px/1.45 ui-monospace, Consolas, monospace;
+    background: #0c1118; color: #cfe8ee; padding: 8px 10px; border-radius: 8px;
     text-align: left; width: 100%;
   }
 </style>
@@ -124,27 +126,75 @@
   </section>
 </div>
 <div class="avatars">
-  <div class="avatar-slot">
-    <h2>Recommended undercover</h2>
-    <div class="circle ideal">
-      <video src="hyperlinks-space-sticker-lighter.webm?v=140" autoplay loop muted playsinline></video>
-    </div>
-    <div class="settings">
-      Telegram → 3 colors, this order<br>
-      1 <strong>#1fa8b8</strong> &nbsp; 31, 168, 184<br>
-      2 <strong>#1793a3</strong> &nbsp; 23, 147, 163<br>
-      3 <strong>#127e8c</strong> &nbsp; 18, 126, 140<br>
-      (lightest first — S sits on slot 1)
-    </div>
-  </div>
-  <div class="avatar-slot">
-    <h2>Bright cyan (washes silver)</h2>
-    <div class="circle bright-cyan">
-      <video src="hyperlinks-space-sticker-lighter.webm?v=140" autoplay loop muted playsinline></video>
-    </div>
-    <div class="settings">
-      Hex #0ee1f1<br>
-      H 184° &nbsp; S 89% &nbsp; L 50%
-    </div>
-  </div>
+  <p class="note" style="width:100%;max-width:none;text-align:center;margin-bottom:8px">
+    Custom emoji is 67% of the circle.
+    1 color = solid · 2 = top→bottom · 3–4 = freeform blobs (① TR ② TL ③ BL ④ BR).
+    I sits on slot 2 (TL). S sits on slot 4 (BR). Skip #0ee1f1 and #042830.
+  </p>
 </div>
+<script>
+  const TG_BLOB = [[0.80, 0.10], [0.20, 0.20], [0.30, 0.90], [0.90, 0.80]];
+  function hexToRgb(hex) {
+    const n = parseInt(hex.slice(1), 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+  function telegramFillUrl(colors, size = 256) {
+    const c = document.createElement('canvas');
+    c.width = c.height = size;
+    const ctx = c.getContext('2d');
+    if (colors.length === 1) {
+      ctx.fillStyle = colors[0];
+      ctx.fillRect(0, 0, size, size);
+      return c.toDataURL();
+    }
+    if (colors.length === 2) {
+      const g = ctx.createLinearGradient(0, 0, 0, size);
+      g.addColorStop(0, colors[0]);
+      g.addColorStop(1, colors[1]);
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, size, size);
+      return c.toDataURL();
+    }
+    const rgb = colors.map(hexToRgb);
+    const n = colors.length;
+    const img = ctx.createImageData(size, size);
+    const d = img.data;
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const px = x / (size - 1), py = y / (size - 1);
+        let wr = 0, wg = 0, wb = 0, wsum = 0;
+        for (let i = 0; i < n; i++) {
+          const dx = px - TG_BLOB[i][0], dy = py - TG_BLOB[i][1];
+          const w = 1 / (dx * dx + dy * dy + 0.0007);
+          wr += rgb[i][0] * w; wg += rgb[i][1] * w; wb += rgb[i][2] * w; wsum += w;
+        }
+        const o = (y * size + x) * 4;
+        d[o] = wr / wsum; d[o + 1] = wg / wsum; d[o + 2] = wb / wsum; d[o + 3] = 255;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+    return c.toDataURL();
+  }
+  const sets = [
+    { name: '4 colors ★', colors: ['#168898', '#22b4c4', '#127e8c', '#1fa8b8'] },
+    { name: '3 colors', colors: ['#1793a3', '#1fa8b8', '#127e8c'] },
+    { name: '2 colors', colors: ['#127e8c', '#1fa8b8'] },
+    { name: '1 color', colors: ['#1793a3'] },
+  ];
+  const host = document.querySelector('.avatars');
+  const v = Date.now();
+  sets.forEach((set) => {
+    const slot = document.createElement('div');
+    slot.className = 'avatar-slot';
+    slot.innerHTML = `
+      <h2>${set.name}</h2>
+      <div class="circle" style="background-image:url('${telegramFillUrl(set.colors)}');background-size:cover">
+        <video src="hyperlinks-space-sticker-lighter.webm?v=140" autoplay loop muted playsinline></video>
+      </div>
+      <div class="swatches">${set.colors.map((c) => `<i style="background:${c}"></i>`).join('')}</div>
+      <div class="settings">${set.colors.map((c, i) => `${i + 1} <strong>${c}</strong>`).join('<br>')}</div>`;
+    host.appendChild(slot);
+  });
+</script>
+</body>
+</html>
