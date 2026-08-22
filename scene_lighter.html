@@ -1172,16 +1172,18 @@ function buildLighter() {
 
   /* Classic BIC body: rounded-rect red shell */
   const bodyW = 2.58;
-  const bodyH = 7.55;
+  const bodyH0 = 7.55;
+  const bodyH = bodyH0 * 1.07;
   const bodyD = 1.38;
   const bodyR = 0.60;
   const body = bicShell(bodyW, bodyH, bodyD, plasticRed(), bodyR);
+  body.position.y = (bodyH0 - bodyH) * 0.5;
   body.userData.part = 'body';
   lighterSpin.add(body);
 
   /* Nearly full-height red glance, wider toward the bottom, still inset from the sides. */
   bodyShine = makeInsetGlance(0.62, bodyH * 0.94, 1.55);
-  bodyShine.position.set(-0.12, -0.04, 0.60);
+  bodyShine.position.set(-0.12, body.position.y - 0.04, 0.60);
   bodyShine.rotation.y = 0.10;
   lighterSpin.add(bodyShine);
 
@@ -1189,11 +1191,12 @@ function buildLighter() {
   const collar = new THREE.Group();
   lighterSpin.add(collar);
 
-  const headH = 1.12;
+  const headH0 = 1.12;
+  const headH = headH0 * 1.13;
   const blackW = bodyW * 1.01;
   const blackD = bodyD * 1.02;
   const blackR = bodyR + 0.02;
-  const headTop = bodyH * 0.5 + headH * 0.72;
+  const headTop = bodyH0 * 0.5 + headH0 * 0.72;
   const head = bicShell(blackW, headH, blackD, plasticBlack(), blackR);
   head.position.y = headTop - headH * 0.5;
   head.userData.part = 'hood';
@@ -1284,37 +1287,54 @@ function buildLighter() {
   chromeShine.userData.baseX = hoodX - 0.12;
   lighterSpin.add(chromeShine);
 
-  /* Fireplace: hole in the LEFT of the chrome, not at the wheel. */
-  const jetX = hoodX - wrapW * 0.22;
+  /* Jet hole in the LEFT of the chrome top — a cut in the metal, not a separate chimney. */
+  hood.updateWorldMatrix(true, true);
+  const chromeSkinY = new THREE.Box3().setFromObject(hood).max.y;
+  const jetX = hoodX - wrapW * 0.26;
   const jetZ = 0;
-  const jetY = chromeTop - 0.10;
+  const jetY = chromeSkinY;
+  const holeR = 0.18;
+  const wellH = 0.22;
 
-  const chimney = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.10, 0.12, 0.26, 24),
-    steelMat(),
-  );
-  chimney.position.set(jetX, jetY - 0.16, jetZ);
-  lighterSpin.add(chimney);
+  const jetCut = new THREE.Shape();
+  jetCut.absarc(0, 0, holeR + 0.07, 0, Math.PI * 2, false);
+  const jetVoid = new THREE.Path();
+  jetVoid.absarc(0, 0, holeR, 0, Math.PI * 2, true);
+  jetCut.holes.push(jetVoid);
+  const jetRimGeo = new THREE.ExtrudeGeometry(jetCut, {
+    depth: 0.045,
+    bevelEnabled: true,
+    bevelThickness: 0.012,
+    bevelSize: 0.010,
+    bevelSegments: 3,
+    curveSegments: 40,
+  });
+  jetRimGeo.rotateX(-Math.PI / 2);
+  jetRimGeo.translate(0, 0.02, 0);
+  const jetRim = new THREE.Mesh(jetRimGeo, hoodChromeMat());
+  jetRim.position.set(jetX, jetY - 0.01, jetZ);
+  jetRim.renderOrder = 3;
+  jetRim.userData.part = 'hood';
+  collar.add(jetRim);
 
-  const nozzleTip = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.07, 0.09, 0.08, 20),
-    new THREE.MeshPhysicalMaterial({
-      color: 0x2a2e34,
-      metalness: 0.7,
-      roughness: 0.35,
-      toneMapped: false,
-    }),
+  const jetSleeve = new THREE.Mesh(
+    new THREE.CylinderGeometry(holeR, holeR, wellH, 28, 1, true),
+    hoodChromeMat(),
   );
-  nozzleTip.position.set(jetX, jetY - 0.02, jetZ);
-  lighterSpin.add(nozzleTip);
+  jetSleeve.material.side = THREE.DoubleSide;
+  jetSleeve.position.set(jetX, jetY - wellH * 0.5, jetZ);
+  jetSleeve.renderOrder = 3;
+  jetSleeve.userData.part = 'hood';
+  collar.add(jetSleeve);
 
-  const hole = new THREE.Mesh(
-    new THREE.CircleGeometry(0.16, 24),
-    new THREE.MeshBasicMaterial({ color: 0x050505, toneMapped: false }),
+  const jetWell = new THREE.Mesh(
+    new THREE.CircleGeometry(holeR * 0.98, 28),
+    new THREE.MeshBasicMaterial({ color: 0x050506, toneMapped: false }),
   );
-  hole.rotation.x = -Math.PI * 0.5;
-  hole.position.set(jetX, jetY + 0.06, jetZ);
-  lighterSpin.add(hole);
+  jetWell.rotation.x = -Math.PI / 2;
+  jetWell.position.set(jetX, jetY - 0.05, jetZ);
+  jetWell.renderOrder = 3;
+  collar.add(jetWell);
 
   const wheelMount = new THREE.Group();
   wheelMount.position.set(wheelX, wheelY, wheelZ);
@@ -1341,7 +1361,7 @@ function buildLighter() {
   lighterSpin.add(flint);
 
   flameAnchor = new THREE.Group();
-  flameAnchor.position.set(jetX, jetY + 0.10, jetZ);
+  flameAnchor.position.set(jetX, jetY + 0.02, jetZ);
   lighterSpin.add(flameAnchor);
 
   flameGroup = new THREE.Group();
@@ -1379,7 +1399,7 @@ function buildLighter() {
   });
   sparkGroup = new THREE.Group();
   /* Same opening as the flame: sparks leave the chrome through the jet, up only. */
-  sparkGroup.position.set(jetX, jetY + 0.10, jetZ);
+  sparkGroup.position.set(jetX, jetY + 0.02, jetZ);
   lighterSpin.add(sparkGroup);
   const sparkDepth = {
     transparent: true,
@@ -1526,6 +1546,33 @@ function expandFlameTip(box) {
   lighterPivot.rotation.x = pivX;
   lighterPivot.rotation.z = pivZ;
   flameGroup.scale.copy(fs);
+  stage.updateMatrixWorld(true);
+}
+
+function expandLighterSweep(box) {
+  const spinY = lighterSpin.rotation.y;
+  const spinX = lighterSpin.rotation.x;
+  const pivX = lighterPivot.rotation.x;
+  const pivZ = lighterPivot.rotation.z;
+  const poses = [
+    [-0.30, -0.05, 0.25, -0.74],
+    [-0.14, 0.05, 0.31, -0.70],
+    [-0.22, 0.00, 0.28, -0.72],
+    [-0.30, 0.05, 0.31, -0.74],
+    [-0.14, -0.05, 0.25, -0.70],
+  ];
+  for (const [y, sx, px, pz] of poses) {
+    lighterSpin.rotation.y = y;
+    lighterSpin.rotation.x = sx;
+    lighterPivot.rotation.x = px;
+    lighterPivot.rotation.z = pz;
+    stage.updateMatrixWorld(true);
+    box.union(boxFromVisibleMeshes(root, flameGroup));
+  }
+  lighterSpin.rotation.y = spinY;
+  lighterSpin.rotation.x = spinX;
+  lighterPivot.rotation.x = pivX;
+  lighterPivot.rotation.z = pivZ;
   stage.updateMatrixWorld(true);
 }
 
@@ -1770,12 +1817,14 @@ function containRoot() {
   const viewSpan = 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) * camera.position.z;
   const box = boxFromVisibleMeshes(root, flameGroup);
   expandFlameTip(box);
+  expandLighterSweep(box);
   const spanSize = box.getSize(new THREE.Vector3());
   const span = Math.max(spanSize.x, spanSize.y, 1e-6);
-  stage.scale.setScalar((viewSpan * 0.90) / span);
+  stage.scale.setScalar((viewSpan * 0.88) / span);
   stage.updateMatrixWorld(true);
   const box2 = boxFromVisibleMeshes(root, flameGroup);
   expandFlameTip(box2);
+  expandLighterSweep(box2);
   const c = box2.getCenter(new THREE.Vector3());
   stage.position.x -= c.x;
   stage.position.y -= c.y;
