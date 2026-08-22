@@ -144,33 +144,35 @@ function makeStableChromeEnvTex() {
 const sChromeEnv = pmrem.fromEquirectangular(makeStableChromeEnvTex()).texture;
 
 function makeChromeMatcapTex() {
+  /* Bright studio chrome — light metal vs black, with a vertical window shine. */
   const s = 256;
   const c = document.createElement('canvas');
   c.width = s;
   c.height = s;
   const g = c.getContext('2d');
-  const body = g.createRadialGradient(s * 0.42, s * 0.36, s * 0.02, s * 0.5, s * 0.52, s * 0.52);
-  body.addColorStop(0.00, '#ffffff');
-  body.addColorStop(0.08, '#f6f8fb');
-  body.addColorStop(0.18, '#d0d8e0');
-  body.addColorStop(0.38, '#8a949e');
-  body.addColorStop(0.62, '#3e464e');
-  body.addColorStop(0.84, '#161a1e');
-  body.addColorStop(1.00, '#050608');
-  g.fillStyle = body;
+  const sky = g.createLinearGradient(0, 0, 0, s);
+  sky.addColorStop(0.00, '#ffffff');
+  sky.addColorStop(0.18, '#f4f7fb');
+  sky.addColorStop(0.36, '#cfd8e2');
+  sky.addColorStop(0.52, '#9aa6b2');
+  sky.addColorStop(0.72, '#6e7884');
+  sky.addColorStop(1.00, '#3e464e');
+  g.fillStyle = sky;
   g.fillRect(0, 0, s, s);
-  const hl = g.createRadialGradient(s * 0.32, s * 0.26, 0, s * 0.32, s * 0.26, s * 0.34);
-  hl.addColorStop(0.00, '#ffffff');
-  hl.addColorStop(0.22, '#ffffff');
-  hl.addColorStop(0.48, 'rgba(236,242,248,0.75)');
-  hl.addColorStop(1.00, 'rgba(0,0,0,0)');
-  g.fillStyle = hl;
+  const win = g.createRadialGradient(s * 0.34, s * 0.28, 0, s * 0.34, s * 0.28, s * 0.48);
+  win.addColorStop(0.00, '#ffffff');
+  win.addColorStop(0.14, '#ffffff');
+  win.addColorStop(0.38, 'rgba(236,242,248,0.7)');
+  win.addColorStop(1.00, 'rgba(0,0,0,0)');
+  g.fillStyle = win;
   g.fillRect(0, 0, s, s);
-  const streak = g.createLinearGradient(s * 0.22, 0, s * 0.40, s * 0.9);
-  streak.addColorStop(0.00, 'rgba(255,255,255,0)');
-  streak.addColorStop(0.32, 'rgba(255,255,255,0.85)');
-  streak.addColorStop(0.40, 'rgba(255,255,255,0)');
-  g.fillStyle = streak;
+  const bar = g.createLinearGradient(s * 0.26, 0, s * 0.48, 0);
+  bar.addColorStop(0.00, 'rgba(255,255,255,0)');
+  bar.addColorStop(0.40, 'rgba(255,255,255,0.55)');
+  bar.addColorStop(0.50, '#ffffff');
+  bar.addColorStop(0.60, 'rgba(255,255,255,0.55)');
+  bar.addColorStop(1.00, 'rgba(255,255,255,0)');
+  g.fillStyle = bar;
   g.fillRect(0, 0, s, s);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
@@ -225,11 +227,14 @@ function sChromeMat(withGlance = false) {
         vec3 y = cross(viewDir, x);
         vec2 uv = vec2(dot(x, normal), dot(y, normal)) * 0.495 + 0.5;
         vec3 col = texture2D(matcap, uv).rgb;
+        col = min(vec3(1.0), col * 1.18 + 0.06);
         float d = abs(vX - uShift);
-        float core = 1.0 - smoothstep(0.08, 0.20, d);
-        float halo = 1.0 - smoothstep(0.20, 0.42, d);
-        float a = max(core, halo * 0.45) * uGain;
-        col += vec3(a);
+        float core = 1.0 - smoothstep(0.10, 0.24, d);
+        float halo = 1.0 - smoothstep(0.24, 0.52, d);
+        float a = max(core, halo * 0.55) * uGain;
+        col = mix(col, vec3(1.0), clamp(a, 0.0, 0.85));
+        float fres = pow(1.0 - abs(dot(normal, viewDir)), 2.6);
+        col = mix(col, vec3(0.62, 0.66, 0.70), fres * 0.18);
         gl_FragColor = vec4(col, 1.0);
       }
     `,
@@ -262,7 +267,7 @@ scene.add(rim);
 const camFill = new THREE.DirectionalLight(0xffffff, 0.85);
 camFill.position.set(-2, 3, 28);
 scene.add(camFill);
-const sKey = new THREE.DirectionalLight(0xffffff, 2.6);
+const sKey = new THREE.DirectionalLight(0xffffff, 1.85);
 sKey.position.set(-6, 8, 24);
 sKey.layers.set(1);
 scene.add(sKey);
@@ -338,11 +343,11 @@ function insetGlanceMat(bottomWide = 1) {
       void main() {
         float widen = mix(uBottomWide, 1.0, vUv.y);
         float d = abs(vUv.x - 0.5) / max(widen, 0.2);
-        float core = 1.0 - smoothstep(0.18, 0.30, d);
-        float halo = 1.0 - smoothstep(0.30, 0.46, d);
-        float fadeY = smoothstep(0.0, 0.05, vUv.y) * (1.0 - smoothstep(0.93, 1.0, vUv.y));
-        float a = max(core, halo * 0.18) * fadeY * uGain;
-        if (a < 0.04) discard;
+        float core = 1.0 - smoothstep(0.06, 0.16, d);
+        float halo = 1.0 - smoothstep(0.16, 0.38, d);
+        float fadeY = smoothstep(0.0, 0.04, vUv.y) * (1.0 - smoothstep(0.94, 1.0, vUv.y));
+        float a = max(core, halo * 0.42) * fadeY * uGain;
+        if (a < 0.05) discard;
         gl_FragColor = vec4(1.0, 1.0, 1.0, a);
       }
     `,
@@ -384,10 +389,10 @@ function glanceMat(width = 1) {
       varying float vX;
       void main() {
         float d = abs(vX - uShift) / max(uWidth, 0.001);
-        float core = 1.0 - smoothstep(0.032, 0.072, d);
-        float halo = 1.0 - smoothstep(0.072, 0.15, d);
-        float a = max(core, halo * 0.4) * uGain;
-        if (a < 0.03) discard;
+        float core = 1.0 - smoothstep(0.09, 0.18, d);
+        float halo = 1.0 - smoothstep(0.18, 0.40, d);
+        float a = max(core, halo * 0.55) * uGain;
+        if (a < 0.04) discard;
         gl_FragColor = vec4(1.0, 1.0, 1.0, a);
       }
     `,
@@ -404,7 +409,7 @@ function attachGlance(letter, ch) {
   const body = letter.children[0];
   const shape = ch === 'I' ? timesIShape() : timesSShape();
   const geo = new THREE.ShapeGeometry(shape, 72);
-  const mesh = new THREE.Mesh(geo, glanceMat(1));
+  const mesh = new THREE.Mesh(geo, glanceMat(1.15));
   mesh.material.side = THREE.DoubleSide;
   mesh.material.polygonOffset = true;
   mesh.material.polygonOffsetFactor = -2;
@@ -806,7 +811,7 @@ function timesIShape() {
 function timesSShape() {
   const top = sampleBezier([0.42, 1.18], [-0.72, 1.28], [-0.74, 0.10], [0.04, 0.04], 28);
   const bot = sampleBezier([0.04, 0.04], [0.80, -0.02], [0.76, -1.28], [-0.42, -1.18], 28);
-  return strokeShape(top.concat(bot.slice(1)), 0.34);
+  return strokeShape(top.concat(bot.slice(1)), 0.27);
 }
 
 function circleShape(r) {
@@ -871,7 +876,7 @@ function channelChromeGeo(geo, kind, centerline) {
   geo.computeVertexNormals();
   const pos = geo.attributes.position;
   const nrm = geo.attributes.normal;
-  const amp = kind === 'dot' ? 0.022 : 0.016;
+  const amp = kind === 'dot' ? 0.012 : 0.009;
   for (let i = 0; i < pos.count; i++) {
     const nz = nrm.getZ(i);
     if (Math.abs(nz) < 0.5) continue;
@@ -924,10 +929,10 @@ function dentedChromeSphere(radius, seed) {
     const y = pos.getY(i);
     const z = pos.getZ(i);
     const n = Math.hypot(x, y, z) || 1;
-    const dent = 0.055 * Math.sin(x * 8.2 + y * 6.4)
-      + 0.04 * Math.sin(y * 9.5 + z * 7.1)
-      + 0.028 * Math.sin(z * 11.0 + x * 5.5)
-      + (rnd() - 0.5) * 0.025;
+    const dent = 0.028 * Math.sin(x * 8.2 + y * 6.4)
+      + 0.02 * Math.sin(y * 9.5 + z * 7.1)
+      + 0.014 * Math.sin(z * 11.0 + x * 5.5)
+      + (rnd() - 0.5) * 0.012;
     const s = (1 + dent) * radius / n;
     pos.setXYZ(i, x * s, y * s, z * s);
   }
@@ -936,23 +941,19 @@ function dentedChromeSphere(radius, seed) {
   return new THREE.Mesh(geo, liquidChromeMat(false));
 }
 
-function attachEdgeShadow(mesh, xy = 1.065, z = 1.03) {
+function attachEdgeShadow(mesh, xy = 1.028, z = 1.012) {
   const shell = new THREE.Mesh(
     mesh.geometry,
     new THREE.MeshBasicMaterial({
-      color: 0x101214,
+      color: 0x0c0e10,
       side: THREE.BackSide,
       toneMapped: false,
     }),
   );
-  shell.position.copy(mesh.position);
-  shell.rotation.copy(mesh.rotation);
-  shell.scale.copy(mesh.scale);
-  shell.scale.x *= xy;
-  shell.scale.y *= xy;
-  shell.scale.z *= z;
+  shell.scale.set(xy, xy, z);
   shell.renderOrder = -1;
-  mesh.parent.add(shell);
+  mesh.add(shell);
+  mesh.userData.edgeShadow = shell;
   return shell;
 }
 
@@ -986,8 +987,17 @@ function makeLetter3D(ch) {
   dot.position.set(letterRight + indent + sphereR, letterBottom + sphereR, 0);
   g.add(dot);
   g.userData.dot = dot;
-  attachEdgeShadow(body, 1.07, 1.04);
-  attachEdgeShadow(dot, 1.045, 1.03);
+  attachEdgeShadow(body, 1.03, 1.014);
+  attachEdgeShadow(dot, 1.024, 1.012);
+  const dotGlance = new THREE.Mesh(new THREE.CircleGeometry(sphereR * 0.90, 32), glanceMat(0.9));
+  dotGlance.material.side = THREE.DoubleSide;
+  dotGlance.material.polygonOffset = true;
+  dotGlance.material.polygonOffsetFactor = -2;
+  dotGlance.material.polygonOffsetUnits = -2;
+  dotGlance.position.z = sphereR + 0.04;
+  dotGlance.renderOrder = 4;
+  dot.add(dotGlance);
+  dot.userData.glance = dotGlance;
   const fill = new THREE.PointLight(0xffffff, 2.4, 10, 1.1);
   fill.position.set(0.35, 0.7, 4.2);
   g.add(fill);
@@ -1181,12 +1191,6 @@ function buildLighter() {
   body.userData.part = 'body';
   lighterSpin.add(body);
 
-  /* Nearly full-height red glance, wider toward the bottom, still inset from the sides. */
-  bodyShine = makeInsetGlance(0.62, bodyH * 0.94, 1.55);
-  bodyShine.position.set(-0.12, body.position.y - 0.04, 0.60);
-  bodyShine.rotation.y = 0.10;
-  lighterSpin.add(bodyShine);
-
   /* Black collar + chrome: chrome is the same bicShell, slightly larger, so the rounds seat together. */
   const collar = new THREE.Group();
   lighterSpin.add(collar);
@@ -1213,9 +1217,10 @@ function buildLighter() {
   head.updateWorldMatrix(true, true);
   const platformY = new THREE.Box3().setFromObject(head).max.y;
 
-  hoodShine = makeInsetGlance(0.42, headH * 0.78, 1.2);
-  hoodShine.position.set(-0.12, head.position.y, 0.64);
-  hoodShine.rotation.y = 0.10;
+  hoodShine = makeInsetGlance(0.50, headH * 0.92, 1.15);
+  hoodShine.position.set(-0.10, head.position.y, 0.66);
+  hoodShine.rotation.y = 0.08;
+  hoodShine.userData.restX = -0.10;
   lighterSpin.add(hoodShine);
 
   const wheelR = 0.66;
@@ -1281,10 +1286,11 @@ function buildLighter() {
   fastenerSlot.position.set(fastenerX, fastenerY, wrapD * 0.5 + 0.09);
   collar.add(fastenerSlot);
 
-  chromeShine = makeInsetGlance(0.28, chromeH * 0.70, 1.18);
-  chromeShine.position.set(hoodX - 0.12, hoodY + 0.06, hoodD * 0.52);
+  chromeShine = makeInsetGlance(0.58, chromeH * 0.98, 1.18);
+  chromeShine.position.set(hoodX - 0.06, hoodY + 0.04, hoodD * 0.5 + 0.08);
   chromeShine.rotation.y = 0.06;
-  chromeShine.userData.baseX = hoodX - 0.12;
+  chromeShine.userData.baseX = hoodX - 0.06;
+  chromeShine.renderOrder = 4;
   lighterSpin.add(chromeShine);
 
   /* Jet hole in the LEFT of the chrome top — open cut, no rim. */
@@ -1440,6 +1446,20 @@ function buildLighter() {
       ay: 0.85 + i * 0.12,
     });
   }
+
+  lighterSpin.updateMatrixWorld(true, true);
+  const shineBox = new THREE.Box3();
+  shineBox.expandByObject(body);
+  shineBox.expandByObject(head);
+  shineBox.expandByObject(hood);
+  const shineSize = shineBox.getSize(new THREE.Vector3());
+  const shineCenter = shineBox.getCenter(new THREE.Vector3());
+  bodyShine = makeInsetGlance(0.78, shineSize.y * 0.98, 1.32);
+  bodyShine.position.set(-0.10, shineCenter.y, 0.72);
+  bodyShine.rotation.y = 0.08;
+  bodyShine.userData.restY = shineCenter.y;
+  bodyShine.userData.restZ = 0.72;
+  lighterSpin.add(bodyShine);
 
   lighterPivot.rotation.z = -0.72;
   lighterPivot.rotation.x = 0.48;
@@ -1860,17 +1880,16 @@ function containRoot() {
 function applyDot(dot, rest, t, phase) {
   const ph = t * Math.PI * 2 + phase;
   dot.position.set(
-    rest.x + Math.sin(ph * 3) * 0.045,
-    rest.y + Math.cos(ph * 2) * 0.04,
-    rest.z + Math.sin(ph * 2) * 0.03,
+    rest.x + Math.sin(ph * 3) * 0.010,
+    rest.y + Math.cos(ph * 2) * 0.008,
+    rest.z,
   );
   dot.rotation.set(
-    Math.sin(ph * 3) * 0.55,
-    Math.cos(ph * 2) * 0.72,
-    Math.sin(ph * 2 + 0.4) * 0.4,
+    Math.sin(ph * 3) * 0.10,
+    Math.cos(ph * 2) * 0.12,
+    Math.sin(ph * 2 + 0.4) * 0.08,
   );
-  const s = 1 + Math.sin(ph * 4) * 0.07;
-  dot.scale.setScalar(s);
+  dot.scale.setScalar(1 + Math.sin(ph * 4) * 0.018);
 }
 
 function applyLetter(letter, rest, restZ, scale, t, phase, yaw, pitch) {
@@ -2010,24 +2029,38 @@ function applyFrame(fr) {
   const sShift = Math.sin(ph + 2.094) * 0.38;
   const sGain = 0.92 + 0.08 * (0.5 + 0.5 * Math.sin(ph * 2 + 2.094));
   sGlanceU.uShift.value = sShift;
-  sGlanceU.uGain.value = 0.52 + 0.06 * (0.5 + 0.5 * Math.sin(ph * 2 + 2.094));
+  sGlanceU.uGain.value = sGain;
   if (sGlance?.material.uniforms) {
     sGlance.material.uniforms.uShift.value = sShift;
     sGlance.material.uniforms.uGain.value = sGain;
   }
+  const iDotG = brand.iDot?.userData.glance;
+  if (iDotG?.material.uniforms) {
+    iDotG.material.uniforms.uShift.value = Math.sin(ph) * 0.16;
+    iDotG.material.uniforms.uGain.value = 0.92 + 0.08 * (0.5 + 0.5 * Math.sin(ph * 2));
+  }
+  const sDotG = brand.sDot?.userData.glance;
+  if (sDotG?.material.uniforms) {
+    sDotG.material.uniforms.uShift.value = Math.sin(ph + 2.094) * 0.16;
+    sDotG.material.uniforms.uGain.value = sGain;
+  }
   const u = Math.sin(ph + 4.189);
   const gx = u * 0.34;
   if (bodyShine) {
-    bodyShine.position.set(gx, -0.04, 0.60);
+    bodyShine.position.set(
+      gx,
+      bodyShine.userData.restY ?? bodyShine.position.y,
+      bodyShine.userData.restZ ?? 0.72,
+    );
     if (bodyShine.material.uniforms) bodyShine.material.uniforms.uGain.value = 1.0;
   }
   if (hoodShine) {
-    hoodShine.position.x = gx;
+    hoodShine.position.x = (hoodShine.userData.restX ?? -0.10) + gx;
     if (hoodShine.material.uniforms) hoodShine.material.uniforms.uGain.value = 1.0;
   }
   if (chromeShine) {
-    chromeShine.position.x = (chromeShine.userData.baseX || 0) + gx * 0.22;
-    if (chromeShine.material.uniforms) chromeShine.material.uniforms.uGain.value = 1.0;
+    chromeShine.position.x = (chromeShine.userData.baseX || 0) + gx;
+    if (chromeShine.material.uniforms) chromeShine.material.uniforms.uGain.value = 1.15;
   }
   if (scene.environmentRotation) {
     scene.environmentRotation.y = ph;
