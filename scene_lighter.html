@@ -305,6 +305,19 @@ function trap(t, a, b, c, d) {
   const u = (t - c) / (d - c); return 1 - u * u * (3 - 2 * u);
 }
 
+function trapLoop(t, a, b, c, d) {
+  return Math.max(trap(t, a, b, c, d), trap(t + 1, a, b, c, d), trap(t - 1, a, b, c, d));
+}
+
+function sparkFlightK(t, t0, delay, flight) {
+  let best = -1;
+  for (const off of [-1, 0, 1]) {
+    const u = (t + off - t0 - delay) / flight;
+    if (u >= 0 && u < 1.18) best = u;
+  }
+  return best;
+}
+
 function seeded(n) {
   return () => {
     n = (n * 16807) % 2147483647;
@@ -1915,28 +1928,30 @@ function applyLetter(letter, rest, restZ, scale, t, phase, yaw, pitch) {
 }
 
 function applyFrame(fr) {
-  /* Open interval [0, 1) so frame TOTAL steps into frame 1 with no pose jump. */
+  /* Open interval [0, 1) so frame TOTAL steps into frame 1 with no pose jump.
+     Telegram thumbs / paused avatars / data-saver show the FIRST encoded frame. */
   const t = (fr - 1) / TOTAL;
   const ph = t * Math.PI * 2;
 
-  /* Strike sequence: slow idle spin → fast wheel → lightning sparks → button → flame. */
+  /* Hero at t=0: flame + mid-flight sparks + pressed button, letters at rest. */
   const strikeSpin = (t0, t1) => {
-    if (t <= t0) return 0;
-    if (t >= t1) return 1;
-    const u = (t - t0) / (t1 - t0);
+    const tt = t < t0 - 0.5 ? t + 1 : t;
+    if (tt <= t0) return 0;
+    if (tt >= t1) return 1;
+    const u = (tt - t0) / (t1 - t0);
     return u * u * (3 - 2 * u);
   };
   const sparkOn = Math.max(
-    trap(t, 0.078, 0.088, 0.128, 0.192),
-    trap(t, 0.548, 0.558, 0.598, 0.662),
+    trapLoop(t, -0.06, -0.04, 0.05, 0.12),
+    trapLoop(t, 0.44, 0.46, 0.55, 0.62),
   );
   const press = Math.max(
-    trap(t, 0.13, 0.16, 0.40, 0.47),
-    trap(t, 0.61, 0.64, 0.88, 0.95),
+    trapLoop(t, -0.04, -0.01, 0.26, 0.34),
+    trapLoop(t, 0.46, 0.49, 0.76, 0.84),
   );
   const flameOn = Math.max(
-    trap(t, 0.15, 0.18, 0.40, 0.47),
-    trap(t, 0.63, 0.66, 0.88, 0.95),
+    trapLoop(t, -0.03, -0.005, 0.26, 0.34),
+    trapLoop(t, 0.47, 0.50, 0.76, 0.84),
   );
 
   lighterSpin.rotation.y = -0.22 + Math.sin(ph) * 0.08;
@@ -1945,8 +1960,8 @@ function applyFrame(fr) {
   lighterPivot.rotation.z = -0.72 + Math.sin(ph) * 0.02;
 
   sparkWheel.rotation.y = t * 4.2
-    + strikeSpin(0.06, 0.14) * 11
-    + strikeSpin(0.54, 0.62) * 11;
+    + strikeSpin(0.90, 0.985) * 11
+    + strikeSpin(0.40, 0.48) * 11;
   /* Press down the long body axis — not sideways. */
   lever.rotation.x = 0;
   lever.rotation.z = 0;
@@ -1968,8 +1983,8 @@ function applyFrame(fr) {
   }
 
   const sparkBursts = [
-    { t0: 0.082, flight: 0.088 },
-    { t0: 0.552, flight: 0.088 },
+    { t0: -0.08, flight: 0.14 },
+    { t0: 0.42, flight: 0.14 },
   ];
   for (const sp of sparks) {
     if (sp.kind === 'flash') {
@@ -1984,11 +1999,10 @@ function applyFrame(fr) {
       sp.mesh.material.opacity = 0.30 + 0.40 * u;
       continue;
     }
-    let k = -1;
-    for (const b of sparkBursts) {
-      const u = (t - b.t0 - sp.delay) / b.flight;
-      if (u >= 0 && u < 1.18) k = u;
-    }
+    const k = Math.max(
+      sparkFlightK(t, sparkBursts[0].t0, sp.delay, sparkBursts[0].flight),
+      sparkFlightK(t, sparkBursts[1].t0, sp.delay, sparkBursts[1].flight),
+    );
     if (k < 0 || sparkOn < 0.02) {
       sp.mesh.visible = false;
       continue;
