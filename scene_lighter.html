@@ -997,32 +997,40 @@ function makeLetter3D(ch) {
   return g;
 }
 
-/** Red gas lever: full-width finger pad on top; narrow stem drops into the black and stays inside it. */
-function buildRedFork(padLeft, padRight, depth, radius, stemX, stemH, padH = 0.34) {
+/** Red gas lever: thin full-width finger pad; red neck + hidden stem drop into the black. */
+function buildRedFork(padLeft, padRight, depth, radius, stemX, stemH, padH = 0.22, neckH = 0.48) {
   const g = new THREE.Group();
   const red = plasticRed();
   const padW = Math.max(0.36, padRight - padLeft);
+  const padR = Math.min(0.06, padH * 0.32, radius * 0.18);
   const pad = new THREE.Mesh(
-    new RoundedBoxGeometry(padW, padH, depth, 5, Math.min(0.12, radius * 0.18)),
+    new RoundedBoxGeometry(padW, padH, depth, 5, padR),
     red,
   );
   pad.position.x = (padLeft + padRight) * 0.5;
   g.add(pad);
-  /* Hidden plunger: smaller than the black interior so it never shows through the collar. */
   const stemW = Math.min(0.28, padW * 0.32);
   const stemD = Math.min(0.42, depth * 0.38);
+  /* Visible red neck under the pad, down to the black. Narrow so it does not read as a cube. */
+  const neck = new THREE.Mesh(
+    new RoundedBoxGeometry(stemW, neckH, stemD, 4, 0.05),
+    red,
+  );
+  neck.position.set(stemX, -padH * 0.5 - neckH * 0.5, 0);
+  g.add(neck);
+  /* Hidden plunger: black, inside the collar, never shows through the plastic. */
   const stem = new THREE.Mesh(
     new RoundedBoxGeometry(stemW, stemH, stemD, 4, 0.06),
     new THREE.MeshBasicMaterial({ color: 0x050506, toneMapped: false }),
   );
-  stem.position.set(stemX, -padH * 0.5 - stemH * 0.5, 0.18);
+  stem.position.set(stemX, -padH * 0.5 - neckH - stemH * 0.5, 0.18);
   g.add(stem);
   for (let i = 0; i < 3; i++) {
     const ridge = new THREE.Mesh(
-      new RoundedBoxGeometry(Math.min(0.42, padW * 0.28), 0.028, 0.06, 2, 0.015),
+      new RoundedBoxGeometry(Math.min(0.42, padW * 0.28), 0.018, 0.05, 2, 0.01),
       red,
     );
-    ridge.position.set(stemX, padH * 0.42, -0.16 + i * 0.16);
+    ridge.position.set(stemX, padH * 0.28, -0.16 + i * 0.16);
     g.add(ridge);
   }
   g.userData.padH = padH;
@@ -1220,12 +1228,13 @@ function buildLighter() {
   const padLeft = wheelX + wheelR * 0.08;
   const padRight = blackW * 0.5 - 0.04;
   const visibleX = (wheelRight + padRight) * 0.5;
-  const stemH = headH * 0.62;
-  const padBottom = platformY + 0.04;
+  const stemH = headH * 0.42;
   const padTop = platformY + 0.70;
-  const padH = padTop - padBottom;
+  const padH = 0.22;
+  const padBottom = padTop - padH;
+  const neckH = Math.max(0.12, padBottom - platformY + 0.08);
 
-  lever = buildRedFork(padLeft, padRight, blackD * 0.82, blackR, visibleX, stemH, padH);
+  lever = buildRedFork(padLeft, padRight, blackD * 0.82, blackR, visibleX, stemH, padH, neckH);
   const restY = (padTop + padBottom) * 0.5;
   lever.position.set(0, restY, -0.16);
   lighterSpin.add(lever);
