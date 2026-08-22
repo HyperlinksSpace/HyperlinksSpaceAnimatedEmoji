@@ -1081,7 +1081,7 @@ function knurlWheel(radius = 0.34, width = 0.52) {
     ridge.rotation.y = a;
     grp.add(ridge);
   }
-  const cheekGeo = new THREE.CylinderGeometry(radius * 0.88, radius * 0.88, 0.07, 28);
+  const cheekGeo = new THREE.CylinderGeometry(radius * 0.88, radius * 0.88, 0.11, 28);
   const cheekA = new THREE.Mesh(cheekGeo, chromeMat());
   cheekA.position.y = width * 0.42;
   const cheekB = cheekA.clone();
@@ -1219,7 +1219,7 @@ function buildLighter() {
   lighterSpin.add(hoodShine);
 
   const wheelR = 0.66;
-  const wheelW = 0.48;
+  const wheelW = blackD * 0.82;
   const overlap = 0.22;
   const chromeBottom = platformY - overlap;
   const rTR = 0.78;
