@@ -997,7 +997,7 @@ function makeLetter3D(ch) {
   return g;
 }
 
-/** Red gas lever: visible pad sits on the open black only; left tucks under chrome, never past it. */
+/** Red gas lever: full-width finger pad on top; narrow stem drops into the black and stays inside it. */
 function buildRedFork(padLeft, padRight, depth, radius, stemX, stemH, padH = 0.34) {
   const g = new THREE.Group();
   const red = plasticRed();
@@ -1008,14 +1008,14 @@ function buildRedFork(padLeft, padRight, depth, radius, stemX, stemH, padH = 0.3
   );
   pad.position.x = (padLeft + padRight) * 0.5;
   g.add(pad);
-  /* Plunger: same rounded-rect family as the pad, a step smaller. */
-  const stemW = padW * 0.42;
-  const stemD = depth * 0.78;
+  /* Hidden plunger: smaller than the black interior so it never shows through the collar. */
+  const stemW = Math.min(0.28, padW * 0.32);
+  const stemD = Math.min(0.42, depth * 0.38);
   const stem = new THREE.Mesh(
-    new RoundedBoxGeometry(stemW, stemH, stemD, 5, Math.min(0.08, radius * 0.12)),
-    plasticRedDark(),
+    new RoundedBoxGeometry(stemW, stemH, stemD, 4, 0.06),
+    new THREE.MeshBasicMaterial({ color: 0x050506, toneMapped: false }),
   );
-  stem.position.set(stemX, -padH * 0.5 - stemH * 0.5, 0);
+  stem.position.set(stemX, -padH * 0.5 - stemH * 0.5, 0.18);
   g.add(stem);
   for (let i = 0; i < 3; i++) {
     const ridge = new THREE.Mesh(
@@ -1204,7 +1204,7 @@ function buildLighter() {
 
   const wheelR = 0.66;
   const wheelW = 0.48;
-  const pressGap = 0.16;
+  const pressGap = 0.10;
   const overlap = 0.22;
   const chromeBottom = platformY - overlap;
   const rTR = 0.78;
@@ -1216,16 +1216,16 @@ function buildLighter() {
   const wheelY = chromeTop - wheelR * (2 / 3);
   const wheelRight = wheelX + wheelR;
 
-  /* Pad sticks to the wheel, tucks left under chrome, and drops until its bottom sits under the chrome. */
+  /* Full-width finger pad sits on the black; only a hidden stem goes into the collar. */
   const padLeft = wheelX + wheelR * 0.08;
   const padRight = blackW * 0.5 - 0.04;
   const visibleX = (wheelRight + padRight) * 0.5;
-  const stemH = pressGap + headH * 0.40;
-  const padTop = platformY + 0.78;
-  const padBottom = chromeBottom + 0.04;
+  const stemH = headH * 0.62;
+  const padBottom = platformY + 0.04;
+  const padTop = platformY + 0.70;
   const padH = padTop - padBottom;
 
-  lever = buildRedFork(padLeft, padRight, blackD * 1.12, blackR, visibleX, stemH, padH);
+  lever = buildRedFork(padLeft, padRight, blackD * 0.82, blackR, visibleX, stemH, padH);
   const restY = (padTop + padBottom) * 0.5;
   lever.position.set(0, restY, -0.16);
   lighterSpin.add(lever);
@@ -1233,12 +1233,12 @@ function buildLighter() {
   lever.userData.restZ = lever.position.z;
   lever.userData.pressGap = pressGap;
 
-  /* Dark well in the black so the stem reads as entering it. */
+  /* Dark well in the black so the stem enters it without showing on the outer collar. */
   const stemWell = new THREE.Mesh(
-    new THREE.BoxGeometry(Math.max(0.40, padRight - padLeft) * 0.70, 0.10, blackD * 0.78),
+    new THREE.BoxGeometry(Math.min(0.36, (padRight - padLeft) * 0.42), 0.16, blackD * 0.40),
     new THREE.MeshBasicMaterial({ color: 0x050506, toneMapped: false }),
   );
-  stemWell.position.set(visibleX, platformY - 0.04, 0);
+  stemWell.position.set(visibleX, platformY - 0.06, 0);
   lighterSpin.add(stemWell);
 
   const wheelZ = 0.14;
