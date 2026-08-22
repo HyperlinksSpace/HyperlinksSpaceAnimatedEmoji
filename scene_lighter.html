@@ -1287,54 +1287,41 @@ function buildLighter() {
   chromeShine.userData.baseX = hoodX - 0.12;
   lighterSpin.add(chromeShine);
 
-  /* Jet hole in the LEFT of the chrome top — a cut in the metal, not a separate chimney. */
+  /* Jet hole in the LEFT of the chrome top — open cut, no rim. */
   hood.updateWorldMatrix(true, true);
   const chromeSkinY = new THREE.Box3().setFromObject(hood).max.y;
   const jetX = hoodX - wrapW * 0.26;
   const jetZ = 0;
   const jetY = chromeSkinY;
-  const holeR = 0.18;
-  const wellH = 0.22;
-
-  const jetCut = new THREE.Shape();
-  jetCut.absarc(0, 0, holeR + 0.07, 0, Math.PI * 2, false);
-  const jetVoid = new THREE.Path();
-  jetVoid.absarc(0, 0, holeR, 0, Math.PI * 2, true);
-  jetCut.holes.push(jetVoid);
-  const jetRimGeo = new THREE.ExtrudeGeometry(jetCut, {
-    depth: 0.045,
-    bevelEnabled: true,
-    bevelThickness: 0.012,
-    bevelSize: 0.010,
-    bevelSegments: 3,
-    curveSegments: 40,
+  const holeR = 0.30;
+  const cutMat = new THREE.MeshBasicMaterial({
+    color: 0x050506,
+    toneMapped: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
   });
-  jetRimGeo.rotateX(-Math.PI / 2);
-  jetRimGeo.translate(0, 0.02, 0);
-  const jetRim = new THREE.Mesh(jetRimGeo, hoodChromeMat());
-  jetRim.position.set(jetX, jetY - 0.01, jetZ);
-  jetRim.renderOrder = 3;
-  jetRim.userData.part = 'hood';
-  collar.add(jetRim);
-
-  const jetSleeve = new THREE.Mesh(
-    new THREE.CylinderGeometry(holeR, holeR, wellH, 28, 1, true),
-    hoodChromeMat(),
-  );
-  jetSleeve.material.side = THREE.DoubleSide;
-  jetSleeve.position.set(jetX, jetY - wellH * 0.5, jetZ);
-  jetSleeve.renderOrder = 3;
-  jetSleeve.userData.part = 'hood';
-  collar.add(jetSleeve);
 
   const jetWell = new THREE.Mesh(
-    new THREE.CircleGeometry(holeR * 0.98, 28),
-    new THREE.MeshBasicMaterial({ color: 0x050506, toneMapped: false }),
+    new THREE.CircleGeometry(holeR, 36),
+    cutMat,
   );
   jetWell.rotation.x = -Math.PI / 2;
-  jetWell.position.set(jetX, jetY - 0.05, jetZ);
+  jetWell.position.set(jetX, jetY + 0.004, jetZ);
   jetWell.renderOrder = 3;
   collar.add(jetWell);
+
+  /* Factory slit across the chrome top: hole → edge by the wheel. */
+  const slitLeft = jetX + holeR * 0.12;
+  const slitRight = Math.min(wheelX - 0.10, hoodRight - rTR * 0.28);
+  const slitW = Math.max(0.20, slitRight - slitLeft);
+  const slit = new THREE.Mesh(
+    new THREE.BoxGeometry(slitW, 0.035, 0.055),
+    cutMat,
+  );
+  slit.position.set(slitLeft + slitW * 0.5, jetY + 0.004, jetZ);
+  slit.renderOrder = 3;
+  collar.add(slit);
 
   const wheelMount = new THREE.Group();
   wheelMount.position.set(wheelX, wheelY, wheelZ);
