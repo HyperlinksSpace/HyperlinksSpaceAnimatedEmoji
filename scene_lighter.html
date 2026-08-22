@@ -1687,25 +1687,100 @@ function dropLetterToFloor(letter, floorY) {
   letter.position.copy(w);
 }
 
-/** Screen-right nudge for the S period; stay inside the square and its inscribed circle. */
-function nudgeSDotScreenRight(letter, dot, wantDx) {
+/** Disk vs square with Android-style rounded corners (not a full inscribed circle). */
+function diskInRoundRect(x, y, rad, half, corner) {
+  const lim = half - rad;
+  if (Math.abs(x) > lim || Math.abs(y) > lim) return false;
+  const cr = Math.max(0, corner - rad);
+  const inset = lim - cr;
+  if (Math.abs(x) <= inset || Math.abs(y) <= inset) return true;
+  const dx = Math.abs(x) - inset;
+  const dy = Math.abs(y) - inset;
+  return dx * dx + dy * dy <= cr * cr + 1e-8;
+}
+
+/**
+ * Move only the S period: sit on the S visual baseline, keep a wide gap from the
+ * letter, and pull in only as far as Android rounded corners require.
+ */
+function placeSDotOnBaseline(letter, dot, gap) {
   if (!letter || !dot) return;
+  const was = dot.visible;
+  dot.visible = false;
   letter.updateMatrixWorld(true);
-  const box = new THREE.Box3().setFromObject(dot);
-  const w = box.getCenter(new THREE.Vector3());
-  const sz = box.getSize(new THREE.Vector3());
-  const rad = Math.max(sz.x, sz.y) * 0.5;
+  const sbox = new THREE.Box3().setFromObject(letter);
+  dot.visible = was;
+  letter.updateMatrixWorld(true);
+  const dbox = new THREE.Box3().setFromObject(dot);
+  const rad = Math.max(dbox.max.x - dbox.min.x, dbox.max.y - dbox.min.y) * 0.5;
+  const z0 = dot.position.z;
+  const cy = sbox.min.y + rad;
+  const xWide = sbox.max.x + gap + rad;
+  const xMin = sbox.max.x + Math.min(gap, 0.35) + rad;
+
   const half = Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) * camera.position.z;
-  const lip = 0.94;
-  const lim = Math.max(rad + 0.08, half * lip - rad);
-  w.x = Math.min(w.x + wantDx, half * lip - rad, lim * 0.78);
-  const maxAbsY = Math.sqrt(Math.max(0, lim * lim - w.x * w.x));
-  if (w.y < -maxAbsY) w.y = -maxAbsY;
-  if (w.y > maxAbsY) w.y = maxAbsY;
-  const local = w.clone();
-  letter.worldToLocal(local);
-  local.z = dot.position.z;
-  dot.position.copy(local);
+  const A = half * 0.93;
+  const CR = half * 0.36;
+
+  const setWorldXY = (wx, wy) => {
+    letter.updateMatrixWorld(true);
+    const w = new THREE.Vector3();
+    dot.getWorldPosition(w);
+    w.x = wx;
+    w.y = wy;
+    letter.worldToLocal(w);
+    w.z = z0;
+    dot.position.copy(w);
+  };
+
+  const fits = (wx, wy) => {
+    setWorldXY(wx, wy);
+    letter.updateMatrixWorld(true);
+    const b = new THREE.Box3().setFromObject(dot);
+    const c = b.getCenter(new THREE.Vector3());
+    const r = Math.max(b.max.x - b.min.x, b.max.y - b.min.y) * 0.5 + 0.07;
+    return diskInRoundRect(c.x, c.y, r, A, CR);
+  };
+
+  let cx = xWide;
+  if (!fits(cx, cy)) {
+    let lo = xMin;
+    let hi = xWide;
+    for (let i = 0; i < 18; i++) {
+      const mid = (lo + hi) * 0.5;
+      if (fits(mid, cy)) lo = mid;
+      else hi = mid;
+    }
+    cx = lo;
+  }
+  if (!fits(cx, cy)) {
+    letter.updateMatrixWorld(true);
+    const b = new THREE.Box3().setFromObject(dot);
+    const c = b.getCenter(new THREE.Vector3());
+    const r = Math.max(b.max.x - b.min.x, b.max.y - b.min.y) * 0.5 + 0.07;
+    const lim = A - r;
+    const cr = Math.max(0, CR - r);
+    c.x = THREE.MathUtils.clamp(c.x, -lim, lim);
+    c.y = THREE.MathUtils.clamp(c.y, -lim, lim);
+    const inset = lim - cr;
+    if (Math.abs(c.x) > inset && Math.abs(c.y) > inset) {
+      const ox = Math.sign(c.x) * inset;
+      const oy = Math.sign(c.y) * inset;
+      const dx = c.x - ox;
+      const dy = c.y - oy;
+      const d = Math.hypot(dx, dy) || 1;
+      if (d > cr) {
+        c.x = ox + (dx / d) * cr;
+        c.y = oy + (dy / d) * cr;
+      }
+    }
+    const local = c.clone();
+    letter.worldToLocal(local);
+    local.z = z0;
+    dot.position.copy(local);
+    return;
+  }
+  setWorldXY(cx, cy);
 }
 
 function growAtWorldPos(letter, wx, wy, safe) {
@@ -1903,7 +1978,7 @@ function containRoot() {
   while (!letterFitsSafe(brand.s, safe) && brand.s.scale.x > 0.3) brand.s.scale.multiplyScalar(0.97);
   /* Sit S almost on the canvas floor (period is the lowest point). */
   dropLetterToFloor(brand.s, -safe.half + 0.12);
-  nudgeSDotScreenRight(brand.s, brand.sDot, 1.15);
+  placeSDotOnBaseline(brand.s, brand.sDot, 0.70);
 
   brand.iScale = brand.i.scale.x;
   brand.sScale = brand.s.scale.x;

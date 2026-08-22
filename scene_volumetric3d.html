@@ -33,6 +33,8 @@ const DEPTH = 1.85;
 const CHUNK_DEPTH = 2.4; /* thick blocks so tumble reads as 3D */
 const SIGN_ONLY = new URLSearchParams(location.search).get('signOnly') === '1'
   || /signOnly=1/.test(location.hash);
+/* Thumb pose = frame 6 (t=5/90): right stem reads higher; shine stays at t=0. */
+const SIGN_THUMB_POSE = 5 / TOTAL;
 /*
  * Sign-only: smaller hero so explosion/shards/lightning own the canvas.
  * Metrics (lx/ly/frac) filled after texture clean.
@@ -1847,6 +1849,8 @@ function buildSvgSign() {
     geo.translate(0, 0, -SVG_N_DEPTH * 0.5);
     applySvgFaceUVs(geo);
     const mesh = new THREE.Mesh(geo, faceMat);
+    mesh.userData.restPos = mesh.position.clone();
+    mesh.userData.stem = pi === 0 ? 'right' : 'left';
     group.add(mesh);
     pieceMeshes.push(mesh);
 
@@ -2283,7 +2287,7 @@ function applyFrame(fr) {
   if (brand.n && showWhole) {
     const n = brand.n;
     const rp = brand.nRest;
-    const ph = t * Math.PI * 2;
+    const ph = (SIGN_ONLY ? t + SIGN_THUMB_POSE : t) * Math.PI * 2;
     const yaw = SIGN_ONLY ? 0 : 0.72;
     const pitch = SIGN_ONLY ? 0 : 0.34;
     /* Shine phase: gentle turn so green facets catch light */
@@ -2299,6 +2303,15 @@ function applyFrame(fr) {
     );
     const shinePulse = 1;
     n.scale.setScalar(brand.nScale * (1 + 0.04 * zoomN) * (1 + Math.sin(ph * 3.6) * 0.015 * life) * shinePulse);
+    /* Right stem sits above the rest — frozen thumb and intact N. */
+    const svg = n.userData.svgPieces;
+    if (SIGN_ONLY && svg) {
+      for (const m of svg) {
+        const rp = m.userData.restPos || { x: 0, y: 0, z: 0 };
+        const lift = m.userData.stem === 'right' ? 7.6 * life : 0;
+        m.position.set(rp.x, rp.y + lift, rp.z);
+      }
+    }
   }
   if (brand.text && showWhole) {
     const tx = brand.text;
@@ -2468,19 +2481,20 @@ function applyFrame(fr) {
   /* Whole sign: yaw/pitch so the stack’s side volume reads */
   const shake = (SIGN_ONLY ? 0.02 : 0.35) + (SIGN_ONLY ? 0.04 : 0.65) * life;
   const wobble = 0.5 + 0.5 * lifeSoft;
-  const sx = Math.sin(t * 9.5) * (SIGN_ONLY ? 0.008 : 0.1) * shake + Math.sin(t * 19.0) * (SIGN_ONLY ? 0.004 : 0.03) * shake;
-  const sy = Math.cos(t * 7.6 + 0.8) * (SIGN_ONLY ? 0.01 : 0.22) * shake + Math.sin(t * 14.0) * (SIGN_ONLY ? 0.005 : 0.06) * shake;
-  const sz = Math.sin(t * 11.0 + 1.4) * (SIGN_ONLY ? 0.006 : 0.07) * shake + Math.cos(t * 14.5) * (SIGN_ONLY ? 0.004 : 0.022) * shake;
-  root.scale.setScalar(root.userData.baseScale * containSafe * (1 + Math.sin(t * 7.8) * (SIGN_ONLY ? 0.004 : 0.012) * life));
+  const wt = SIGN_ONLY ? t + SIGN_THUMB_POSE : t;
+  const sx = Math.sin(wt * 9.5) * (SIGN_ONLY ? 0.008 : 0.1) * shake + Math.sin(wt * 19.0) * (SIGN_ONLY ? 0.004 : 0.03) * shake;
+  const sy = Math.cos(wt * 7.6 + 0.8) * (SIGN_ONLY ? 0.01 : 0.22) * shake + Math.sin(wt * 14.0) * (SIGN_ONLY ? 0.005 : 0.06) * shake;
+  const sz = Math.sin(wt * 11.0 + 1.4) * (SIGN_ONLY ? 0.006 : 0.07) * shake + Math.cos(wt * 14.5) * (SIGN_ONLY ? 0.004 : 0.022) * shake;
+  root.scale.setScalar(root.userData.baseScale * containSafe * (1 + Math.sin(wt * 7.8) * (SIGN_ONLY ? 0.004 : 0.012) * life));
   root.rotation.set(
-    sx + 0.05 * boomAmt + (SIGN_ONLY ? 0.02 : 0.1) * destroy + Math.sin(t * 5.5) * (SIGN_ONLY ? 0.02 : 0.08) * wobble,
-    sy + 0.1 * boomAmt + (SIGN_ONLY ? 0.025 : 0.14) * destroy + 0.04 * zoomT + Math.cos(t * 4.8) * (SIGN_ONLY ? 0.025 : 0.12) * wobble,
-    sz + 0.02 * zoomN + (SIGN_ONLY ? 0.01 : 0.05) * destroy + Math.sin(t * 6.4 + 0.5) * (SIGN_ONLY ? 0.015 : 0.05) * wobble,
+    sx + 0.05 * boomAmt + (SIGN_ONLY ? 0.02 : 0.1) * destroy + Math.sin(wt * 5.5) * (SIGN_ONLY ? 0.02 : 0.08) * wobble,
+    sy + 0.1 * boomAmt + (SIGN_ONLY ? 0.025 : 0.14) * destroy + 0.04 * zoomT + Math.cos(wt * 4.8) * (SIGN_ONLY ? 0.025 : 0.12) * wobble,
+    sz + 0.02 * zoomN + (SIGN_ONLY ? 0.01 : 0.05) * destroy + Math.sin(wt * 6.4 + 0.5) * (SIGN_ONLY ? 0.015 : 0.05) * wobble,
   );
   const base = root.userData.basePos || { x: 0, y: 0 };
-  root.position.x = base.x + Math.sin(t * 6.8) * (SIGN_ONLY ? 0.03 : 0.14) * shake + Math.sin(t * 14.0) * (SIGN_ONLY ? 0.015 : 0.05) * shake;
-  root.position.y = base.y + Math.cos(t * 6.2) * (SIGN_ONLY ? 0.025 : 0.12) * shake + Math.cos(t * 13.0) * (SIGN_ONLY ? 0.012 : 0.045) * shake;
-  root.position.z = Math.sin(t * 5.4 + 0.3) * (SIGN_ONLY ? 0.08 : 0.22) * life + Math.sin(t * 11.5) * (SIGN_ONLY ? 0.03 : 0.07) * life;
+  root.position.x = base.x + Math.sin(wt * 6.8) * (SIGN_ONLY ? 0.03 : 0.14) * shake + Math.sin(wt * 14.0) * (SIGN_ONLY ? 0.015 : 0.05) * shake;
+  root.position.y = base.y + Math.cos(wt * 6.2) * (SIGN_ONLY ? 0.025 : 0.12) * shake + Math.cos(wt * 13.0) * (SIGN_ONLY ? 0.012 : 0.045) * shake;
+  root.position.z = Math.sin(wt * 5.4 + 0.3) * (SIGN_ONLY ? 0.08 : 0.22) * life + Math.sin(wt * 11.5) * (SIGN_ONLY ? 0.03 : 0.07) * life;
 
   fx.position.copy(root.position);
   fx.rotation.copy(root.rotation);
