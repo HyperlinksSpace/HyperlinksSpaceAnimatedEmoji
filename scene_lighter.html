@@ -1047,7 +1047,7 @@ function buildRedFork(width, depth) {
   const g = new THREE.Group();
   const red = plasticRed();
   const padW = width;
-  const padH = 0.30;
+  const padH = 0.34;
   const padD = depth;
   const pad = new THREE.Mesh(
     new RoundedBoxGeometry(padW, padH, padD, 5, 0.07),
@@ -1177,17 +1177,38 @@ function buildLighter() {
   hoodShine.rotation.y = 0.10;
   lighterSpin.add(hoodShine);
 
-  /* Chrome fully wraps the black collar: top 1/3 of its height, 2/3 of its width (right of the fireplace). */
+  /* Chrome wraps the black: top 1/3 height, 2/3 width. Wheel sits on the button; chrome covers 2/3 of the disk. */
   const hoodW = bodyW * (2 / 3);
   const hoodD = bodyD * 1.22;
   const headTop = head.position.y + headH * 0.5;
   const overlap = headH * (1 / 3);
   const wheelR = 0.75;
   const wheelW = 0.48;
-  /* Chrome tall enough that the wheel's bottom tangent sits at the black top. */
-  const hoodH = overlap + (4 / 3) * wheelR;
-  const roundR = 0.22;
+  const padH = 0.34;
+  const pressGap = 0.20;
   const hoodX = -bodyW * 0.5 + hoodW * 0.5;
+  const hoodRight = hoodX + hoodW * 0.5;
+
+  /* Button sits ON the black collar — gap when released, flush on top when pressed. */
+  const padW = bodyW * 0.32;
+  const padD = bodyD * 0.72;
+  lever = buildRedFork(padW, padD);
+  lever.userData.padH = padH;
+  const restY = headTop + pressGap + padH * 0.5;
+  lever.position.set(hoodRight + padW * 0.40, restY, 0);
+  lighterSpin.add(lever);
+  lever.userData.restY = restY;
+  lever.userData.restZ = lever.position.z;
+  lever.userData.pressGap = pressGap;
+
+  /* Wheel rests on the button; 1/3 of each diameter shows at the right and the top of the chrome. */
+  const buttonTop = restY + padH * 0.5;
+  const wheelZ = 0;
+  const wheelX = hoodRight - wheelR / 3;
+  const wheelY = buttonTop + wheelR;
+  const chromeTop = wheelY + wheelR / 3;
+  const hoodH = (chromeTop - headTop) + overlap;
+  const roundR = 0.22;
   const hoodY = headTop - overlap + hoodH * 0.5;
 
   const hood = buildChromeWindguard(hoodW, hoodD, hoodH, roundR);
@@ -1248,24 +1269,6 @@ function buildLighter() {
   hole.rotation.x = -Math.PI * 0.5;
   hole.position.set(jetX, jetY + 0.06, jetZ);
   lighterSpin.add(hole);
-
-  /* 1/3 of each diameter visible at the right and the top → center is R/3 inside both edges. */
-  const hoodRight = hoodX + hoodW * 0.5;
-  const chromeTop = hoodY + hoodH * 0.5;
-  const wheelZ = 0;
-  const wheelX = hoodRight - wheelR / 3;
-  const wheelY = chromeTop - wheelR / 3;
-
-  /* Thin button: top edge on the wheel's bottom tangent, peeking out from under chrome. */
-  const padW = bodyW * 0.30;
-  const padD = bodyD * 0.70;
-  lever = buildRedFork(padW, padD);
-  const padH = lever.userData.padH;
-  const wheelBottom = wheelY - wheelR;
-  lever.position.set(hoodRight + padW * 0.18, wheelBottom - padH * 0.5, 0);
-  lighterSpin.add(lever);
-  lever.userData.restY = lever.position.y;
-  lever.userData.restZ = lever.position.z;
 
   const wheelMount = new THREE.Group();
   wheelMount.position.set(wheelX, wheelY, wheelZ);
@@ -1839,7 +1842,8 @@ function applyFrame(fr) {
   /* Press down the long body axis — not sideways. */
   lever.rotation.x = 0;
   lever.rotation.z = 0;
-  lever.position.y = (lever.userData.restY ?? lever.position.y) - 0.16 * press;
+  lever.position.y = (lever.userData.restY ?? lever.position.y)
+    - (lever.userData.pressGap ?? 0.20) * press;
   lever.position.z = lever.userData.restZ ?? lever.position.z;
 
   const flick = 0.9 + 0.1 * Math.sin(ph * 8);
