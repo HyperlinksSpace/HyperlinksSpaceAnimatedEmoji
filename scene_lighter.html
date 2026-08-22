@@ -522,69 +522,6 @@ function hoodChromeMat() {
   });
 }
 
-/** Side-plate silhouette: square top-left, rounded top-right damper (schematic). */
-function chromeDamperShape(w, h, roundR) {
-  const s = new THREE.Shape();
-  const hw = w * 0.5;
-  const hh = h * 0.5;
-  /* Keep the round modest — a large fillet cuts away the metal that covers the wheel hub. */
-  const r = Math.min(roundR, w * 0.16, h * 0.14);
-  s.moveTo(-hw, -hh);
-  s.lineTo(hw, -hh);
-  s.lineTo(hw, hh - r);
-  s.absarc(hw - r, hh - r, r, 0, Math.PI / 2, false);
-  s.lineTo(-hw, hh);
-  s.closePath();
-  return s;
-}
-
-/**
- * Solid chrome sleeve over the black collar (not a hollow shell you can see into).
- * Wheel hub is buried in the top-right metal; only the rim pokes out.
- */
-function buildChromeWindguard(W, D, H, roundR) {
-  const g = new THREE.Group();
-  const ch = hoodChromeMat();
-  const profile = chromeDamperShape(W, H, roundR);
-  const depth = D * 0.90;
-  const geo = new THREE.ExtrudeGeometry(profile, {
-    depth,
-    bevelEnabled: true,
-    bevelThickness: 0.04,
-    bevelSize: 0.03,
-    bevelSegments: 2,
-    curveSegments: 24,
-  });
-  geo.translate(0, 0, -depth * 0.5);
-  geo.computeVertexNormals();
-  g.add(new THREE.Mesh(geo, ch));
-
-  const vent = new THREE.Mesh(
-    new THREE.BoxGeometry(0.20, 0.20, 0.12),
-    new THREE.MeshBasicMaterial({ color: 0x121316, toneMapped: false }),
-  );
-  vent.position.set(W * 0.16, -H * 0.16, depth * 0.5 + 0.01);
-  g.add(vent);
-
-  const well = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.22, 0.26, 0.18, 24),
-    new THREE.MeshPhysicalMaterial({
-      color: 0x0a0a0c,
-      roughness: 0.5,
-      metalness: 0.2,
-      toneMapped: false,
-    }),
-  );
-  well.position.set(-W * 0.22, H * 0.5 - 0.02, 0);
-  g.add(well);
-
-  g.userData.shellH = H;
-  g.userData.frontH = H;
-  g.userData.size = { W, D, H };
-  g.userData.roundR = roundR;
-  return g;
-}
-
 function flamePath(ctx, cx, top, bot, halfW) {
   const hh = bot - top;
   const baseW = Math.max(8, halfW * 0.16);
@@ -1172,6 +1109,40 @@ function bicShell(width, height, depth, mat, radius) {
   return new THREE.Mesh(geo, mat);
 }
 
+/** Chrome sleeve footprint: same left rounds as the black collar, square on the right so it covers instead of crashing into the black. */
+function chromeSleeveShape(w, d, leftR) {
+  const s = new THREE.Shape();
+  const hw = w * 0.5;
+  const hd = d * 0.5;
+  const r = Math.min(leftR, hw - 0.02, hd - 0.02);
+  s.moveTo(hw, -hd);
+  s.lineTo(hw, hd);
+  s.lineTo(-hw + r, hd);
+  s.absarc(-hw + r, hd - r, r, Math.PI / 2, Math.PI, false);
+  s.lineTo(-hw, -hd + r);
+  s.absarc(-hw + r, -hd + r, r, Math.PI, Math.PI * 1.5, false);
+  s.lineTo(hw, -hd);
+  s.closePath();
+  return s;
+}
+
+function chromeSleeve(width, height, depth, leftR, mat) {
+  const geo = new THREE.ExtrudeGeometry(chromeSleeveShape(width, depth, leftR), {
+    depth: height,
+    bevelEnabled: true,
+    bevelThickness: 0.09,
+    bevelSize: 0.08,
+    bevelSegments: 5,
+    curveSegments: 48,
+  });
+  geo.center();
+  geo.rotateX(-Math.PI / 2);
+  const m = new THREE.Mesh(geo, mat);
+  m.renderOrder = 2;
+  m.userData.part = 'hood';
+  return m;
+}
+
 function buildLighter() {
   lighterPivot = new THREE.Group();
   lighterSpin = new THREE.Group();
@@ -1193,32 +1164,38 @@ function buildLighter() {
   bodyShine.rotation.y = 0.10;
   lighterSpin.add(bodyShine);
 
-  /* Tall black collar — chrome overlays the top of it (schematic + photo). */
+  /* Black collar + chrome: chrome is the same bicShell, slightly larger, so the rounds seat together. */
+  const collar = new THREE.Group();
+  lighterSpin.add(collar);
+
   const headH = 1.22;
-  const head = bicShell(bodyW * 1.01, headH, bodyD * 1.02, plasticBlack(), bodyR + 0.02);
+  const blackW = bodyW * 1.01;
+  const blackD = bodyD * 1.02;
+  const blackR = bodyR + 0.02;
+  const head = bicShell(blackW, headH, blackD, plasticBlack(), blackR);
   head.position.y = bodyH * 0.5 + headH * 0.42;
   head.userData.part = 'hood';
-  lighterSpin.add(head);
+  collar.add(head);
+
+  const sleevePad = 0.12;
+  const wrapW = blackW * (2 / 3) + sleevePad + 0.10;
+  const wrapD = blackD + sleevePad;
+  const wrapR = blackR + sleevePad * 0.45;
+  const overlap = headH * (1 / 3);
+  const headTop = head.position.y + headH * 0.5;
+  const hoodX = -blackW * 0.5 - sleevePad * 0.5 + wrapW * 0.5;
+  const hoodRight = hoodX + wrapW * 0.5;
+  const hoodD = wrapD;
 
   hoodShine = makeInsetGlance(0.42, headH * 0.78, 1.2);
   hoodShine.position.set(-0.12, head.position.y, 0.64);
   hoodShine.rotation.y = 0.10;
   lighterSpin.add(hoodShine);
 
-  /* Chrome wraps the black: top 1/3 height, 2/3 width. Wheel sits on the button; chrome covers 2/3 of the disk. */
-  const hoodW = bodyW * (2 / 3);
-  const hoodD = bodyD * 1.22;
-  const headTop = head.position.y + headH * 0.5;
-  const overlap = headH * (1 / 3);
   const wheelR = 0.75;
   const wheelW = 0.48;
-  const blackW = bodyW * 1.01;
-  const blackD = bodyD * 1.02;
-  const blackR = bodyR + 0.02;
   const padH = 0.14;
   const pressGap = 0.28;
-  const hoodX = -bodyW * 0.5 + hoodW * 0.5;
-  const hoodRight = hoodX + hoodW * 0.5;
   const visibleX = (hoodRight + blackW * 0.5) * 0.5;
   const stemH = pressGap + headH * 0.48;
 
@@ -1245,34 +1222,42 @@ function buildLighter() {
   const wheelX = hoodRight - wheelR / 3;
   const wheelY = buttonTop + wheelR;
   const chromeTop = wheelY + wheelR / 3;
-  const hoodH = (chromeTop - headTop) + overlap;
-  const roundR = 0.22;
-  const hoodY = headTop - overlap + hoodH * 0.5;
+  const chromeBottom = headTop - overlap - sleevePad * 0.35;
+  const chromeH = chromeTop - chromeBottom;
+  const hoodY = (chromeTop + chromeBottom) * 0.5;
 
-  const hood = buildChromeWindguard(hoodW, hoodD, hoodH, roundR);
+  const hood = chromeSleeve(wrapW, chromeH, wrapD, wrapR, hoodChromeMat());
   hood.position.set(hoodX, hoodY, 0);
   hood.userData.part = 'hood';
-  lighterSpin.add(hood);
+  hood.renderOrder = 2;
+  collar.add(hood);
 
-  /* Cuff: wrap the black itself (front, back, right) so that region is fully sleeved. */
-  const cuff = new THREE.Mesh(
-    new RoundedBoxGeometry(hoodW, overlap, bodyD * 1.18, 3, 0.10),
+  /* Square fastener on the visible lower-right of the chrome, where the sleeve meets the open black. */
+  const fastener = new THREE.Mesh(
+    new THREE.BoxGeometry(0.24, 0.24, 0.11),
     hoodChromeMat(),
   );
-  cuff.position.set(hoodX, headTop - overlap * 0.5, 0);
-  cuff.userData.part = 'hood';
-  lighterSpin.add(cuff);
+  fastener.position.set(hoodX + wrapW * 0.30, chromeBottom + 0.20, wrapD * 0.5 + 0.03);
+  fastener.userData.part = 'hood';
+  fastener.renderOrder = 2;
+  collar.add(fastener);
+  const fastenerSlot = new THREE.Mesh(
+    new THREE.BoxGeometry(0.14, 0.14, 0.06),
+    new THREE.MeshBasicMaterial({ color: 0x121316, toneMapped: false }),
+  );
+  fastenerSlot.position.set(hoodX + wrapW * 0.30, chromeBottom + 0.20, wrapD * 0.5 + 0.08);
+  collar.add(fastenerSlot);
 
-  chromeShine = makeInsetGlance(0.28, hoodH * 0.70, 1.18);
+  chromeShine = makeInsetGlance(0.28, chromeH * 0.70, 1.18);
   chromeShine.position.set(hoodX - 0.12, hoodY + 0.06, hoodD * 0.52);
   chromeShine.rotation.y = 0.06;
   chromeShine.userData.baseX = hoodX - 0.12;
   lighterSpin.add(chromeShine);
 
   /* Fireplace: hole in the LEFT of the chrome, not at the wheel. */
-  const jetX = hoodX - hoodW * 0.22;
+  const jetX = hoodX - wrapW * 0.22;
   const jetZ = 0;
-  const jetY = hoodY + hoodH * 0.5 - 0.10;
+  const jetY = chromeTop - 0.10;
 
   const chimney = new THREE.Mesh(
     new THREE.CylinderGeometry(0.10, 0.12, 0.26, 24),
