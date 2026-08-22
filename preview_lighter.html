@@ -56,9 +56,10 @@
   }
   .circle video { width: 92%; height: 92%; }
   .ideal {
+    /* Lightest toward bottom-right — Telegram puts color 1 there. */
     background:
-      radial-gradient(120% 90% at 30% 18%, #1ad0e0 0%, transparent 42%),
-      linear-gradient(165deg, #042830 0%, #0a5f6b 46%, #0c8896 100%);
+      radial-gradient(120% 90% at 28% 16%, #4ec9d6 0%, transparent 44%),
+      linear-gradient(165deg, #127e8c 0%, #1793a3 48%, #1fa8b8 100%);
   }
   .bright-cyan { background: #0ee1f1; }
   .settings {
@@ -129,10 +130,11 @@
       <video src="hyperlinks-space-sticker-lighter.webm?v=139" autoplay loop muted playsinline></video>
     </div>
     <div class="settings">
-      Telegram → Change colors<br>
-      Hex <strong>#0a5f6b</strong><br>
-      H 188° &nbsp; S 84% &nbsp; L 24%<br>
-      RGB 10, 95, 107
+      Telegram → 3 colors, this order<br>
+      1 <strong>#1fa8b8</strong> &nbsp; 31, 168, 184<br>
+      2 <strong>#1793a3</strong> &nbsp; 23, 147, 163<br>
+      3 <strong>#127e8c</strong> &nbsp; 18, 126, 140<br>
+      (lightest first — S sits on slot 1)
     </div>
   </div>
   <div class="avatar-slot">
