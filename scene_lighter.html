@@ -1435,7 +1435,7 @@ function buildLighter() {
   }
 
   lighterPivot.rotation.z = -0.72;
-  lighterPivot.rotation.x = 0.10;
+  lighterPivot.rotation.x = 0.28;
   lighterPivot.position.set(0, 0, 0);
 }
 
@@ -1506,9 +1506,9 @@ function expandFlameTip(box) {
   /* Cover flick scale + lighter yaw/pitch so the flame never leaves the square. */
   flameGroup.scale.set(1.14, 1.12, 1.14);
   const poses = [
-    [-0.60, -0.05, 0.07],
-    [-0.52, 0.00, 0.10],
-    [-0.44, 0.05, 0.13],
+    [-0.60, -0.05, 0.25],
+    [-0.52, 0.00, 0.28],
+    [-0.44, 0.05, 0.32],
   ];
   for (const [y, sx, px] of poses) {
     lighterSpin.rotation.y = y;
@@ -1879,7 +1879,7 @@ function applyFrame(fr) {
 
   lighterSpin.rotation.y = -0.22 + Math.sin(ph) * 0.08;
   lighterSpin.rotation.x = Math.sin(ph * 2) * 0.05;
-  lighterPivot.rotation.x = 0.18 + Math.sin(ph) * 0.03;
+  lighterPivot.rotation.x = 0.28 + Math.sin(ph) * 0.03;
   lighterPivot.rotation.z = -0.72 + Math.sin(ph) * 0.02;
 
   sparkWheel.rotation.y = t * 4.2
