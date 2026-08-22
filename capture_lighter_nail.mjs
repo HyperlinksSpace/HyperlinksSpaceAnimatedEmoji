@@ -1,5 +1,5 @@
 /**
- * Capture the lighter+nail sticker only.
+ * Capture the lighter+nail sticker and emoji.
  * Isolated from the original lighter pipeline (own scene, frames, pass log, output).
  * Does not overwrite hyperlinks-space-sticker-lighter.webm / emoji / preview gif.
  */
@@ -104,7 +104,9 @@ async function main() {
   });
   await page.waitForFunction(() => window.ready === true, null, { timeout: 60000 });
 
-  const frames = PREVIEW ? [1, 20, 35, 53, 58, 62, 70, 90] : [...Array(TOTAL)].map((_, i) => i + 1);
+  const frames = PREVIEW
+    ? [1, 28, 32, 36, 42, 48, 55, 76, 82, 88, 90]
+    : [...Array(TOTAL)].map((_, i) => i + 1);
   console.log(`Capturing ${PREVIEW ? 'preview' : TOTAL} frames...`);
   for (const fr of frames) {
     await page.evaluate((f) => { window.setFrame(f); }, fr);
@@ -126,12 +128,17 @@ async function main() {
   }
 
   await encode(512, 'hyperlinks-space-sticker-lighter-nail.webm', 46, '210k', 256 * 1024);
+  await encode(100, 'hyperlinks-space-emoji-lighter-nail.webm', 42, '52k', 64 * 1024);
 
   copyFileSync(
     join(ROOT, 'hyperlinks-space-sticker-lighter-nail.webm'),
     join(VARIANT, 'hyperlinks-space-sticker-lighter-nail.webm'),
   );
-  console.log('Done (lighter nail sticker only)');
+  copyFileSync(
+    join(ROOT, 'hyperlinks-space-emoji-lighter-nail.webm'),
+    join(VARIANT, 'hyperlinks-space-emoji-lighter-nail.webm'),
+  );
+  console.log('Done (lighter nail sticker + emoji)');
 }
 
 main().catch((e) => {

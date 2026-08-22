@@ -19,11 +19,9 @@
 </script>
 <script type="module">
 /**
- * AAA lighter emoji: Times New Roman I. / geometric S.,
- * hyperreal plastic + hi-fi anime hard shine / fire.
- * Isolated from the sign-only pipeline.
- * Alternate sticker: 3D fingertip (nail.png jewelry + glitter) flicks the wheel.
- * Does not replace the original lighter scene or WebMs.
+ * Alternate sticker only: original lighter scene + nail.png photo card.
+ * Lighter geometry, materials, and applyFrame timing stay identical.
+ * Isolated from the original lighter WebM pipeline.
  */
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
@@ -40,7 +38,7 @@ const renderer = new THREE.WebGLRenderer({
 renderer.setSize(W, H, false);
 renderer.setPixelRatio(2);
 renderer.setClearColor(0x000000, 0);
-renderer.autoClear = true;
+renderer.autoClear = false;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.NoToneMapping;
 document.body.appendChild(renderer.domElement);
@@ -335,9 +333,6 @@ let sparkGroup = null;
 let flameGroup = null;
 let flameAnchor = null;
 let lever = null;
-let nailFinger = null;
-let nailCharm = null;
-let nailGlints = [];
 let bodyShine = null;
 let hoodShine = null;
 let chromeShine = null;
@@ -347,6 +342,194 @@ const flameParts = [];
 const sparks = [];
 const fx = new THREE.Group();
 scene.add(fx);
+
+/* nail.png photo card — overlay only, not in containRoot / lighter graph. */
+const nailScene = new THREE.Scene();
+const nailCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10);
+nailCam.position.set(0, 0, 5);
+let nailCard = null;
+let heartPivot = null;
+const _nailNdc = new THREE.Vector3();
+const _heartLocal = new THREE.Vector3();
+const NAIL_IMG_W = 1536;
+const NAIL_IMG_H = 1024;
+const NAIL_TIP_U = 128 / NAIL_IMG_W;
+const NAIL_TIP_V = (NAIL_IMG_H - 952) / NAIL_IMG_H;
+const HEART_PX_W = 137;
+const HEART_PX_H = 131;
+const HEART_BAIL_U = 695 / NAIL_IMG_W;
+const HEART_BAIL_V = (NAIL_IMG_H - 677) / NAIL_IMG_H;
+const HEART_SPRITE_BAIL_U = 67 / HEART_PX_W;
+const HEART_SPRITE_BAIL_V = 1 - 15 / HEART_PX_H;
+
+function loadTex(url) {
+  return new Promise((resolve, reject) => {
+    new THREE.TextureLoader().load(url, resolve, undefined, reject);
+  });
+}
+
+function prepOverlayTex(tex) {
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.premultiplyAlpha = true;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+function overlayMat(tex) {
+  return new THREE.MeshBasicMaterial({
+    map: tex,
+    transparent: true,
+    depthTest: false,
+    depthWrite: false,
+    toneMapped: false,
+    premultipliedAlpha: true,
+  });
+}
+
+function buildNailCard(fingerTex, heartTex) {
+  prepOverlayTex(fingerTex);
+  prepOverlayTex(heartTex);
+  const aspect = NAIL_IMG_W / NAIL_IMG_H;
+  const h = 1;
+  const w = aspect;
+  const geo = new THREE.PlaneGeometry(w, h);
+  const tipX = (NAIL_TIP_U - 0.5) * w;
+  const tipY = (NAIL_TIP_V - 0.5) * h;
+  geo.translate(-tipX, -tipY, 0);
+  nailCard = new THREE.Mesh(geo, overlayMat(fingerTex));
+  nailCard.frustumCulled = false;
+  nailCard.renderOrder = 20;
+  /* Photo points down-left; rotate so the finger enters from the right, tip left. */
+  nailCard.rotation.z = THREE.MathUtils.degToRad(-52);
+  nailCard.scale.setScalar(0.64);
+  nailScene.add(nailCard);
+
+  const hw = (HEART_PX_W / NAIL_IMG_W) * w;
+  const hh = (HEART_PX_H / NAIL_IMG_H) * h;
+  const hgeo = new THREE.PlaneGeometry(hw, hh);
+  const bx = (HEART_SPRITE_BAIL_U - 0.5) * hw;
+  const by = (HEART_SPRITE_BAIL_V - 0.5) * hh;
+  hgeo.translate(-bx, -by, 0);
+  const heartMesh = new THREE.Mesh(hgeo, overlayMat(heartTex));
+  heartMesh.frustumCulled = false;
+  heartMesh.renderOrder = 21;
+  heartPivot = new THREE.Group();
+  heartPivot.add(heartMesh);
+  nailScene.add(heartPivot);
+}
+
+function pendulumAngle(t, ph) {
+  /* Hang straight down at t=0 (Telegram thumb), then sway and kick with the flicks. */
+  const idle = 0.28 * Math.sin(ph * 2.55) + 0.10 * Math.sin(ph * 6.8);
+  const kick = (t0, amp) => {
+    let dt = t - t0;
+    if (dt < -0.5) dt += 1;
+    if (dt < 0 || dt > 0.48) return 0;
+    return amp * Math.exp(-dt * 6.8) * Math.sin(dt * 29);
+  };
+  return idle
+    + kick(0.00, 0.55)
+    + kick(0.34, 1.05)
+    + kick(0.46, 1.25)
+    + kick(0.84, 1.05);
+}
+
+function projectNdc(obj, out) {
+  obj.getWorldPosition(out);
+  out.project(camera);
+  return out;
+}
+
+const NAIL_POSE = {
+  /* 512px attachment comps → NDC (y up). Float / wheel / button. */
+  float: { x: 0.594, y: 0.320 },
+  wheel: { x: 0.465, y: 0.207 },
+  button: { x: 0.414, y: 0.117 },
+};
+let nailRestWheel = null;
+
+function smooth01(u) {
+  const x = Math.min(1, Math.max(0, u));
+  return x * x * (3 - 2 * x);
+}
+
+/* 0 = float, 1 = wheel (brief contact), 2 = button.
+   Wheel is a waypoint — the nail does not sit there while the wheel spins. */
+function nailStrokeK(t) {
+  const evalStroke = (tt, t0, tWheel, tBtn, tHoldEnd, tBack) => {
+    if (tt < t0 || tt > tBack) return 0;
+    if (tt < tWheel) return smooth01((tt - t0) / Math.max(1e-4, tWheel - t0));
+    if (tt < tBtn) return 1 + smooth01((tt - tWheel) / Math.max(1e-4, tBtn - tWheel));
+    if (tt < tHoldEnd) return 2;
+    return 3 + smooth01((tt - tHoldEnd) / Math.max(1e-4, tBack - tHoldEnd));
+  };
+  let k = 0;
+  for (const off of [-1, 0, 1]) {
+    const tt = t + off;
+    k = Math.max(
+      k,
+      evalStroke(tt, 0.30, 0.34, 0.41, 0.54, 0.62),
+      evalStroke(tt, 0.80, 0.84, 0.91, 1.06, 1.14),
+    );
+  }
+  return k;
+}
+
+function poseNailCard(t, ph) {
+  if (!nailCard || !sparkWheel || !lever) return;
+  projectNdc(sparkWheel, _nailNdc);
+  if (!nailRestWheel) nailRestWheel = { x: _nailNdc.x, y: _nailNdc.y };
+  const dx = _nailNdc.x - nailRestWheel.x;
+  const dy = _nailNdc.y - nailRestWheel.y;
+
+  const floatX = NAIL_POSE.float.x + dx + Math.sin(ph) * 0.010;
+  const floatY = NAIL_POSE.float.y + dy + Math.cos(ph * 1.2) * 0.008;
+  const wheelX = NAIL_POSE.wheel.x + dx;
+  const wheelY = NAIL_POSE.wheel.y + dy;
+  const btnX = NAIL_POSE.button.x + dx;
+  const btnY = NAIL_POSE.button.y + dy;
+
+  const k = nailStrokeK(t);
+  let x;
+  let y;
+  if (k <= 1) {
+    x = floatX + (wheelX - floatX) * k;
+    y = floatY + (wheelY - floatY) * k;
+  } else if (k <= 2) {
+    const u = k - 1;
+    x = wheelX + (btnX - wheelX) * u;
+    y = wheelY + (btnY - wheelY) * u;
+  } else if (k <= 3) {
+    x = btnX;
+    y = btnY;
+  } else {
+    const u = Math.min(1, k - 3);
+    x = btnX + (floatX - btnX) * u;
+    y = btnY + (floatY - btnY) * u;
+  }
+
+  nailCard.position.set(x, y, 0);
+  nailCard.scale.setScalar(0.64);
+  poseHeartCharm(t, ph);
+}
+
+function poseHeartCharm(t, ph) {
+  if (!heartPivot || !nailCard) return;
+  const aspect = NAIL_IMG_W / NAIL_IMG_H;
+  _heartLocal.set(
+    (HEART_BAIL_U - NAIL_TIP_U) * aspect,
+    (HEART_BAIL_V - NAIL_TIP_V) * 1,
+    0.02,
+  );
+  nailCard.updateMatrixWorld(true);
+  _heartLocal.applyMatrix4(nailCard.matrixWorld);
+  heartPivot.position.copy(_heartLocal);
+  heartPivot.scale.setScalar(nailCard.scale.x);
+  heartPivot.rotation.z = pendulumAngle(t, ph);
+}
 const bolts = [];
 const centerFlames = [];
 
@@ -1489,11 +1672,6 @@ function buildLighter() {
   lighterPivot.rotation.z = -0.72;
   lighterPivot.rotation.x = 0.48;
   lighterPivot.position.set(0, 0, 0);
-
-  lighterSpin.userData.hit = {
-    wheelX, wheelY, wheelZ, wheelR, wheelW,
-    padX: visibleX, padY: restY, padZ: -0.16,
-  };
 }
 
 function buildLetters() {
@@ -1610,17 +1788,6 @@ function expandLighterSweep(box) {
   lighterSpin.rotation.x = spinX;
   lighterPivot.rotation.x = pivX;
   lighterPivot.rotation.z = pivZ;
-  stage.updateMatrixWorld(true);
-}
-
-function expandNailSweep(box) {
-  if (!nailFinger) return;
-  for (const t of [0, 0.30, 0.58, 0.64, 0.78]) {
-    poseNailFinger(t);
-    stage.updateMatrixWorld(true);
-    box.union(boxFromVisibleMeshes(root, flameGroup));
-  }
-  poseNailFinger(0);
   stage.updateMatrixWorld(true);
 }
 
@@ -1946,505 +2113,6 @@ function nudgeLetter(letter, dirX, dirY, lighterBox, maxFrac, safe) {
   }
 }
 
-function makeGlitterNailTex() {
-  const s = 512;
-  const c = document.createElement('canvas');
-  c.width = c.height = s;
-  const g = c.getContext('2d');
-  const bg = g.createLinearGradient(s * 0.15, 0, s * 0.85, s);
-  bg.addColorStop(0.00, '#8a5a32');
-  bg.addColorStop(0.28, '#c4894a');
-  bg.addColorStop(0.55, '#6e3e24');
-  bg.addColorStop(1.00, '#3a2014');
-  g.fillStyle = bg;
-  g.fillRect(0, 0, s, s);
-  const glass = g.createRadialGradient(s * 0.42, s * 0.28, 8, s * 0.42, s * 0.28, s * 0.72);
-  glass.addColorStop(0.00, 'rgba(255,236,210,0.22)');
-  glass.addColorStop(0.45, 'rgba(200,140,90,0.08)');
-  glass.addColorStop(1.00, 'rgba(0,0,0,0)');
-  g.fillStyle = glass;
-  g.fillRect(0, 0, s, s);
-  const cols = [
-    '#f4d48a', '#ffe7b0', '#e8b86a', '#c9a06a', '#fff6dc',
-    '#e8c4b8', '#d4a0a0', '#eee8e0', '#b8860b', '#ffd700',
-    '#f0c8c0', '#c0c4cc', '#d8d0c4', '#a87840',
-  ];
-  const rnd = seeded(77);
-  for (let i = 0; i < 1400; i++) {
-    const x = rnd() * s;
-    const y = rnd() * s;
-    const w = 1.1 + rnd() * 5.2;
-    g.save();
-    g.translate(x, y);
-    g.rotate(rnd() * Math.PI);
-    g.fillStyle = cols[(rnd() * cols.length) | 0];
-    g.globalAlpha = 0.50 + rnd() * 0.50;
-    g.fillRect(-w * 0.5, -w * 0.16, w, w * 0.34);
-    if (rnd() > 0.72) {
-      g.fillStyle = '#fffaf0';
-      g.globalAlpha = 0.85;
-      g.fillRect(-0.6, -0.6, 1.3, 1.3);
-    }
-    g.restore();
-  }
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 8;
-  tex.needsUpdate = true;
-  return tex;
-}
-
-function makeStarGlintTex() {
-  const s = 128;
-  const c = document.createElement('canvas');
-  c.width = c.height = s;
-  const g = c.getContext('2d');
-  const cx = s * 0.5;
-  const cy = s * 0.5;
-  g.translate(cx, cy);
-  const spike = (len, wid, col) => {
-    g.fillStyle = col;
-    g.beginPath();
-    g.moveTo(0, -len);
-    g.lineTo(wid, 0);
-    g.lineTo(0, len);
-    g.lineTo(-wid, 0);
-    g.closePath();
-    g.fill();
-  };
-  spike(56, 3.2, 'rgba(255,255,255,0.95)');
-  g.rotate(Math.PI * 0.5);
-  spike(56, 3.2, 'rgba(255,255,255,0.95)');
-  g.rotate(Math.PI * 0.25);
-  spike(28, 1.6, 'rgba(255,248,230,0.75)');
-  g.rotate(Math.PI * 0.5);
-  spike(28, 1.6, 'rgba(255,248,230,0.75)');
-  const rg = g.createRadialGradient(0, 0, 0, 0, 0, 18);
-  rg.addColorStop(0, 'rgba(255,255,255,1)');
-  rg.addColorStop(0.35, 'rgba(255,244,220,0.55)');
-  rg.addColorStop(1, 'rgba(255,244,220,0)');
-  g.fillStyle = rg;
-  g.beginPath();
-  g.arc(0, 0, 18, 0, Math.PI * 2);
-  g.fill();
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.needsUpdate = true;
-  return tex;
-}
-
-function stilettoShape(scale = 1) {
-  const sh = new THREE.Shape();
-  const s = scale;
-  sh.moveTo(-0.30 * s, 0);
-  sh.bezierCurveTo(-0.36 * s, 0.22 * s, -0.26 * s, 0.85 * s, -0.11 * s, 1.72 * s);
-  sh.lineTo(0, 2.28 * s);
-  sh.lineTo(0.11 * s, 1.72 * s);
-  sh.bezierCurveTo(0.26 * s, 0.85 * s, 0.36 * s, 0.22 * s, 0.30 * s, 0);
-  sh.closePath();
-  return sh;
-}
-
-function heartShape(s = 1) {
-  const sh = new THREE.Shape();
-  sh.moveTo(0, -0.22 * s);
-  sh.bezierCurveTo(-0.55 * s, 0.28 * s, -0.62 * s, -0.42 * s, 0, -0.85 * s);
-  sh.bezierCurveTo(0.62 * s, -0.42 * s, 0.55 * s, 0.28 * s, 0, -0.22 * s);
-  return sh;
-}
-
-function goldMat() {
-  return new THREE.MeshPhysicalMaterial({
-    color: 0xe2b13a,
-    metalness: 1,
-    roughness: 0.22,
-    envMapIntensity: 1.45,
-    clearcoat: 0.35,
-    clearcoatRoughness: 0.18,
-  });
-}
-
-function diamondMat() {
-  return new THREE.MeshPhysicalMaterial({
-    color: 0xf6fbff,
-    metalness: 0.15,
-    roughness: 0.045,
-    envMapIntensity: 1.8,
-    clearcoat: 1,
-    clearcoatRoughness: 0.04,
-    iridescence: 0.55,
-    iridescenceIOR: 2.2,
-    iridescenceThicknessRange: [120, 420],
-  });
-}
-
-function skinMat() {
-  return new THREE.MeshPhysicalMaterial({
-    color: 0xf3c4b0,
-    roughness: 0.42,
-    metalness: 0.0,
-    sheen: 0.55,
-    sheenColor: new THREE.Color(0xf0a090),
-    sheenRoughness: 0.45,
-    clearcoat: 0.18,
-    clearcoatRoughness: 0.45,
-    envMapIntensity: 0.55,
-  });
-}
-
-function buildNailFinger() {
-  nailFinger = new THREE.Group();
-  nailGlints = [];
-  const glitterMap = makeGlitterNailTex();
-  const starMap = makeStarGlintTex();
-  const gold = goldMat();
-  const gem = diamondMat();
-  const skin = skinMat();
-  const blush = new THREE.MeshPhysicalMaterial({
-    color: 0xe8a898,
-    roughness: 0.48,
-    metalness: 0.0,
-    sheen: 0.4,
-    sheenColor: new THREE.Color(0xd08078),
-    envMapIntensity: 0.4,
-  });
-
-  const pts = [
-    new THREE.Vector2(0.46, 0.00),
-    new THREE.Vector2(0.52, 0.18),
-    new THREE.Vector2(0.54, 0.52),
-    new THREE.Vector2(0.50, 0.95),
-    new THREE.Vector2(0.44, 1.32),
-    new THREE.Vector2(0.36, 1.62),
-    new THREE.Vector2(0.26, 1.82),
-    new THREE.Vector2(0.14, 1.95),
-    new THREE.Vector2(0.00, 2.02),
-  ];
-  const digit = new THREE.Mesh(new THREE.LatheGeometry(pts, 36), skin);
-  digit.rotation.y = Math.PI;
-  nailFinger.add(digit);
-
-  const pad = new THREE.Mesh(
-    new THREE.SphereGeometry(0.38, 22, 16, 0, Math.PI * 2, 0, Math.PI * 0.55),
-    blush,
-  );
-  pad.position.set(0, 1.55, -0.16);
-  pad.scale.set(1.05, 0.72, 0.85);
-  pad.rotation.x = 0.55;
-  nailFinger.add(pad);
-
-  for (const y of [0.42, 0.50, 1.18]) {
-    const crease = new THREE.Mesh(
-      new THREE.TorusGeometry(0.49, 0.010, 8, 28),
-      new THREE.MeshPhysicalMaterial({
-        color: 0xeab5a4,
-        roughness: 0.55,
-        metalness: 0.0,
-        envMapIntensity: 0.25,
-      }),
-    );
-    crease.rotation.x = Math.PI / 2;
-    crease.position.set(0, y, 0.01);
-    crease.scale.set(1.0, 0.82, 1);
-    nailFinger.add(crease);
-  }
-
-  const nailG = new THREE.Group();
-  nailG.position.set(0, 1.70, 0.22);
-  nailG.rotation.x = -0.22;
-  nailFinger.add(nailG);
-
-  const nailBevel = {
-    depth: 0.15,
-    bevelEnabled: true,
-    bevelThickness: 0.035,
-    bevelSize: 0.028,
-    bevelSegments: 3,
-    curveSegments: 28,
-  };
-  const glitterNail = new THREE.Mesh(
-    new THREE.ExtrudeGeometry(stilettoShape(1), nailBevel),
-    new THREE.MeshPhysicalMaterial({
-      map: glitterMap,
-      color: 0xffe6c8,
-      metalness: 0.82,
-      roughness: 0.12,
-      clearcoat: 1,
-      clearcoatRoughness: 0.03,
-      iridescence: 0.55,
-      iridescenceIOR: 1.8,
-      iridescenceThicknessRange: [80, 320],
-      envMapIntensity: 1.75,
-      reflectivity: 1,
-    }),
-  );
-  glitterNail.geometry.translate(0, 0, -0.075);
-  nailG.add(glitterNail);
-
-  const rim = new THREE.Mesh(
-    new THREE.ExtrudeGeometry(stilettoShape(1.07), {
-      depth: 0.05,
-      bevelEnabled: true,
-      bevelThickness: 0.012,
-      bevelSize: 0.012,
-      bevelSegments: 2,
-      curveSegments: 28,
-    }),
-    gold,
-  );
-  rim.geometry.translate(0, 0, -0.028);
-  rim.position.z = -0.02;
-  nailG.add(rim);
-
-  const cuticle = new THREE.Mesh(
-    new THREE.TorusGeometry(0.22, 0.035, 8, 20, Math.PI),
-    blush,
-  );
-  cuticle.position.set(0, 0.02, 0.04);
-  cuticle.rotation.x = Math.PI * 0.15;
-  nailG.add(cuticle);
-
-  function glint(x, y, z, s) {
-    const spr = new THREE.Sprite(new THREE.SpriteMaterial({
-      map: starMap,
-      color: 0xffffff,
-      transparent: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      toneMapped: false,
-    }));
-    spr.position.set(x, y, z);
-    spr.scale.setScalar(s);
-    spr.renderOrder = 8;
-    nailG.add(spr);
-    nailGlints.push(spr);
-  }
-  glint(0, 2.22, 0.12, 0.42);
-  glint(-0.06, 1.35, 0.14, 0.22);
-  glint(0.08, 0.72, 0.13, 0.18);
-
-  const ring = new THREE.Group();
-  ring.position.set(0, 0.40, 0);
-  nailFinger.add(ring);
-
-  const band = new THREE.Mesh(new THREE.TorusGeometry(0.51, 0.038, 10, 36), gold);
-  band.rotation.x = Math.PI / 2;
-  ring.add(band);
-  const braid = new THREE.Mesh(new THREE.TorusGeometry(0.51, 0.016, 8, 48), gold);
-  braid.rotation.x = Math.PI / 2;
-  braid.rotation.z = 0.4;
-  ring.add(braid);
-
-  const butterfly = new THREE.Group();
-  butterfly.position.set(0, 0.02, 0.54);
-  butterfly.rotation.x = -0.15;
-  butterfly.scale.setScalar(1.28);
-  ring.add(butterfly);
-
-  const thorax = new THREE.Mesh(new THREE.CapsuleGeometry(0.035, 0.16, 6, 10), gold);
-  thorax.rotation.z = Math.PI / 2;
-  butterfly.add(thorax);
-  const headB = new THREE.Mesh(new THREE.SphereGeometry(0.04, 12, 10), gold);
-  headB.position.set(0.12, 0, 0);
-  butterfly.add(headB);
-
-  function wing(px, py, rz, sx, sy) {
-    const w = new THREE.Mesh(new THREE.OctahedronGeometry(0.12, 0), gem);
-    w.position.set(px, py, 0.02);
-    w.rotation.z = rz;
-    w.scale.set(sx, sy, 0.28);
-    butterfly.add(w);
-    const set = new THREE.Mesh(
-      new THREE.TorusGeometry(0.08, 0.012, 6, 16),
-      gold,
-    );
-    set.position.copy(w.position);
-    set.rotation.z = rz;
-    set.scale.set(sx * 1.05, sy * 1.05, 1);
-    butterfly.add(set);
-  }
-  wing(0.02, 0.13, 0.45, 1.15, 1.55);
-  wing(0.02, -0.13, -0.45, 1.15, 1.55);
-  wing(-0.05, 0.10, 0.85, 0.85, 1.15);
-  wing(-0.05, -0.10, -0.85, 0.85, 1.15);
-
-  nailCharm = new THREE.Group();
-  nailCharm.position.set(0, -0.02, 0.50);
-  ring.add(nailCharm);
-  const chain = new THREE.Group();
-  chain.position.set(0, 0, 0.02);
-  nailCharm.add(chain);
-  for (let i = 0; i < 5; i++) {
-    const link = new THREE.Mesh(new THREE.TorusGeometry(0.048, 0.012, 6, 12), gold);
-    link.position.y = -0.07 - i * 0.085;
-    link.rotation.y = (i % 2) ? Math.PI / 2 : 0;
-    link.rotation.x = 0.12;
-    chain.add(link);
-  }
-  const heart = new THREE.Mesh(
-    new THREE.ExtrudeGeometry(heartShape(0.42), {
-      depth: 0.07,
-      bevelEnabled: true,
-      bevelThickness: 0.012,
-      bevelSize: 0.012,
-      bevelSegments: 2,
-      curveSegments: 16,
-    }),
-    gem,
-  );
-  heart.geometry.translate(0, 0, -0.035);
-  heart.position.set(0, -0.58, 0.02);
-  heart.rotation.x = 0.2;
-  nailCharm.add(heart);
-  const heartRim = new THREE.Mesh(
-    new THREE.ExtrudeGeometry(heartShape(0.48), {
-      depth: 0.03,
-      bevelEnabled: true,
-      bevelThickness: 0.008,
-      bevelSize: 0.008,
-      bevelSegments: 1,
-      curveSegments: 16,
-    }),
-    gold,
-  );
-  heartRim.geometry.translate(0, 0, -0.015);
-  heartRim.position.copy(heart.position);
-  heartRim.position.z -= 0.02;
-  heartRim.rotation.copy(heart.rotation);
-  nailCharm.add(heartRim);
-  const heartGlint = new THREE.Sprite(new THREE.SpriteMaterial({
-    map: starMap,
-    transparent: true,
-    depthWrite: false,
-    blending: THREE.AdditiveBlending,
-    toneMapped: false,
-  }));
-  heartGlint.position.set(0, -0.58, 0.08);
-  heartGlint.scale.setScalar(0.28);
-  heartGlint.renderOrder = 8;
-  nailCharm.add(heartGlint);
-  nailGlints.push(heartGlint);
-
-  const nailKey = new THREE.PointLight(0xfff0d8, 1.35, 10, 2);
-  nailKey.position.set(-0.4, 2.4, 1.6);
-  nailFinger.add(nailKey);
-
-  nailFinger.userData.contact = new THREE.Vector3(0.04, 3.05, 0.28);
-  nailFinger.userData.flick0 = 0.58;
-  nailFinger.userData.flick1 = 0.655;
-  nailFinger.scale.setScalar(1.18);
-  lighterSpin.add(nailFinger);
-}
-
-const _nfY = new THREE.Vector3();
-const _nfX = new THREE.Vector3();
-const _nfZ = new THREE.Vector3();
-const _nfM = new THREE.Matrix4();
-const _nfQ = new THREE.Quaternion();
-const _nfOff = new THREE.Vector3();
-const _nfContact = new THREE.Vector3();
-const _nfAim = new THREE.Vector3();
-const _nfOrbit = new THREE.Vector3();
-const _nfWheel = new THREE.Vector3();
-const _nfPad = new THREE.Vector3();
-const _nfRest = new THREE.Vector3();
-const _nfPre = new THREE.Vector3();
-
-function nailOrbitPoint(u, hit, out) {
-  const ang = -0.12 + u * 1.28;
-  return out.set(
-    hit.wheelX + Math.cos(ang) * 3.05 + 0.85,
-    hit.wheelY + 1.55 + Math.sin(u * Math.PI) * 0.32,
-    hit.wheelZ + 2.55 + Math.sin(ang) * 0.55,
-  );
-}
-
-function poseNailFinger(t) {
-  if (!nailFinger) return;
-  const hit = lighterSpin.userData.hit;
-  if (!hit) return;
-  const tFlick0 = nailFinger.userData.flick0;
-  const tFlick1 = nailFinger.userData.flick1;
-  nailOrbitPoint(0, hit, _nfRest);
-  nailOrbitPoint(1, hit, _nfPre);
-  _nfWheel.set(
-    hit.wheelX + hit.wheelR * 0.35,
-    hit.wheelY + hit.wheelR * 0.70,
-    hit.wheelZ + hit.wheelW * 0.85,
-  );
-  _nfPad.set(
-    hit.padX + 0.12,
-    hit.padY + 0.52,
-    hit.padZ + 1.05,
-  );
-
-  const glamAim = new THREE.Vector3(hit.wheelX - 0.35, hit.wheelY + 2.4, hit.wheelZ - 0.4);
-  const holdAim = new THREE.Vector3(hit.padX - 0.25, hit.padY + 1.25, hit.padZ + 0.2);
-
-  if (t < tFlick0) {
-    const u = t / tFlick0;
-    const e = u * u * (3 - 2 * u);
-    _nfContact.lerpVectors(_nfRest, _nfPre, e);
-    _nfAim.copy(glamAim);
-  } else if (t < tFlick1) {
-    const u = (t - tFlick0) / (tFlick1 - tFlick0);
-    const e = u * u * u * u;
-    if (u < 0.46) {
-      const k = Math.min(1, e / (0.46 ** 4));
-      _nfContact.lerpVectors(_nfPre, _nfWheel, k);
-      _nfAim.lerpVectors(glamAim, holdAim, k);
-    } else {
-      const k = (u - 0.46) / 0.54;
-      const ek = 1 - (1 - k) * (1 - k) * (1 - k);
-      _nfContact.lerpVectors(_nfWheel, _nfPad, ek);
-      _nfAim.copy(holdAim);
-    }
-  } else if (t < 0.78) {
-    _nfContact.copy(_nfPad);
-    _nfAim.copy(holdAim);
-  } else {
-    const u = (t - 0.78) / 0.22;
-    const e = u * u * (3 - 2 * u);
-    _nfContact.lerpVectors(_nfPad, _nfRest, e);
-    _nfAim.lerpVectors(holdAim, glamAim, e);
-  }
-
-  _nfY.subVectors(_nfAim, _nfContact);
-  if (_nfY.lengthSq() < 1e-8) _nfY.set(-0.2, 1, -0.15);
-  _nfY.normalize();
-  _nfZ.set(0.22, 0.35, 1).normalize();
-  _nfX.crossVectors(_nfY, _nfZ).normalize();
-  if (_nfX.lengthSq() < 1e-8) {
-    _nfZ.set(1, 0, 0);
-    _nfX.crossVectors(_nfY, _nfZ).normalize();
-  }
-  _nfZ.crossVectors(_nfX, _nfY).normalize();
-  _nfM.makeBasis(_nfX, _nfY, _nfZ);
-  _nfQ.setFromRotationMatrix(_nfM);
-  nailFinger.quaternion.copy(_nfQ);
-  const twist = 0.62 + Math.sin(t * Math.PI * 2) * 0.07;
-  nailFinger.rotateOnAxis(new THREE.Vector3(0, 1, 0), twist);
-  _nfOff.copy(nailFinger.userData.contact).applyQuaternion(nailFinger.quaternion);
-  nailFinger.position.copy(_nfContact).sub(_nfOff);
-
-  if (nailCharm) {
-    const flick = (t >= tFlick0 && t <= tFlick1)
-      ? (t - tFlick0) / (tFlick1 - tFlick0)
-      : 0;
-    const lag = flick > 0 ? Math.sin(flick * Math.PI) : Math.sin(t * Math.PI * 2) * 0.14;
-    nailCharm.rotation.x = 0.18 + lag * 0.95;
-    nailCharm.rotation.z = flick > 0 ? (flick - 0.5) * 0.7 : Math.sin(t * 3.1) * 0.12;
-  }
-  const ph = t * Math.PI * 2;
-  for (let i = 0; i < nailGlints.length; i++) {
-    const g = nailGlints[i];
-    const pulse = 0.55 + 0.45 * Math.max(0, Math.sin(ph * 3 + i * 1.7));
-    g.material.opacity = 0.35 + 0.65 * pulse;
-    const base = i === 0 ? 0.42 : i === 1 ? 0.22 : 0.20;
-    g.scale.setScalar(base * (0.75 + 0.45 * pulse));
-  }
-}
-
 function containRoot() {
   stage.scale.setScalar(1);
   stage.position.set(0, 0, 0);
@@ -2454,26 +2122,20 @@ function containRoot() {
   brand.s.visible = false;
   flameGroup.visible = false;
   flameGroup.scale.setScalar(1);
-  if (nailFinger) {
-    nailFinger.visible = true;
-    poseNailFinger(0);
-  }
 
-  /* 1. Fit the lighter + flame + fingertip to the diagonal. Ignore the letters. */
+  /* 1. Fit the lighter + flame to the diagonal. Ignore the letters. */
   stage.updateMatrixWorld(true);
   const viewSpan = 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) * camera.position.z;
   const box = boxFromVisibleMeshes(root, flameGroup);
   expandFlameTip(box);
   expandLighterSweep(box);
-  expandNailSweep(box);
   const spanSize = box.getSize(new THREE.Vector3());
   const span = Math.max(spanSize.x, spanSize.y, 1e-6);
-  stage.scale.setScalar((viewSpan * 0.90) / span);
+  stage.scale.setScalar((viewSpan * 0.88) / span);
   stage.updateMatrixWorld(true);
   const box2 = boxFromVisibleMeshes(root, flameGroup);
   expandFlameTip(box2);
   expandLighterSweep(box2);
-  expandNailSweep(box2);
   const c = box2.getCenter(new THREE.Vector3());
   stage.position.x -= c.x;
   stage.position.y -= c.y;
@@ -2558,30 +2220,36 @@ function applyFrame(fr) {
   const t = (fr - 1) / TOTAL;
   const ph = t * Math.PI * 2;
 
-  /* Thumb at t=0: glamorous fingertip beside an unlit lighter.
-     Slow orbit, then one fast roll+press; flame after the strike. */
-  const flick0 = nailFinger?.userData.flick0 ?? 0.58;
-  const flick1 = nailFinger?.userData.flick1 ?? 0.655;
-  const flickU = t <= flick0 || t >= flick1
-    ? 0
-    : (t - flick0) / (flick1 - flick0);
-  const flickEase = flickU * flickU * flickU * flickU;
-  const sparkOn = trap(t, flick0 - 0.01, flick0 + 0.012, flick1 - 0.01, flick1 + 0.06);
-  const press = trap(t, flick0 + (flick1 - flick0) * 0.38, flick1 - 0.012, 0.78, 0.90);
-  const flameOn = trap(t, flick0 + (flick1 - flick0) * 0.55, flick1, 0.78, 0.90);
-  const wheelRoll = t < flick0
-    ? 0
-    : t < flick1
-      ? flickEase * 13.5
-      : trap(t, flick1, flick1, 0.78, 0.96) * 13.5;
+  /* Hero at t=0: flame on, sparks halfway up the tongue, button pressed.
+     Sparks always strike a little before the flame. */
+  const strikeSpin = (t0, t1) => {
+    const tt = t < t0 - 0.5 ? t + 1 : t;
+    if (tt <= t0) return 0;
+    if (tt >= t1) return 1;
+    const u = (tt - t0) / (t1 - t0);
+    return u * u * (3 - 2 * u);
+  };
+  const sparkOn = Math.max(
+    trapLoop(t, -0.14, -0.11, 0.05, 0.14),
+    trapLoop(t, 0.36, 0.39, 0.52, 0.62),
+  );
+  const press = Math.max(
+    trapLoop(t, -0.05, -0.02, 0.26, 0.34),
+    trapLoop(t, 0.45, 0.48, 0.76, 0.84),
+  );
+  const flameOn = Math.max(
+    trapLoop(t, -0.05, -0.015, 0.26, 0.34),
+    trapLoop(t, 0.46, 0.50, 0.76, 0.84),
+  );
 
-  lighterSpin.rotation.y = -0.22 + Math.sin(ph) * 0.06;
-  lighterSpin.rotation.x = Math.sin(ph * 2) * 0.035;
-  lighterPivot.rotation.x = 0.48 + Math.sin(ph) * 0.02;
-  lighterPivot.rotation.z = -0.72 + Math.sin(ph) * 0.015;
+  lighterSpin.rotation.y = -0.22 + Math.sin(ph) * 0.08;
+  lighterSpin.rotation.x = Math.sin(ph * 2) * 0.05;
+  lighterPivot.rotation.x = 0.48 + Math.sin(ph) * 0.03;
+  lighterPivot.rotation.z = -0.72 + Math.sin(ph) * 0.02;
 
-  sparkWheel.rotation.y = wheelRoll;
-  poseNailFinger(t);
+  sparkWheel.rotation.y = t * 4.2
+    + strikeSpin(0.84, 0.93) * 11
+    + strikeSpin(0.34, 0.43) * 11;
   /* Press down the long body axis — not sideways. */
   lever.rotation.x = 0;
   lever.rotation.z = 0;
@@ -2603,7 +2271,8 @@ function applyFrame(fr) {
   }
 
   const sparkBursts = [
-    { t0: flick0 - 0.008, flight: 0.18 },
+    { t0: -0.125, flight: 0.20 },
+    { t0: 0.365, flight: 0.20 },
   ];
   for (const sp of sparks) {
     if (sp.kind === 'flash') {
@@ -2618,7 +2287,10 @@ function applyFrame(fr) {
       sp.mesh.material.opacity = 0.30 + 0.40 * u;
       continue;
     }
-    const k = sparkFlightK(t, sparkBursts[0].t0, sp.delay, sparkBursts[0].flight);
+    const k = Math.max(
+      sparkFlightK(t, sparkBursts[0].t0, sp.delay, sparkBursts[0].flight),
+      sparkFlightK(t, sparkBursts[1].t0, sp.delay, sparkBursts[1].flight),
+    );
     if (k < 0 || sparkOn < 0.02) {
       sp.mesh.visible = false;
       continue;
@@ -2723,8 +2395,13 @@ function applyFrame(fr) {
   stage.scale.setScalar(bs * (1 + Math.sin(ph * 2) * 0.004));
 
   camera.lookAt(0, 0, 0);
+  poseNailCard(t, ph);
   renderer.clear(true, true, true);
   renderer.render(scene, camera);
+  if (nailCard) {
+    renderer.clearDepth();
+    renderer.render(nailScene, nailCam);
+  }
 }
 
 window.setFrame = (fr) => { applyFrame(fr); return fr; };
@@ -2734,15 +2411,19 @@ window.ready = false;
 (async () => {
   try {
     buildLighter();
-    buildNailFinger();
     buildLetters();
     buildFx();
     containRoot();
+    const [fingerTex, heartTex] = await Promise.all([
+      loadTex('./nail_no_heart.png'),
+      loadTex('./nail_heart.png'),
+    ]);
+    buildNailCard(fingerTex, heartTex);
     applyFrame(1);
     window.ready = true;
     console.log('LIGHTER_NAIL_READY');
   } catch (e) {
-    console.error('LIGHTER_FAIL', e);
+    console.error('LIGHTER_NAIL_FAIL', e);
   }
 })();
 </script>
