@@ -1110,7 +1110,7 @@ function bicShell(width, height, depth, mat, radius) {
   return new THREE.Mesh(geo, mat);
 }
 
-/** Front profile of the chrome hood: big round on the top-right (wheel well). */
+/** Front profile of the chrome hood: round top-right wheel well, square top-left. */
 function chromeHoodFrontShape(w, h, rTL, rTR, rBR, rBL) {
   const s = new THREE.Shape();
   const hw = w * 0.5;
@@ -1204,7 +1204,6 @@ function buildLighter() {
 
   const wheelR = 0.66;
   const wheelW = 0.48;
-  const padH = 0.56;
   const pressGap = 0.16;
   const overlap = 0.22;
   const chromeBottom = platformY - overlap;
@@ -1217,15 +1216,17 @@ function buildLighter() {
   const wheelY = chromeTop - wheelR * (2 / 3);
   const wheelRight = wheelX + wheelR;
 
-  /* Pad sticks to the wheel and continues left under the chrome; visible press face is to the right. */
+  /* Pad sticks to the wheel, tucks left under chrome, and drops until its bottom sits under the chrome. */
   const padLeft = wheelX + wheelR * 0.08;
   const padRight = blackW * 0.5 - 0.04;
   const visibleX = (wheelRight + padRight) * 0.5;
   const stemH = pressGap + headH * 0.40;
-  const padLift = 0.14;
+  const padTop = platformY + 0.78;
+  const padBottom = chromeBottom + 0.04;
+  const padH = padTop - padBottom;
 
-  lever = buildRedFork(padLeft, padRight, blackD * 0.92, blackR, visibleX, stemH, padH);
-  const restY = platformY + padLift + padH * 0.5;
+  lever = buildRedFork(padLeft, padRight, blackD * 1.12, blackR, visibleX, stemH, padH);
+  const restY = (padTop + padBottom) * 0.5;
   lever.position.set(0, restY, -0.16);
   lighterSpin.add(lever);
   lever.userData.restY = restY;
