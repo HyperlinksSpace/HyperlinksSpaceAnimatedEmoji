@@ -1001,7 +1001,7 @@ function makeLetter3D(ch) {
 function buildRedFork(padLeft, padRight, depth, radius, stemX, stemH, padH = 0.34) {
   const g = new THREE.Group();
   const red = plasticRed();
-  const padW = Math.max(0.40, padRight - padLeft);
+  const padW = Math.max(0.36, padRight - padLeft);
   const pad = new THREE.Mesh(
     new RoundedBoxGeometry(padW, padH, depth, 5, Math.min(0.12, radius * 0.18)),
     red,
@@ -1176,21 +1176,20 @@ function buildLighter() {
   const collar = new THREE.Group();
   lighterSpin.add(collar);
 
-  const headH = 1.68;
+  const headH = 1.12;
   const blackW = bodyW * 1.01;
   const blackD = bodyD * 1.02;
   const blackR = bodyR + 0.02;
-  const headTop = bodyH * 0.5 + 1.22 * 0.92;
+  const headTop = bodyH * 0.5 + headH * 0.72;
   const head = bicShell(blackW, headH, blackD, plasticBlack(), blackR);
   head.position.y = headTop - headH * 0.5;
   head.userData.part = 'hood';
   collar.add(head);
 
   const sleevePad = 0.10;
-  /* Illustration: chrome ~70% from the left; remaining ~30% is the pressable button. */
-  const wrapW = blackW * 0.70 + sleevePad;
+  /* Chrome ~68% so the wheel peek and a real button bay both fit on the right. */
+  const wrapW = blackW * 0.68 + sleevePad;
   const wrapD = blackD + sleevePad;
-  const wrapR = blackR + sleevePad * 0.45;
   const hoodX = -blackW * 0.5 - sleevePad * 0.4 + wrapW * 0.5;
   const hoodRight = hoodX + wrapW * 0.5;
   const hoodD = wrapD;
@@ -1205,28 +1204,29 @@ function buildLighter() {
 
   const wheelR = 0.66;
   const wheelW = 0.48;
-  const padH = 0.36;
-  const pressGap = 0.14;
-  const overlap = 0.28;
+  const padH = 0.56;
+  const pressGap = 0.16;
+  const overlap = 0.22;
   const chromeBottom = platformY - overlap;
   const rTR = 0.78;
-  /* Shorter hood; wheel stays in the same place on the chrome (top-right third peeks). */
-  const chromeH = rTR + 0.70;
+  /* A little taller than the last pass; wheel still peeks top-right third. */
+  const chromeH = rTR + 0.90;
   const chromeTop = chromeBottom + chromeH;
   const hoodY = (chromeTop + chromeBottom) * 0.5;
   const wheelX = hoodRight - wheelR * (2 / 3);
   const wheelY = chromeTop - wheelR * (2 / 3);
+  const wheelRight = wheelX + wheelR;
 
-  /* Visible pad on top of the black, in the open 30% bay — not sunk into the collar. */
-  const padLeft = hoodRight - 0.08;
+  /* Pad sticks to the wheel and continues left under the chrome; visible press face is to the right. */
+  const padLeft = wheelX + wheelR * 0.08;
   const padRight = blackW * 0.5 - 0.04;
-  const visibleX = (padLeft + padRight) * 0.5;
-  const stemH = pressGap + headH * 0.36;
-  const padLift = 0.08;
+  const visibleX = (wheelRight + padRight) * 0.5;
+  const stemH = pressGap + headH * 0.40;
+  const padLift = 0.14;
 
   lever = buildRedFork(padLeft, padRight, blackD * 0.92, blackR, visibleX, stemH, padH);
   const restY = platformY + padLift + padH * 0.5;
-  lever.position.set(0, restY, 0);
+  lever.position.set(0, restY, -0.16);
   lighterSpin.add(lever);
   lever.userData.restY = restY;
   lever.userData.restZ = lever.position.z;
@@ -1240,7 +1240,7 @@ function buildLighter() {
   stemWell.position.set(visibleX, platformY - 0.04, 0);
   lighterSpin.add(stemWell);
 
-  const wheelZ = -0.06;
+  const wheelZ = 0.14;
   const hood = chromeHood(wrapW, chromeH, wrapD, 0.05, rTR, 0.12, 0.14, hoodChromeMat());
   hood.position.set(hoodX, hoodY, 0);
   collar.add(hood);
