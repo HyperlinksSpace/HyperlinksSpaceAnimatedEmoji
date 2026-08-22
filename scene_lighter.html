@@ -434,6 +434,24 @@ function plasticRed() {
   });
 }
 
+/** Same family as the pad, a step darker so the plunger reads as a separate part. */
+function plasticRedDark() {
+  return new THREE.MeshPhysicalMaterial({
+    color: 0x8a0908,
+    roughness: 0.06,
+    metalness: 0.05,
+    clearcoat: 1,
+    clearcoatRoughness: 0.04,
+    ior: 1.58,
+    specularIntensity: 1,
+    specularColor: new THREE.Color(0xffffff),
+    envMapIntensity: 1.8,
+    emissive: 0x4a0604,
+    emissiveIntensity: 0.12,
+    toneMapped: false,
+  });
+}
+
 function plasticBlack() {
   return new THREE.MeshPhysicalMaterial({
     color: 0x020203,
@@ -1042,35 +1060,36 @@ function makeLetter3D(ch) {
   return g;
 }
 
-/** Red gas lever: left tucked under chrome, visible part comes out the right. */
-function buildRedFork(width, depth) {
+/** Red gas lever: platform matches the black collar top; a stem plunges into the black on press. */
+function buildRedFork(width, depth, radius, stemX, stemH) {
   const g = new THREE.Group();
   const red = plasticRed();
-  const padW = width;
-  const padH = 0.34;
-  const padD = depth;
+  const padH = 0.14;
   const pad = new THREE.Mesh(
-    new RoundedBoxGeometry(padW, padH, padD, 5, 0.07),
+    new RoundedBoxGeometry(width, padH, depth, 5, Math.min(0.10, radius * 0.16)),
     red,
   );
   g.add(pad);
-  /* Slight downward lip on the far-right thumb edge (schematic). */
-  const lip = new THREE.Mesh(
-    new RoundedBoxGeometry(padW * 0.22, 0.08, padD * 0.92, 3, 0.04),
-    red,
+  /* Plunger: same rounded-rect family as the pad, a step smaller. */
+  const stemW = width * 0.30;
+  const stemD = depth * 0.78;
+  const stem = new THREE.Mesh(
+    new RoundedBoxGeometry(stemW, stemH, stemD, 5, Math.min(0.08, radius * 0.12)),
+    plasticRedDark(),
   );
-  lip.position.set(padW * 0.36, -padH * 0.28, 0);
-  g.add(lip);
+  stem.position.set(stemX, -padH * 0.5 - stemH * 0.5, 0);
+  g.add(stem);
   for (let i = 0; i < 3; i++) {
     const ridge = new THREE.Mesh(
-      new RoundedBoxGeometry(padW * 0.42, 0.04, 0.07, 2, 0.02),
+      new RoundedBoxGeometry(Math.min(0.42, width * 0.18), 0.025, 0.06, 2, 0.015),
       red,
     );
-    ridge.position.set(padW * 0.18, padH * 0.38, -padD * 0.22 + i * 0.16);
+    ridge.position.set(stemX, padH * 0.42, -0.16 + i * 0.16);
     g.add(ridge);
   }
   g.userData.padH = padH;
-  g.userData.padD = padD;
+  g.userData.padD = depth;
+  g.userData.stemH = stemH;
   return g;
 }
 
@@ -1087,22 +1106,31 @@ function knurlWheel(radius = 0.34, width = 0.52) {
     toneMapped: false,
   });
   const core = new THREE.Mesh(
-    new THREE.CylinderGeometry(radius * 0.72, radius * 0.72, width * 0.72, 36),
+    new THREE.CylinderGeometry(radius * 0.62, radius * 0.62, width * 0.78, 28),
     steel,
   );
   grp.add(core);
-  const n = 18;
+  const knurl = new THREE.MeshPhysicalMaterial({
+    color: 0x6a737c,
+    roughness: 0.38,
+    metalness: 0.92,
+    envMapIntensity: 1.4,
+    emissive: 0x1a2026,
+    emissiveIntensity: 0.22,
+    toneMapped: false,
+  });
+  const n = 10;
   for (let i = 0; i < n; i++) {
     const a = (i / n) * Math.PI * 2;
     const ridge = new THREE.Mesh(
-      new THREE.BoxGeometry(radius * 0.22, width * 0.72, radius * 0.22),
-      steel,
+      new THREE.BoxGeometry(radius * 0.40, width * 0.86, radius * 0.34),
+      knurl,
     );
-    ridge.position.set(Math.sin(a) * radius * 0.88, 0, Math.cos(a) * radius * 0.88);
+    ridge.position.set(Math.sin(a) * radius * 0.86, 0, Math.cos(a) * radius * 0.86);
     ridge.rotation.y = a;
     grp.add(ridge);
   }
-  const cheekGeo = new THREE.CylinderGeometry(radius * 0.96, radius * 0.96, 0.07, 32);
+  const cheekGeo = new THREE.CylinderGeometry(radius * 0.88, radius * 0.88, 0.07, 28);
   const cheekA = new THREE.Mesh(cheekGeo, chromeMat());
   cheekA.position.y = width * 0.42;
   const cheekB = cheekA.clone();
@@ -1184,22 +1212,32 @@ function buildLighter() {
   const overlap = headH * (1 / 3);
   const wheelR = 0.75;
   const wheelW = 0.48;
-  const padH = 0.34;
-  const pressGap = 0.20;
+  const blackW = bodyW * 1.01;
+  const blackD = bodyD * 1.02;
+  const blackR = bodyR + 0.02;
+  const padH = 0.14;
+  const pressGap = 0.28;
   const hoodX = -bodyW * 0.5 + hoodW * 0.5;
   const hoodRight = hoodX + hoodW * 0.5;
+  const visibleX = (hoodRight + blackW * 0.5) * 0.5;
+  const stemH = pressGap + headH * 0.48;
 
-  /* Button sits ON the black collar — gap when released, flush on top when pressed. */
-  const padW = bodyW * 0.32;
-  const padD = bodyD * 0.72;
-  lever = buildRedFork(padW, padD);
-  lever.userData.padH = padH;
+  /* Platform matches the black collar top. Visible right sits on the black, not on the chrome. */
+  lever = buildRedFork(blackW, blackD, blackR, visibleX, stemH);
   const restY = headTop + pressGap + padH * 0.5;
-  lever.position.set(hoodRight + padW * 0.40, restY, 0);
+  lever.position.set(0, restY, 0);
   lighterSpin.add(lever);
   lever.userData.restY = restY;
   lever.userData.restZ = lever.position.z;
   lever.userData.pressGap = pressGap;
+
+  /* Dark well in the black so the stem reads as entering it. */
+  const stemWell = new THREE.Mesh(
+    new THREE.BoxGeometry(blackW * 0.34, 0.10, blackD * 0.82),
+    new THREE.MeshBasicMaterial({ color: 0x050506, toneMapped: false }),
+  );
+  stemWell.position.set(visibleX, headTop - 0.04, 0);
+  lighterSpin.add(stemWell);
 
   /* Wheel rests on the button; 1/3 of each diameter shows at the right and the top of the chrome. */
   const buttonTop = restY + padH * 0.5;
@@ -1224,13 +1262,6 @@ function buildLighter() {
   cuff.position.set(hoodX, headTop - overlap * 0.5, 0);
   cuff.userData.part = 'hood';
   lighterSpin.add(cuff);
-  const cuffRight = new THREE.Mesh(
-    new RoundedBoxGeometry(0.16, overlap, bodyD * 1.18, 2, 0.05),
-    hoodChromeMat(),
-  );
-  cuffRight.position.set(hoodX + hoodW * 0.5 - 0.04, headTop - overlap * 0.5, 0);
-  cuffRight.userData.part = 'hood';
-  lighterSpin.add(cuffRight);
 
   chromeShine = makeInsetGlance(0.28, hoodH * 0.70, 1.18);
   chromeShine.position.set(hoodX - 0.12, hoodY + 0.06, hoodD * 0.52);
@@ -1843,7 +1874,7 @@ function applyFrame(fr) {
   lever.rotation.x = 0;
   lever.rotation.z = 0;
   lever.position.y = (lever.userData.restY ?? lever.position.y)
-    - (lever.userData.pressGap ?? 0.20) * press;
+    - (lever.userData.pressGap ?? 0.28) * press;
   lever.position.z = lever.userData.restZ ?? lever.position.z;
 
   const flick = 0.9 + 0.1 * Math.sin(ph * 8);
