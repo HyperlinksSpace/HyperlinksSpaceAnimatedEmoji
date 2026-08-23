@@ -63,6 +63,9 @@
       min-height: 280px;
     }
     .bg.dark { background: #0e1621; }
+    .bg.violet { background: linear-gradient(180deg, #4A27FF 0%, #070218 100%); color: #eee8ff; }
+    .bg.chat { background: linear-gradient(180deg, #E11D74 0%, #14020C 100%); color: #ffe8f2; }
+    .bg.bot { background: linear-gradient(180deg, #0077FF 0%, #021018 100%); color: #e8f2ff; }
     .bg.light { background: #f2f0ea; color: #1c1c1c; }
     .bg.green { background: #3f9a5a; color: #06240f; }
     .bg label {
@@ -107,7 +110,7 @@
     then visit <code>http://localhost:5173/preview.html</code>
   </p>
 
-  <section class="variant" data-emoji="hyperlinks-space-emoji.webm" data-sticker="hyperlinks-space-sticker.webm">
+  <section class="variant" data-pack="main" data-emoji="hyperlinks-space-emoji.webm" data-sticker="hyperlinks-space-sticker.webm">
     <header>
       <h2>Main</h2>
       <div class="files">emoji · sticker</div>
@@ -155,8 +158,24 @@
     <div class="bgs"></div>
   </section>
 
+  <section class="variant" data-emoji="hyperlinks-space-emoji-coil.webm" data-sticker="hyperlinks-space-sticker-coil.webm">
+    <header>
+      <h2>Coil</h2>
+      <div class="files">emoji-coil · sticker-coil</div>
+    </header>
+    <div class="bgs"></div>
+  </section>
+
   <script>
     const BGS = [
+      ['dark', 'Telegram dark'],
+      ['light', 'Light chat'],
+      ['green', 'Green chat'],
+    ];
+    const MAIN_BGS = [
+      ['violet', 'Pack / profile ★ #4A27FF → #070218'],
+      ['chat', 'Chat ★ #E11D74 → #14020C'],
+      ['bot', 'Bot ★ #0077FF → #021018'],
       ['dark', 'Telegram dark'],
       ['light', 'Light chat'],
       ['green', 'Green chat'],
@@ -177,7 +196,8 @@
       const emoji = section.dataset.emoji;
       const sticker = section.dataset.sticker;
       const host = section.querySelector('.bgs');
-      host.innerHTML = BGS.map(([cls, title]) => `
+      const bgs = section.dataset.pack === 'main' ? MAIN_BGS : BGS;
+      host.innerHTML = bgs.map(([cls, title]) => `
         <div class="bg ${cls}">
           <label>${title}</label>
           <div class="row">

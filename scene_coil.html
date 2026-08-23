@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Hyperlinks.SPACE — Coil porn emoji</title>
+  <style>
+    html, body { margin: 0; background: transparent; overflow: hidden; }
+    canvas { display: block; width: 512px; height: 512px; background: transparent; }
+  </style>
+</head>
+<body>
+<script type="importmap">
+{
+  "imports": {
+    "three": "./node_modules/three/build/three.module.js"
+  }
+}
+</script>
+<script type="module">
+/**
+ * Isolated exotic vape coil.
+ * Shape: 5-wrap helix + leads (last reference photo).
+ * Wiring: 2 staggered cores, Kanthal fuse zipper, ribbon shell, alien counter-wrap.
+ */
+import * as THREE from 'three';
+
+const SIZE = 512;
+const TOTAL = 90;
+
+const renderer = new THREE.WebGLRenderer({
+  antialias: true,
+  alpha: true,
+  preserveDrawingBuffer: true,
+  powerPreference: 'high-performance',
+});
+renderer.setSize(SIZE, SIZE, false);
+renderer.setPixelRatio(2);
+renderer.setClearColor(0x000000, 0);
+renderer.autoClear = true;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.12;
+document.body.appendChild(renderer.domElement);
+
+const pmrem = new THREE.PMREMGenerator(renderer);
+const scene = new THREE.Scene();
+
+function makeStudioEnv() {
+  const c = document.createElement('canvas');
+  c.width = 1024;
+  c.height = 512;
+  const g = c.getContext('2d');
+  const sky = g.createLinearGradient(0, 0, 0, 512);
+  sky.addColorStop(0.00, '#e8eef4');
+  sky.addColorStop(0.28, '#8b95a2');
+  sky.addColorStop(0.62, '#3a424c');
+  sky.addColorStop(1.00, '#14181e');
+  g.fillStyle = sky;
+  g.fillRect(0, 0, 1024, 512);
+  const win = g.createLinearGradient(160, 0, 268, 0);
+  win.addColorStop(0, 'rgba(20,24,30,0)');
+  win.addColorStop(0.18, '#ffffff');
+  win.addColorStop(0.5, '#ffffff');
+  win.addColorStop(0.82, '#ffffff');
+  win.addColorStop(1, 'rgba(20,24,30,0)');
+  g.fillStyle = win;
+  g.fillRect(168, 8, 96, 496);
+  g.fillStyle = '#ffffff';
+  g.fillRect(208, 0, 8, 512);
+  const win2 = g.createLinearGradient(620, 0, 700, 0);
+  win2.addColorStop(0, 'rgba(20,24,30,0)');
+  win2.addColorStop(0.4, '#d8e0ea');
+  win2.addColorStop(0.6, '#d8e0ea');
+  win2.addColorStop(1, 'rgba(20,24,30,0)');
+  g.fillStyle = win2;
+  g.fillRect(628, 24, 64, 460);
+  g.fillStyle = '#2a323c';
+  g.fillRect(0, 430, 1024, 82);
+  const tex = new THREE.CanvasTexture(c);
+  tex.mapping = THREE.EquirectangularReflectionMapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.needsUpdate = true;
+  return tex;
+}
+scene.environment = pmrem.fromEquirectangular(makeStudioEnv()).texture;
+scene.environmentIntensity = 1.05;
+
+const camera = new THREE.PerspectiveCamera(30, 1, 0.05, 80);
+camera.position.set(0.55, 0.42, 9.4);
+
+scene.add(new THREE.AmbientLight(0x6a7380, 0.28));
+const key = new THREE.DirectionalLight(0xfff4e8, 2.35);
+key.position.set(-4.2, 5.6, 6.2);
+scene.add(key);
+const fill = new THREE.DirectionalLight(0x9bb8ff, 0.55);
+fill.position.set(5.4, 1.2, 3.2);
+scene.add(fill);
+const rim = new THREE.DirectionalLight(0xc8e4ff, 1.15);
+rim.position.set(2.2, 3.4, -5.5);
+scene.add(rim);
+const heatLight = new THREE.PointLight(0xff6a18, 0, 8, 1.6);
+scene.add(heatLight);
+
+const root = new THREE.Group();
+scene.add(root);
+const stage = new THREE.Group();
+root.add(stage);
+
+function trap(t, a, b, c, d) {
+  if (t <= a || t >= d) return 0;
+  if (t < b) {
+    const u = (t - a) / (b - a);
+    return u * u * (3 - 2 * u);
+  }
+  if (t < c) return 1;
+  const u = (t - c) / (d - c);
+  return 1 - u * u * (3 - 2 * u);
+}
+
+function metalMat(hex, roughness) {
+  return new THREE.MeshPhysicalMaterial({
+    color: hex,
+    metalness: 1,
+    roughness,
+    envMapIntensity: 1.15,
+    iridescence: 0.2,
+    iridescenceIOR: 1.35,
+    iridescenceThicknessRange: [120, 420],
+    clearcoat: 0.18,
+    clearcoatRoughness: 0.28,
+    specularIntensity: 1,
+  });
+}
+
+const mats = {
+  ss: metalMat(0xc9d0d6, 0.26),
+  ni80: metalMat(0xb8c2cc, 0.22),
+  kanthal: metalMat(0xc4c0b8, 0.30),
+  ribbon: metalMat(0xd0d4d8, 0.20),
+  ni90: metalMat(0xc8ced4, 0.18),
+};
+
+const metalSpec = {
+  ss: { mat: mats.ss, lag: 0.28, glowMul: 1.15 },
+  ni80: { mat: mats.ni80, lag: 0.00, glowMul: 1.55 },
+  kanthal: { mat: mats.kanthal, lag: 0.16, glowMul: 1.05 },
+  ribbon: { mat: mats.ribbon, lag: 0.22, glowMul: 0.90 },
+  ni90: { mat: mats.ni90, lag: -0.04, glowMul: 1.70 },
+};
+
+const OX = {
+  ss: [0xc9d0d6, 0xe6d39a, 0xc9a24a, 0x7a4a22, 0x2f6cb0, 0x6a3a88, 0xd4b56a],
+  ni80: [0xb8c2cc, 0x7aa4d0, 0x3a5cff, 0x7a18c8, 0xe03a9a, 0xffb020],
+  kanthal: [0xc4c0b8, 0xd4a84a, 0xc44a14, 0x2a68ff, 0x9018e8, 0xff4aa8, 0xffd24a],
+  ribbon: [0xd0d4d8, 0xe8c45c, 0x8a4a12, 0x2a4a9a, 0xc9a020, 0x6a2a88],
+  ni90: [0xc8ced4, 0x66e0ff, 0x3a40ff, 0xc020e8, 0xff2d7a, 0xffcc44],
+};
+
+function colorRamp(arr, t) {
+  const u = THREE.MathUtils.clamp(t, 0, 1) * (arr.length - 1);
+  const i = Math.min(arr.length - 2, Math.floor(u));
+  const f = u - i;
+  const c = new THREE.Color(arr[i]);
+  c.lerp(new THREE.Color(arr[i + 1]), f);
+  return c;
+}
+
+function helixCenterline() {
+  const wraps = 5;
+  const radius = 1.18;
+  const pitch = 0.46;
+  const height = wraps * pitch;
+  const lead = 1.42;
+  const nHelix = 240;
+  const helix = [];
+  for (let i = 0; i <= nHelix; i++) {
+    const t = i / nHelix;
+    const a = t * wraps * Math.PI * 2;
+    helix.push(new THREE.Vector3(
+      Math.cos(a) * radius,
+      (t - 0.5) * height,
+      Math.sin(a) * radius,
+    ));
+  }
+  const tanIn = helix[1].clone().sub(helix[0]).normalize();
+  const tanOut = helix[nHelix].clone().sub(helix[nHelix - 1]).normalize();
+  const leadIn = [];
+  const leadOut = [];
+  for (let i = 8; i >= 1; i--) {
+    const u = i / 8;
+    const p = helix[0].clone().addScaledVector(tanIn, -lead * u);
+    p.x += (1 - u) * 0.12;
+    p.y -= (1 - u) * 0.08;
+    leadIn.push(p);
+  }
+  for (let i = 1; i <= 8; i++) {
+    const u = i / 8;
+    const p = helix[nHelix].clone().addScaledVector(tanOut, lead * u);
+    p.x -= (1 - u) * 0.04;
+    p.y += u * 0.06;
+    leadOut.push(p);
+  }
+  return new THREE.CatmullRomCurve3([...leadIn, ...helix, ...leadOut], false, 'centripetal');
+}
+
+function framesOf(curve, n) {
+  const pts = [];
+  const tangents = [];
+  for (let i = 0; i <= n; i++) {
+    const u = i / n;
+    pts.push(curve.getPointAt(u));
+    tangents.push(curve.getTangentAt(u).normalize());
+  }
+  const normals = [];
+  const binormals = [];
+  const N = new THREE.Vector3();
+  if (Math.abs(tangents[0].y) < 0.92) {
+    N.crossVectors(tangents[0], new THREE.Vector3(0, 1, 0)).normalize();
+  } else {
+    N.crossVectors(tangents[0], new THREE.Vector3(1, 0, 0)).normalize();
+  }
+  for (let i = 0; i <= n; i++) {
+    if (i > 0) {
+      const axis = new THREE.Vector3().crossVectors(tangents[i - 1], tangents[i]);
+      const len = axis.length();
+      if (len > 1e-7) {
+        axis.multiplyScalar(1 / len);
+        const ang = Math.acos(THREE.MathUtils.clamp(tangents[i - 1].dot(tangents[i]), -1, 1));
+        N.applyAxisAngle(axis, ang);
+      }
+      N.addScaledVector(tangents[i], -N.dot(tangents[i])).normalize();
+    }
+    normals.push(N.clone());
+    binormals.push(new THREE.Vector3().crossVectors(tangents[i], N).normalize());
+  }
+  return { pts, tangents, normals, binormals };
+}
+
+function curveFrom(points) {
+  return new THREE.CatmullRomCurve3(points, false, 'catmullrom', 0.12);
+}
+
+function addTube(points, radius, tubular, radial, mat) {
+  const geo = new THREE.TubeGeometry(curveFrom(points), tubular, radius, radial, false);
+  geo.computeVertexNormals();
+  const mesh = new THREE.Mesh(geo, mat);
+  stage.add(mesh);
+  return mesh;
+}
+
+function offsetPoints(fr, x, y) {
+  const out = [];
+  for (let i = 0; i < fr.pts.length; i++) {
+    out.push(
+      fr.pts[i].clone()
+        .addScaledVector(fr.normals[i], x)
+        .addScaledVector(fr.binormals[i], y),
+    );
+  }
+  return out;
+}
+
+function wrapAround(centerPts, fr, radius, turns, phase) {
+  const out = [];
+  const n = centerPts.length - 1;
+  for (let i = 0; i <= n; i++) {
+    const u = i / n;
+    const ang = u * turns * Math.PI * 2 + phase;
+    const r = radius + 0.003 * Math.sin(u * 17.0 + phase);
+    out.push(
+      centerPts[i].clone()
+        .addScaledVector(fr.normals[i], Math.cos(ang) * r)
+        .addScaledVector(fr.binormals[i], Math.sin(ang) * r),
+    );
+  }
+  return out;
+}
+
+function zipper(aPts, bPts, fr, turns, phase, amp) {
+  const out = [];
+  const n = aPts.length - 1;
+  for (let i = 0; i <= n; i++) {
+    const u = i / n;
+    const ang = u * turns * Math.PI * 2 + phase;
+    const w = 0.5 + 0.5 * Math.cos(ang);
+    const p = aPts[i].clone().lerp(bPts[i], w);
+    p.addScaledVector(fr.binormals[i], Math.sin(ang) * amp);
+    p.addScaledVector(fr.normals[i], Math.sin(ang * 2) * amp * 0.18);
+    out.push(p);
+  }
+  return out;
+}
+
+const SAMPLES = 360;
+const CORE_R = 0.054;
+const CORE_SEP = 0.064;
+const STAGGER_R = 0.017;
+const STAGGER_TURNS = 58;
+const FUSE_R = 0.014;
+const RIBBON_R = 0.029;
+const RIBBON_TURNS = 36;
+const ALIEN_R = 0.012;
+const ALIEN_TURNS = 44;
+
+const centerline = helixCenterline();
+const coilFrames = framesOf(centerline, SAMPLES);
+const coreL = offsetPoints(coilFrames, -CORE_SEP, 0);
+const coreR = offsetPoints(coilFrames, CORE_SEP, 0);
+const bundleR = CORE_SEP + CORE_R;
+
+addTube(coreL, CORE_R, 280, 10, mats.ss);
+addTube(coreR, CORE_R, 280, 10, mats.ss);
+addTube(
+  wrapAround(coreL, coilFrames, CORE_R + STAGGER_R * 0.92, STAGGER_TURNS, 0.0),
+  STAGGER_R, 460, 7, mats.ni80,
+);
+addTube(
+  wrapAround(coreR, coilFrames, CORE_R + STAGGER_R * 0.92, STAGGER_TURNS, Math.PI * 0.92),
+  STAGGER_R, 460, 7, mats.ni80,
+);
+addTube(
+  zipper(coreL, coreR, coilFrames, STAGGER_TURNS, Math.PI * 0.5, 0.01),
+  FUSE_R, 460, 6, mats.kanthal,
+);
+addTube(
+  wrapAround(coilFrames.pts, coilFrames, bundleR + CORE_R + 0.012, RIBBON_TURNS, 0.35),
+  RIBBON_R, 400, 8, mats.ribbon,
+);
+
+const alienPts = [];
+const nAlien = coilFrames.pts.length - 1;
+for (let i = 0; i <= nAlien; i++) {
+  const u = i / nAlien;
+  const ang = -u * ALIEN_TURNS * Math.PI * 2 + 0.7;
+  const r = bundleR + CORE_R + 0.03;
+  alienPts.push(
+    coilFrames.pts[i].clone()
+      .addScaledVector(coilFrames.normals[i], Math.cos(ang) * r)
+      .addScaledVector(coilFrames.binormals[i], Math.sin(ang) * r),
+  );
+}
+addTube(alienPts, ALIEN_R, 400, 6, mats.ni90);
+
+function addCap(p, mat) {
+  const s = new THREE.Mesh(new THREE.SphereGeometry(CORE_R * 1.05, 12, 10), mat);
+  s.position.copy(p);
+  stage.add(s);
+}
+addCap(coreL[0], mats.ss);
+addCap(coreR[0], mats.ss);
+addCap(coreL[coreL.length - 1], mats.ss);
+addCap(coreR[coreR.length - 1], mats.ss);
+
+(function contain() {
+  stage.rotation.set(0.42, 0.58, -0.52);
+  const box = new THREE.Box3().setFromObject(stage);
+  const size = box.getSize(new THREE.Vector3());
+  const maxDim = Math.max(size.x, size.y, size.z);
+  stage.scale.setScalar(6.15 / maxDim);
+  box.setFromObject(stage);
+  stage.position.sub(box.getCenter(new THREE.Vector3()));
+  box.setFromObject(root);
+  root.position.sub(box.getCenter(new THREE.Vector3()));
+  stage.userData.rest = {
+    x: stage.position.x,
+    y: stage.position.y,
+    z: stage.position.z,
+    rx: stage.rotation.x,
+    ry: stage.rotation.y,
+    rz: stage.rotation.z,
+    s: stage.scale.x,
+  };
+})();
+
+const glowCol = new THREE.Color();
+const oxCol = new THREE.Color();
+
+function applyMetal(id, treat, glow) {
+  const spec = metalSpec[id];
+  const h = THREE.MathUtils.clamp(treat - spec.lag, 0, 1);
+  const g = THREE.MathUtils.clamp(glow * spec.glowMul - spec.lag * 0.45, 0, 1);
+  oxCol.copy(colorRamp(OX[id], 0.18 + h * 0.82));
+  glowCol.setHSL(0.055 - g * 0.04, 0.95, 0.18 + g * 0.42);
+  spec.mat.color.set(0xc9d0d6).lerp(oxCol, 0.42 + h * 0.38).lerp(glowCol, g * 0.38);
+  spec.mat.emissive.copy(glowCol);
+  spec.mat.emissiveIntensity = g * g * (1.35 + spec.glowMul);
+  spec.mat.roughness = THREE.MathUtils.lerp(0.24, 0.12, g);
+  spec.mat.iridescence = 0.35 + h * 0.65 * (1 - g * 0.5);
+  spec.mat.iridescenceIOR = 1.28;
+  spec.mat.iridescenceThicknessRange = [120 + h * 220, 360 + h * 480];
+}
+
+function applyFrame(frameNo) {
+  const t = (frameNo - 1) / TOTAL;
+  const ph = t * Math.PI * 2;
+  const glow = Math.max(
+    trap(t, 0.16, 0.28, 0.40, 0.62),
+    trap(t, 0.66, 0.74, 0.80, 0.92) * 0.55,
+  );
+  const treat = 0.72 + glow * 0.28;
+
+  applyMetal('ss', treat, glow);
+  applyMetal('ni80', treat, glow);
+  applyMetal('kanthal', treat, glow);
+  applyMetal('ribbon', treat, glow);
+  applyMetal('ni90', treat, glow);
+
+  heatLight.position.set(0.1, 0.05, 0.2);
+  heatLight.intensity = glow * 4.8;
+  heatLight.color.setHSL(0.05 - glow * 0.03, 1, 0.55);
+
+  const shake = glow * glow;
+  const rest = stage.userData.rest;
+  stage.position.set(
+    rest.x + Math.sin(t * 73.1) * 0.018 * shake + Math.sin(ph) * 0.012,
+    rest.y + Math.cos(ph) * 0.085 + Math.sin(t * 91.7) * 0.014 * shake,
+    rest.z + Math.sin(ph * 1.5) * 0.02,
+  );
+  stage.rotation.set(
+    rest.rx + Math.sin(ph) * 0.07 + Math.sin(t * 67) * 0.012 * shake,
+    rest.ry + ph * 0.09 + Math.sin(ph) * 0.16,
+    rest.rz + Math.cos(ph) * 0.05,
+  );
+  stage.scale.setScalar(rest.s * (1 + Math.sin(ph * 2) * 0.012 + glow * 0.02));
+
+  camera.lookAt(0, 0, 0);
+  renderer.clear(true, true, true);
+  renderer.render(scene, camera);
+}
+
+window.setFrame = (frameNo) => { applyFrame(frameNo); return frameNo; };
+window.TOTAL = TOTAL;
+window.ready = false;
+
+try {
+  applyFrame(1);
+  window.ready = true;
+  console.log('COIL_READY');
+} catch (e) {
+  console.error('COIL_FAIL', e);
+}
+</script>
+</body>
+</html>

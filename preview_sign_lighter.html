@@ -71,7 +71,7 @@
     .card .files { color: var(--muted); font-size: 11px; }
     .bgs {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(3, minmax(0, 1fr));
     }
     @media (max-width: 1100px) {
       .bgs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -87,10 +87,13 @@
       min-height: 260px;
     }
     .bg.cobalt { background: linear-gradient(180deg, #1E5AE8 0%, #0A2C9C 100%); color: #e8f0ff; }
+    .bg.violet { background: linear-gradient(180deg, #4A27FF 0%, #070218 100%); color: #eee8ff; }
+    .bg.chat { background: linear-gradient(180deg, #E11D74 0%, #14020C 100%); color: #ffe8f2; }
+    .bg.bot { background: linear-gradient(180deg, #0077FF 0%, #021018 100%); color: #e8f2ff; }
     .bg.black { background: #000000; }
     .bg.white { background: #ffffff; color: #1c1c1c; }
     .bg.green { background: #1a8f3c; color: #f4fff4; }
-    .bg.cobalt label { font-weight: 700; opacity: 1; }
+    .bg.cobalt label, .bg.violet label, .bg.chat label, .bg.bot label { font-weight: 700; opacity: 1; }
     .bg label {
       font-size: 10px;
       text-transform: uppercase;
@@ -136,10 +139,10 @@
     }
     .avatar-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1fr 1fr 1fr;
       gap: 0;
     }
-    @media (max-width: 960px) {
+    @media (max-width: 1200px) {
       .avatar-grid { grid-template-columns: 1fr; }
     }
     .avatar-col {
@@ -188,18 +191,27 @@
   </style>
 </head>
 <body>
-  <h1>Sign + Lighter workbench</h1>
+  <h1>N + text · Sign · Lighter</h1>
   <p class="sub">
-    Static preview of the two variants. Prefer
+    Static preview. Prefer
     <code>npm run preview</code>
     → <code>http://localhost:5173/preview_sign_lighter.html</code>
     (file:// may block WebM in some browsers).
   </p>
   <div class="links">
+    <a href="scene_volumetric3d.html" target="_blank" rel="noopener">Live scene — N + HYPERLINKS.SPACE</a>
     <a href="scene_volumetric3d.html?signOnly=1" target="_blank" rel="noopener">Live scene — sign</a>
     <a href="scene_lighter.html" target="_blank" rel="noopener">Live scene — lighter</a>
     <a href="preview.html" target="_blank" rel="noopener">All variants</a>
   </div>
+
+  <section class="card" data-pack="main" data-emoji="hyperlinks-space-emoji.webm" data-sticker="hyperlinks-space-sticker.webm" style="margin-bottom:20px">
+    <header>
+      <h2>N + HYPERLINKS.SPACE</h2>
+      <div class="files">emoji · sticker</div>
+    </header>
+    <div class="bgs"></div>
+  </section>
 
   <div class="grid">
     <section class="card" data-emoji="hyperlinks-space-emoji-sign.webm" data-sticker="hyperlinks-space-sticker-sign.webm">
@@ -226,8 +238,11 @@
         Custom emoji avatars occupy <strong>70%</strong> of the circle
         (<code>STICKER_DEFAULT_SCALE</code>).
         Telegram Desktop chat list is <strong>46×46px</strong> → emoji <strong>32×32px</strong>.
-        <strong>Sign — cobalt</strong> (high contrast vs emerald):
-        <code>#1E5AE8</code> → <code>#0A2C9C</code>.
+        <strong>N + text</strong> — three 2-color recs (white wordmark on midnight, emerald N vs a non-green field).
+        Pack/profile <code>#4A27FF</code> → <code>#070218</code>,
+        chat <code>#E11D74</code> → <code>#14020C</code>,
+        bot <code>#0077FF</code> → <code>#021018</code>.
+        Skip green slots.
         Color count splits the rest of the disc:
         <strong>1</strong> = solid,
         <strong>2</strong> = linear top→bottom (rotation 0),
@@ -235,6 +250,7 @@
       </p>
     </header>
     <div class="avatar-grid">
+      <div class="avatar-col" id="main-avatars"></div>
       <div class="avatar-col" id="sign-avatars"></div>
       <div class="avatar-col" id="lighter-avatars"></div>
     </div>
@@ -243,6 +259,14 @@
   <script>
     const BGS = [
       ['cobalt', 'Custom cobalt ★'],
+      ['black', 'Black'],
+      ['white', 'White'],
+      ['green', 'Green'],
+    ];
+    const MAIN_BGS = [
+      ['violet', 'Pack / profile ★'],
+      ['chat', 'Chat ★'],
+      ['bot', 'Bot ★'],
       ['black', 'Black'],
       ['white', 'White'],
       ['green', 'Green'],
@@ -259,7 +283,8 @@
     for (const section of document.querySelectorAll('.card')) {
       const emoji = section.dataset.emoji;
       const sticker = section.dataset.sticker;
-      section.querySelector('.bgs').innerHTML = BGS.map(([cls, title]) => `
+      const bgs = section.dataset.pack === 'main' ? MAIN_BGS : BGS;
+      section.querySelector('.bgs').innerHTML = bgs.map(([cls, title]) => `
         <div class="bg ${cls}">
           <label>${title}</label>
           <div class="row">
@@ -348,6 +373,18 @@
         </div>`).join('');
     }
 
+    const MAIN_SETS = {
+      title: 'N + text — pack, chat, bot',
+      note: 'Same emoji, three fills. Bright hue behind the N, near-black behind HYPERLINKS.SPACE. Skip green and white slots.',
+      sets: [
+        { name: 'Pack / profile', best: true, colors: ['#4A27FF', '#070218'] },
+        { name: 'Chat', best: true, colors: ['#E11D74', '#14020C'] },
+        { name: 'Bot', best: true, colors: ['#0077FF', '#021018'] },
+        { name: 'Chat 4 colors', colors: ['#FF4D94', '#E11D74', '#14020C', '#3A0518'] },
+        { name: 'Bot 4 colors', colors: ['#3D9AFF', '#0077FF', '#021018', '#062440'] },
+        { name: 'Pack 4 colors', colors: ['#6B4CFF', '#4A27FF', '#070218', '#14063A'] },
+      ],
+    };
     const SIGN_SETS = {
       title: 'Sign — custom cobalt',
       note: 'Vivid cobalt vs emerald N. Chat-list avatar is 46px; the emoji is 32px. Skip green slots.',
@@ -373,6 +410,7 @@
       const el = document.getElementById(id);
       el.innerHTML = `<h3>${title}</h3><p class="legend">${note}</p><div class="avatar-row">${avatarCard(sticker, pack)}</div>`;
     }
+    fillCol('main-avatars', MAIN_SETS.title, MAIN_SETS.note, 'hyperlinks-space-emoji.webm', MAIN_SETS);
     fillCol('sign-avatars', SIGN_SETS.title, SIGN_SETS.note, 'hyperlinks-space-emoji-sign.webm', SIGN_SETS);
     fillCol('lighter-avatars', LIGHTER_SETS.title, LIGHTER_SETS.note, 'hyperlinks-space-emoji-lighter.webm', LIGHTER_SETS);
   </script>

@@ -1,0 +1,192 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>Coil preview</title>
+<style>
+  html, body { margin: 0; font: 14px/1.45 system-ui, sans-serif; }
+  body { min-height: 100vh; background: #0c1118; color: #e8eef4; }
+  h1 { font-size: 18px; margin: 0 0 8px; }
+  .note { color: #8fa0b2; font-size: 13px; margin: 0 0 18px; max-width: 820px; }
+  .wrap { padding: 22px 20px 8px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr 1fr; }
+  section { display: grid; justify-items: center; gap: 14px; padding: 22px 12px 28px; }
+  .dark { background: #0e1621; color: #dbe4ee; }
+  .light { background: #ffffff; color: #1a1a1a; }
+  .green { background: #1a8f3c; color: #f4fff4; }
+  video { background: transparent; display: block; }
+  .emoji { width: 100px; height: 100px; }
+  .sticker { width: 220px; height: 220px; }
+  .tiny-wrap {
+    padding: 18px;
+    background: repeating-conic-gradient(#3a4454 0% 25%, #1a2230 0% 50%) 0 0 / 10px 10px;
+    border-radius: 8px;
+  }
+  .light .tiny-wrap {
+    background: repeating-conic-gradient(#d0d4da 0% 25%, #f3f4f6 0% 50%) 0 0 / 10px 10px;
+  }
+  .green .tiny-wrap {
+    background: repeating-conic-gradient(#0f3d1c 0% 25%, #146028 0% 50%) 0 0 / 10px 10px;
+  }
+  .canvas {
+    width: 30px; height: 30px;
+    box-sizing: content-box;
+    border: 2px solid #ff4dd2;
+    background: inherit;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+  }
+  .dark .canvas { background: #0e1621; border-color: #ff4dd2; }
+  .light .canvas { background: #ffffff; border-color: #111111; }
+  .green .canvas { background: #1a8f3c; border-color: #ffffff; }
+  .canvas video { width: 30px; height: 30px; image-rendering: pixelated; }
+  .android { border-radius: 22%; overflow: hidden; }
+  .lab { font-size: 11px; opacity: 0.75; text-align: center; }
+  .avatars {
+    display: flex; flex-wrap: wrap; gap: 28px; justify-content: center;
+    padding: 28px 16px 36px; background: #141c27; border-top: 1px solid #2a384a;
+  }
+  .avatar-slot { display: grid; gap: 10px; justify-items: center; width: 240px; }
+  .avatar-slot h2 { margin: 0; font-size: 13px; font-weight: 650; }
+  .circle {
+    width: 220px; height: 220px; border-radius: 50%; overflow: hidden;
+    box-shadow: 0 0 0 3px #2a384a, 0 12px 28px rgba(0,0,0,.35);
+    display: grid; place-items: center;
+  }
+  .circle video { width: 67%; height: 67%; }
+  .swatches { display: flex; gap: 4px; }
+  .swatches i {
+    width: 16px; height: 16px; border-radius: 4px;
+    border: 1px solid rgba(255,255,255,.18); display: block;
+  }
+  .settings {
+    font: 11px/1.45 ui-monospace, Consolas, monospace;
+    background: #0c1118; color: #cfe8ee; padding: 8px 10px; border-radius: 8px;
+    text-align: left; width: 100%;
+  }
+  code { font: 12px ui-monospace, Consolas, monospace; }
+</style>
+<div class="wrap">
+  <h1>Coil — 30×30, chat, avatar</h1>
+  <p class="note">
+    Staggered fused Clapton / Juggernaut. Magenta border is the square canvas edge.
+    Rainbow heat-tint reads best on near-black. Skip green avatar slots.
+    Open <code>/preview_coil.html</code> via <code>npm run preview</code> and hard-reload after recapture.
+  </p>
+</div>
+<div class="row">
+  <section class="dark">
+    <div>Black / Telegram dark</div>
+    <div class="tiny-wrap">
+      <div class="canvas"><video src="hyperlinks-space-emoji-coil.webm?v=1" autoplay loop muted playsinline></video></div>
+    </div>
+    <div class="lab">30×30 square + canvas border</div>
+    <div class="tiny-wrap">
+      <div class="canvas android"><video src="hyperlinks-space-emoji-coil.webm?v=1" autoplay loop muted playsinline></video></div>
+    </div>
+    <div class="lab">30×30 Android rounded</div>
+    <video class="emoji" src="hyperlinks-space-emoji-coil.webm?v=1" autoplay loop muted playsinline></video>
+    <div class="lab">100×100</div>
+    <video class="sticker" src="hyperlinks-space-sticker-coil.webm?v=1" autoplay loop muted playsinline></video>
+    <div class="lab">sticker 512×512</div>
+  </section>
+  <section class="light">
+    <div>White</div>
+    <div class="tiny-wrap">
+      <div class="canvas"><video src="hyperlinks-space-emoji-coil.webm?v=1" autoplay loop muted playsinline></video></div>
+    </div>
+    <div class="lab">30×30 square + canvas border</div>
+    <div class="tiny-wrap">
+      <div class="canvas android"><video src="hyperlinks-space-emoji-coil.webm?v=1" autoplay loop muted playsinline></video></div>
+    </div>
+    <div class="lab">30×30 Android rounded</div>
+    <video class="emoji" src="hyperlinks-space-emoji-coil.webm?v=1" autoplay loop muted playsinline></video>
+    <div class="lab">100×100</div>
+    <video class="sticker" src="hyperlinks-space-sticker-coil.webm?v=1" autoplay loop muted playsinline></video>
+    <div class="lab">sticker 512×512</div>
+  </section>
+  <section class="green">
+    <div>Green</div>
+    <div class="tiny-wrap">
+      <div class="canvas"><video src="hyperlinks-space-emoji-coil.webm?v=1" autoplay loop muted playsinline></video></div>
+    </div>
+    <div class="lab">30×30 square + canvas border</div>
+    <div class="tiny-wrap">
+      <div class="canvas android"><video src="hyperlinks-space-emoji-coil.webm?v=1" autoplay loop muted playsinline></video></div>
+    </div>
+    <div class="lab">30×30 Android rounded</div>
+    <video class="emoji" src="hyperlinks-space-emoji-coil.webm?v=1" autoplay loop muted playsinline></video>
+    <div class="lab">100×100</div>
+    <video class="sticker" src="hyperlinks-space-sticker-coil.webm?v=1" autoplay loop muted playsinline></video>
+    <div class="lab">sticker 512×512</div>
+  </section>
+</div>
+<div class="avatars">
+  <p class="note" style="width:100%;max-width:none;text-align:center;margin-bottom:8px">
+    Custom emoji is 67% of the circle.
+    1 color = solid · 2 = top→bottom · 3–4 = freeform blobs (① TR ② TL ③ BL ④ BR).
+    Dark fills keep the heat-tint readable. Skip green.
+  </p>
+</div>
+<script>
+  const TG_BLOB = [[0.80, 0.10], [0.20, 0.20], [0.30, 0.90], [0.90, 0.80]];
+  function hexToRgb(hex) {
+    const n = parseInt(hex.slice(1), 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+  function telegramFillUrl(colors, size = 256) {
+    const c = document.createElement('canvas');
+    c.width = c.height = size;
+    const ctx = c.getContext('2d');
+    if (colors.length === 1) {
+      ctx.fillStyle = colors[0];
+      ctx.fillRect(0, 0, size, size);
+      return c.toDataURL();
+    }
+    if (colors.length === 2) {
+      const g = ctx.createLinearGradient(0, 0, 0, size);
+      g.addColorStop(0, colors[0]);
+      g.addColorStop(1, colors[1]);
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, size, size);
+      return c.toDataURL();
+    }
+    const rgb = colors.map(hexToRgb);
+    const n = colors.length;
+    const img = ctx.createImageData(size, size);
+    const d = img.data;
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const px = x / (size - 1), py = y / (size - 1);
+        let wr = 0, wg = 0, wb = 0, wsum = 0;
+        for (let i = 0; i < n; i++) {
+          const dx = px - TG_BLOB[i][0], dy = py - TG_BLOB[i][1];
+          const w = 1 / (dx * dx + dy * dy + 0.0007);
+          wr += rgb[i][0] * w; wg += rgb[i][1] * w; wb += rgb[i][2] * w; wsum += w;
+        }
+        const o = (y * size + x) * 4;
+        d[o] = wr / wsum; d[o + 1] = wg / wsum; d[o + 2] = wb / wsum; d[o + 3] = 255;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+    return c.toDataURL();
+  }
+  const sets = [
+    { name: 'Pack / profile ★', colors: ['#14161C', '#050608'] },
+    { name: 'Chat ★', colors: ['#1A2744', '#070B14'] },
+    { name: 'Bot ★', colors: ['#3A2418', '#100804'] },
+    { name: '4 colors', colors: ['#2A3040', '#14161C', '#050608', '#1A1420'] },
+  ];
+  const host = document.querySelector('.avatars');
+  const v = Date.now();
+  sets.forEach((set) => {
+    const slot = document.createElement('div');
+    slot.className = 'avatar-slot';
+    slot.innerHTML = `
+      <h2>${set.name}</h2>
+      <div class="circle" style="background-image:url('${telegramFillUrl(set.colors)}');background-size:cover">
+        <video src="hyperlinks-space-sticker-coil.webm?v=${v}" autoplay loop muted playsinline></video>
+      </div>
+      <div class="swatches">${set.colors.map((c) => `<i style="background:${c}"></i>`).join('')}</div>
+      <div class="settings">${set.colors.map((c, i) => `${i + 1} <strong>${c}</strong>`).join('<br>')}</div>`;
+    host.appendChild(slot);
+  });
+</script>
