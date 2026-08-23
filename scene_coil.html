@@ -222,27 +222,31 @@ function helixCenterline() {
       Math.sin(a) * radius,
     ));
   }
-  /* Legs go along the helix axis so they point to opposite sides of the frame. */
+  /* Legs bend 90° off the helix axis: parallel (anti-parallel vectors),
+     so tips point to opposite sides of the frame. */
   const leadIn = [];
   const leadOut = [];
   const r0 = helix[0];
   const r1 = helix[nHelix];
-  const out0 = new THREE.Vector3(r0.x, 0, r0.z).normalize();
-  const out1 = new THREE.Vector3(r1.x, 0, r1.z).normalize();
+  const axis = new THREE.Vector3(0, 1, 0);
+  const legDir = new THREE.Vector3(1, 0, 0);
+  const elbow = 0.06;
   for (let i = 8; i >= 1; i--) {
     const u = i / 8;
+    const bend = Math.min(1, u * 1.4);
     leadIn.push(new THREE.Vector3(
-      r0.x + out0.x * 0.03 * (1 - u),
-      r0.y - lead * u,
-      r0.z + out0.z * 0.03 * (1 - u),
+      r0.x - legDir.x * lead * bend,
+      r0.y - axis.y * elbow * (1 - bend),
+      r0.z,
     ));
   }
   for (let i = 1; i <= 8; i++) {
     const u = i / 8;
+    const bend = Math.min(1, u * 1.4);
     leadOut.push(new THREE.Vector3(
-      r1.x + out1.x * 0.03 * u,
-      r1.y + lead * u,
-      r1.z + out1.z * 0.03 * u,
+      r1.x + legDir.x * lead * bend,
+      r1.y + axis.y * elbow * (1 - bend),
+      r1.z,
     ));
   }
   return new THREE.CatmullRomCurve3([...leadIn, ...helix, ...leadOut], false, 'centripetal');
