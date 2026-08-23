@@ -700,10 +700,10 @@ function applyFrame(frameNo) {
   const t = (frameNo - 1) / TOTAL;
   const ph = t * Math.PI * 2;
   const pulse = Math.max(
-    trap(t, 0.14, 0.26, 0.48, 0.72),
-    trap(t, 0.70, 0.78, 0.86, 0.98) * 0.45,
+    trap(t, 0.12, 0.22, 0.42, 0.68),
+    trap(t, 0.68, 0.76, 0.86, 0.98) * 0.55,
   );
-  const treat = 0.55 + pulse * 0.42;
+  const treat = 0.52 + pulse * 0.48;
 
   applyMetal(mats.plate, treat, pulse);
   applyMetal(mats.ni80, treat, pulse);
@@ -716,16 +716,12 @@ function applyFrame(frameNo) {
   heatLight.intensity = 0.04 + pulse * 0.14;
   heatLight.color.setHSL(0.68 - pulse * 0.06, 0.42, 0.48);
 
-  const shake = pulse * pulse * 0.55;
   const rest = stage.userData.rest;
-  /* Keep pose locked — only drift/float so the coil never spins edge-on. */
-  stage.position.set(
-    rest.x + Math.sin(t * 73.1) * 0.003 * shake + Math.sin(ph) * 0.003,
-    rest.y + Math.cos(ph) * 0.008 + Math.sin(t * 91.7) * 0.002 * shake,
-    rest.z + Math.sin(ph * 1.5) * 0.004,
-  );
-  stage.rotation.set(rest.rx, rest.ry, rest.rz);
-  stage.scale.setScalar(rest.s * (1 + Math.sin(ph * 2) * 0.003));
+  /* Horizontal yaw only — no pitch/roll/position (those read as up/down). */
+  const yaw = Math.sin(ph) * 0.10;
+  stage.position.set(rest.x, rest.y, rest.z);
+  stage.rotation.set(rest.rx, rest.ry + yaw, rest.rz);
+  stage.scale.setScalar(rest.s);
 
   camera.lookAt(0, 0, 0);
   renderer.clear(true, true, true);

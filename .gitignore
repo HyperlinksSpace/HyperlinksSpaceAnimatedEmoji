@@ -8,6 +8,8 @@ Thumbs.db
 render_frames/
 render_frames_sign/
 render_frames_lighter/
+render_frames_lighter_nail/
+render_frames_coil/
 ffmpeg2pass-0.log
 *.log
 bash.exe.stackdump
