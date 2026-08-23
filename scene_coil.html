@@ -19,8 +19,8 @@
 <script type="module">
 /**
  * Isolated exotic vape coil.
- * Dual stacked metallic plates + dense clapton hugging the bundle.
- * Heat = oxide iridescence (gold / purple / cobalt), not a bright glow.
+ * Dual stacked ribbons + CA-style staple / clapton / alien wire embroidery.
+ * Same silhouette & pose; heat = oxide iridescence on fine wire layers.
  */
 import * as THREE from 'three';
 
@@ -193,6 +193,10 @@ const mats = {
     [0, '#c8d0d8'], [0.2, '#40d0e8'], [0.4, '#3048ff'], [0.58, '#b028e0'],
     [0.76, '#ff3a88'], [1, '#f0c050'],
   ]), -0.04),
+  micro: metalMat(0x909aa4, 0.19, oxideTexture([
+    [0, '#b0b8c4'], [0.2, '#6848c0'], [0.4, '#2058e0'], [0.55, '#10c0d8'],
+    [0.72, '#7828b8'], [1, '#d0a048'],
+  ]), 0.06),
 };
 
 const WRAPS = 5.5;
@@ -200,8 +204,14 @@ const HELIX_R = 0.108;
 const PLATE_N = 0.072;
 const PLATE_B = 0.070;
 const PLATE_GAP = 0.012;
-const CLAPTON_R = 0.0064;
-const FRAME_R = 0.0105;
+/* Wire gauges sized for emoji/sticker readability; outsets stay on the commit envelope. */
+const CLAPTON_R = 0.0136;
+const MICRO_R = 0.0076;
+const ALIEN_R = 0.0102;
+const FRAME_R = 0.0158;
+const OUT_CLAP_A = 0.0004;
+const OUT_CLAP_B = 0.0008;
+const OUT_FRAME = 0.0068;
 const BUNDLE_B = PLATE_B * 2 + PLATE_GAP;
 const PITCH = BUNDLE_B * 0.955;
 
@@ -379,6 +389,28 @@ function roundedRect(nx, by, rx, segs) {
   return pts;
 }
 
+function circleProfile(r, segs) {
+  const pts = [];
+  for (let i = 0; i <= segs; i++) {
+    const a = (i / segs) * Math.PI * 2;
+    pts.push({ x: Math.cos(a) * r, y: Math.sin(a) * r });
+  }
+  return pts;
+}
+
+/** 3 fused round cores — standard alien / fused clapton center. */
+function stapleBundleProfile(nCores, coreR, spacing) {
+  const pts = [];
+  for (let c = 0; c < nCores; c++) {
+    const cy = (c - (nCores - 1) * 0.5) * spacing;
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2;
+      pts.push({ x: Math.cos(a) * coreR, y: cy + Math.sin(a) * coreR });
+    }
+  }
+  return pts;
+}
+
 function sweepProfile(fr, profile, mat) {
   const n = fr.pts.length;
   const m = profile.length;
@@ -508,10 +540,11 @@ function wrapOnProfile(fr, profile, turns, phase, outset) {
     const nl = Math.hypot(nx, ny) || 1;
     nx /= nl;
     ny /= nl;
+    const out = typeof outset === 'function' ? outset(u) : outset;
     points.push(
       s.p.clone()
-        .addScaledVector(s.N, px + nx * outset)
-        .addScaledVector(s.B, py + ny * outset),
+        .addScaledVector(s.N, px + nx * out)
+        .addScaledVector(s.B, py + ny * out),
     );
     normals.push(
       s.N.clone().multiplyScalar(nx).addScaledVector(s.B, ny).normalize(),
@@ -520,13 +553,20 @@ function wrapOnProfile(fr, profile, turns, phase, outset) {
   return { points, normals };
 }
 
+/** De-cored alien wrap — stretched clapton re-applied as sin-wave chevrons. */
+function wrapAlien(fr, profile, turns, phase, baseOut, waveAmp, waves) {
+  return wrapOnProfile(fr, profile, turns, phase, (u) => (
+    baseOut + waveAmp * Math.sin((u * turns * waves + phase) * Math.PI * 2)
+  ));
+}
+
 const SAMPLES = 420;
 const centerline = helixCenterline();
 centerline.arcLengthDivisions = 800;
 const coilFrames = framesOf(centerline, SAMPLES);
 
-const plateProf = roundedRect(PLATE_N, PLATE_B, 0.009, 5);
-const plateOff = (PLATE_B + PLATE_GAP) * 0.5;
+const plateProf = roundedRect(PLATE_N * 0.86, PLATE_B * 0.82, 0.008, 5);
+const plateOff = (PLATE_B + PLATE_GAP) * 0.46;
 function offsetProfile(prof, dy) {
   return prof.map((p) => ({ x: p.x, y: p.y + dy }));
 }
@@ -534,16 +574,44 @@ sweepProfile(coilFrames, offsetProfile(plateProf, plateOff), mats.plate);
 sweepProfile(coilFrames, offsetProfile(plateProf, -plateOff), mats.plate);
 
 const bundleProf = roundedRect(PLATE_N, BUNDLE_B, 0.011, 6);
+const insetProf = roundedRect(PLATE_N * 0.88, BUNDLE_B * 0.88, 0.008, 5);
 const pathLen = centerline.getLength();
-const claptonTurns = Math.max(280, Math.round(pathLen / (CLAPTON_R * 1.55)));
+/* Chunkier strands with readable grooves, still a filled coil body. */
+const claptonTurns = Math.max(108, Math.round(pathLen / (CLAPTON_R * 2.95)));
+const microTurns = Math.round(claptonTurns * 0.9);
 
-const clapA = wrapOnProfile(coilFrames, bundleProf, claptonTurns, 0.0, CLAPTON_R * 0.88);
-const clapB = wrapOnProfile(coilFrames, bundleProf, claptonTurns, 0.5, CLAPTON_R * 1.02);
-sweepCircle(clapA.points, clapA.normals, CLAPTON_R, 6, mats.ni80);
-sweepCircle(clapB.points, clapB.normals, CLAPTON_R * 0.84, 6, mats.ni90);
+const coreR = PLATE_B * 0.185;
+const corePitch = coreR * 1.58;
 
-const frameA = wrapOnProfile(coilFrames, bundleProf, WRAPS, 0.08, CLAPTON_R * 2.15);
-const frameB = wrapOnProfile(coilFrames, bundleProf, WRAPS, 0.58, CLAPTON_R * 2.15);
+/* ── Layer 1: fused cores (backbone only) ── */
+for (let c = 0; c < 3; c++) {
+  const cy = (c - 1) * corePitch;
+  const coreLoop = resampleClosed(circleProfile(coreR * 0.72, 10), 28);
+  const w = wrapOnProfile(
+    coilFrames,
+    coreLoop.map((p) => ({ x: p.x, y: p.y + cy })),
+    Math.max(48, microTurns * 0.22),
+    c * 0.18,
+    0,
+  );
+  sweepCircle(w.points, w.normals, coreR * 0.48, 6, mats.micro);
+}
+
+/* ── Layer 2: primary wide clapton — the readable wire body ── */
+const clapA = wrapOnProfile(coilFrames, bundleProf, claptonTurns, 0.0, OUT_CLAP_A);
+const clapB = wrapOnProfile(coilFrames, bundleProf, claptonTurns, 0.5, OUT_CLAP_B);
+sweepCircle(clapA.points, clapA.normals, CLAPTON_R, 8, mats.ni80);
+sweepCircle(clapB.points, clapB.normals, CLAPTON_R * 0.9, 8, mats.ni90);
+
+/* ── Layer 3: alien accent — inset, low wave ── */
+const alienTurns = Math.round(claptonTurns * 0.48);
+const alienWave = MICRO_R * 0.18;
+const alienA = wrapAlien(coilFrames, insetProf, alienTurns, 0.12, 0, alienWave, 4);
+sweepCircle(alienA.points, alienA.normals, ALIEN_R, 7, mats.braid);
+
+/* ── Layer 4: thick frame, same outer reach ── */
+const frameA = wrapOnProfile(coilFrames, bundleProf, WRAPS, 0.08, OUT_FRAME);
+const frameB = wrapOnProfile(coilFrames, bundleProf, WRAPS, 0.58, OUT_FRAME);
 sweepCircle(frameA.points, frameA.normals, FRAME_R, 8, mats.frame);
 sweepCircle(frameB.points, frameB.normals, FRAME_R, 8, mats.frame);
 
@@ -641,6 +709,8 @@ function applyFrame(frameNo) {
   applyMetal(mats.ni80, treat, pulse);
   applyMetal(mats.frame, treat, pulse);
   applyMetal(mats.ni90, treat, pulse);
+  applyMetal(mats.braid, treat, pulse);
+  applyMetal(mats.micro, treat, pulse);
 
   heatLight.position.set(0.04, 0.02, 0.12);
   heatLight.intensity = 0.04 + pulse * 0.14;
