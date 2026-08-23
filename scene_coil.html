@@ -590,7 +590,10 @@ function fitFullyVisible(margin) {
   stage.position.set(0, 0, 0);
   root.position.set(0, 0, 0);
   /* Legs along ±Y → diagonal; Y-rot brings ribbon wide faces toward camera. */
-  stage.rotation.set(0.06, 0.62, -0.72);
+  const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.06, 0.62, -0.72));
+  q.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -Math.PI / 2));
+  q.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI));
+  stage.rotation.setFromQuaternion(q);
   stage.updateMatrixWorld(true);
   stage.position.sub(new THREE.Box3().setFromObject(stage).getCenter(new THREE.Vector3()));
   fitFullyVisible(0.945);
