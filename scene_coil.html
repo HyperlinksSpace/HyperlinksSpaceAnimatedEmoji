@@ -210,7 +210,7 @@ function helixCenterline() {
   const radius = HELIX_R;
   const pitch = PITCH;
   const height = wraps * pitch;
-  const lead = 0.22;
+  const lead = 0.52;
   const nHelix = 260;
   const helix = [];
   for (let i = 0; i <= nHelix; i++) {
@@ -222,23 +222,28 @@ function helixCenterline() {
       Math.sin(a) * radius,
     ));
   }
-  const tanIn = helix[1].clone().sub(helix[0]).normalize();
-  const tanOut = helix[nHelix].clone().sub(helix[nHelix - 1]).normalize();
+  /* Legs go along the helix axis so they point to opposite sides of the frame. */
   const leadIn = [];
   const leadOut = [];
-  for (let i = 6; i >= 1; i--) {
-    const u = i / 6;
-    const p = helix[0].clone().addScaledVector(tanIn, -lead * u);
-    p.x += (1 - u) * 0.05;
-    p.y -= (1 - u) * 0.04;
-    leadIn.push(p);
+  const r0 = helix[0];
+  const r1 = helix[nHelix];
+  const out0 = new THREE.Vector3(r0.x, 0, r0.z).normalize();
+  const out1 = new THREE.Vector3(r1.x, 0, r1.z).normalize();
+  for (let i = 8; i >= 1; i--) {
+    const u = i / 8;
+    leadIn.push(new THREE.Vector3(
+      r0.x + out0.x * 0.03 * (1 - u),
+      r0.y - lead * u,
+      r0.z + out0.z * 0.03 * (1 - u),
+    ));
   }
-  for (let i = 1; i <= 6; i++) {
-    const u = i / 6;
-    const p = helix[nHelix].clone().addScaledVector(tanOut, lead * u);
-    p.x -= (1 - u) * 0.03;
-    p.y += u * 0.03;
-    leadOut.push(p);
+  for (let i = 1; i <= 8; i++) {
+    const u = i / 8;
+    leadOut.push(new THREE.Vector3(
+      r1.x + out1.x * 0.03 * u,
+      r1.y + lead * u,
+      r1.z + out1.z * 0.03 * u,
+    ));
   }
   return new THREE.CatmullRomCurve3([...leadIn, ...helix, ...leadOut], false, 'centripetal');
 }
@@ -550,18 +555,42 @@ addCap(end0.clone().addScaledVector(coilFrames.binormals[0], -plateOff), mats.pl
 addCap(end1.clone().addScaledVector(coilFrames.binormals[coilFrames.binormals.length - 1], plateOff), mats.plate, 0.012);
 addCap(end1.clone().addScaledVector(coilFrames.binormals[coilFrames.binormals.length - 1], -plateOff), mats.plate, 0.012);
 
-(function contain() {
-  /* Helix is along Y: lay it on the screen diagonal and fill the canvas width. */
-  stage.rotation.set(0.52, 0.72, -Math.PI * 0.25);
+function fitFullyVisible(margin) {
+  camera.updateMatrixWorld();
+  camera.updateProjectionMatrix();
+  root.updateMatrixWorld(true);
   stage.updateMatrixWorld(true);
-  const box = new THREE.Box3().setFromObject(stage);
-  const size = box.getSize(new THREE.Vector3());
-  const viewW = 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) * camera.position.z;
-  stage.scale.setScalar((viewW * 1.04) / Math.max(size.x, 1e-6));
-  box.setFromObject(stage);
-  stage.position.sub(box.getCenter(new THREE.Vector3()));
+  const box = new THREE.Box3().setFromObject(root);
+  const corners = [
+    new THREE.Vector3(box.min.x, box.min.y, box.min.z),
+    new THREE.Vector3(box.min.x, box.min.y, box.max.z),
+    new THREE.Vector3(box.min.x, box.max.y, box.min.z),
+    new THREE.Vector3(box.min.x, box.max.y, box.max.z),
+    new THREE.Vector3(box.max.x, box.min.y, box.min.z),
+    new THREE.Vector3(box.max.x, box.min.y, box.max.z),
+    new THREE.Vector3(box.max.x, box.max.y, box.min.z),
+    new THREE.Vector3(box.max.x, box.max.y, box.max.z),
+  ];
+  let maxR = 0;
+  for (const p of corners) {
+    maxR = Math.max(maxR, Math.abs(p.clone().project(camera).x), Math.abs(p.clone().project(camera).y));
+  }
+  if (maxR > 1e-6) stage.scale.multiplyScalar(margin / maxR);
+  root.updateMatrixWorld(true);
   box.setFromObject(root);
   root.position.sub(box.getCenter(new THREE.Vector3()));
+}
+
+(function contain() {
+  stage.scale.setScalar(1);
+  stage.position.set(0, 0, 0);
+  root.position.set(0, 0, 0);
+  /* Legs along ±Y → diagonal; Y-rot brings ribbon wide faces toward camera. */
+  stage.rotation.set(0.06, 0.62, -0.72);
+  stage.updateMatrixWorld(true);
+  stage.position.sub(new THREE.Box3().setFromObject(stage).getCenter(new THREE.Vector3()));
+  fitFullyVisible(0.945);
+  fitFullyVisible(0.925);
   stage.userData.rest = {
     x: stage.position.x,
     y: stage.position.y,
@@ -603,7 +632,6 @@ function applyFrame(frameNo) {
 
   applyMetal(mats.plate, treat, pulse);
   applyMetal(mats.ni80, treat, pulse);
-  applyMetal(mats.braid, treat, pulse);
   applyMetal(mats.frame, treat, pulse);
   applyMetal(mats.ni90, treat, pulse);
 
@@ -613,17 +641,14 @@ function applyFrame(frameNo) {
 
   const shake = pulse * pulse * 0.55;
   const rest = stage.userData.rest;
+  /* Keep pose locked — only drift/float so the coil never spins edge-on. */
   stage.position.set(
-    rest.x + Math.sin(t * 73.1) * 0.008 * shake + Math.sin(ph) * 0.006,
-    rest.y + Math.cos(ph) * 0.018 + Math.sin(t * 91.7) * 0.006 * shake,
-    rest.z + Math.sin(ph * 1.5) * 0.01,
+    rest.x + Math.sin(t * 73.1) * 0.003 * shake + Math.sin(ph) * 0.003,
+    rest.y + Math.cos(ph) * 0.008 + Math.sin(t * 91.7) * 0.002 * shake,
+    rest.z + Math.sin(ph * 1.5) * 0.004,
   );
-  stage.rotation.set(
-    rest.rx + Math.sin(ph) * 0.03 + Math.sin(t * 67) * 0.006 * shake,
-    rest.ry + Math.sin(ph) * 0.06,
-    rest.rz + Math.cos(ph) * 0.025,
-  );
-  stage.scale.setScalar(rest.s * (1 + Math.sin(ph * 2) * 0.006));
+  stage.rotation.set(rest.rx, rest.ry, rest.rz);
+  stage.scale.setScalar(rest.s * (1 + Math.sin(ph * 2) * 0.003));
 
   camera.lookAt(0, 0, 0);
   renderer.clear(true, true, true);
