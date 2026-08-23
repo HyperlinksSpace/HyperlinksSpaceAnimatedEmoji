@@ -19,8 +19,8 @@
 <script type="module">
 /**
  * Isolated exotic vape coil.
- * Shape: 5-wrap helix + leads (last reference photo).
- * Wiring: 2 staggered cores, Kanthal fuse zipper, ribbon shell, alien counter-wrap.
+ * Dual stacked metallic plates + dense clapton hugging the bundle.
+ * Heat = oxide iridescence (gold / purple / cobalt), not a bright glow.
  */
 import * as THREE from 'three';
 
@@ -39,7 +39,7 @@ renderer.setClearColor(0x000000, 0);
 renderer.autoClear = true;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.12;
+renderer.toneMappingExposure = 0.92;
 document.body.appendChild(renderer.domElement);
 
 const pmrem = new THREE.PMREMGenerator(renderer);
@@ -83,22 +83,22 @@ function makeStudioEnv() {
   return tex;
 }
 scene.environment = pmrem.fromEquirectangular(makeStudioEnv()).texture;
-scene.environmentIntensity = 1.05;
+scene.environmentIntensity = 0.88;
 
-const camera = new THREE.PerspectiveCamera(30, 1, 0.05, 80);
-camera.position.set(0.55, 0.42, 9.4);
+const camera = new THREE.PerspectiveCamera(28, 1, 0.05, 80);
+camera.position.set(0, 0, 9.2);
 
 scene.add(new THREE.AmbientLight(0x6a7380, 0.28));
-const key = new THREE.DirectionalLight(0xfff4e8, 2.35);
+const key = new THREE.DirectionalLight(0xfff2e4, 1.35);
 key.position.set(-4.2, 5.6, 6.2);
 scene.add(key);
-const fill = new THREE.DirectionalLight(0x9bb8ff, 0.55);
+const fill = new THREE.DirectionalLight(0x9bb8ff, 0.38);
 fill.position.set(5.4, 1.2, 3.2);
 scene.add(fill);
-const rim = new THREE.DirectionalLight(0xc8e4ff, 1.15);
+const rim = new THREE.DirectionalLight(0xc8e4ff, 0.72);
 rim.position.set(2.2, 3.4, -5.5);
 scene.add(rim);
-const heatLight = new THREE.PointLight(0xff6a18, 0, 8, 1.6);
+const heatLight = new THREE.PointLight(0x6a88dd, 0, 6, 2.0);
 scene.add(heatLight);
 
 const root = new THREE.Group();
@@ -117,61 +117,101 @@ function trap(t, a, b, c, d) {
   return 1 - u * u * (3 - 2 * u);
 }
 
-function metalMat(hex, roughness) {
-  return new THREE.MeshPhysicalMaterial({
+function oxideTexture(stops) {
+  const c = document.createElement('canvas');
+  c.width = 512;
+  c.height = 8;
+  const g = c.getContext('2d');
+  const grd = g.createLinearGradient(0, 0, 512, 0);
+  for (const [t, col] of stops) grd.addColorStop(t, col);
+  g.fillStyle = grd;
+  g.fillRect(0, 0, 512, 8);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.ClampToEdgeWrapping;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+function metalMat(hex, roughness, map, lag) {
+  const mat = new THREE.MeshPhysicalMaterial({
     color: hex,
+    map,
     metalness: 1,
     roughness,
-    envMapIntensity: 1.15,
-    iridescence: 0.2,
-    iridescenceIOR: 1.35,
-    iridescenceThicknessRange: [120, 420],
-    clearcoat: 0.18,
-    clearcoatRoughness: 0.28,
+    envMapIntensity: 0.92,
+    iridescence: 0.62,
+    iridescenceIOR: 1.2,
+    iridescenceThicknessRange: [160, 480],
+    clearcoat: 0.28,
+    clearcoatRoughness: 0.22,
     specularIntensity: 1,
+    emissive: 0x000000,
+    emissiveIntensity: 0,
   });
+  mat.userData.base = hex;
+  mat.userData.lag = lag;
+  mat.onBeforeCompile = (shader) => {
+    shader.uniforms.uTreat = { value: mat.userData.treat ?? 0.45 };
+    shader.uniforms.uShift = { value: mat.userData.shift ?? 0 };
+    mat.userData.uTreat = shader.uniforms.uTreat;
+    mat.userData.uShift = shader.uniforms.uShift;
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', 'uniform float uTreat;\nuniform float uShift;\n#include <common>')
+      .replace(
+        '#include <map_fragment>',
+        `
+#ifdef USE_MAP
+	vec4 sampledDiffuseColor = texture2D( map, vec2(vMapUv.x + uShift, vMapUv.y) );
+	diffuseColor.rgb = mix(diffuseColor.rgb, sampledDiffuseColor.rgb, uTreat);
+#endif
+`,
+      );
+  };
+  return mat;
 }
 
 const mats = {
-  ss: metalMat(0xc9d0d6, 0.26),
-  ni80: metalMat(0xb8c2cc, 0.22),
-  kanthal: metalMat(0xc4c0b8, 0.30),
-  ribbon: metalMat(0xd0d4d8, 0.20),
-  ni90: metalMat(0xc8ced4, 0.18),
+  plate: metalMat(0xc8b478, 0.16, oxideTexture([
+    [0, '#e8c878'], [0.16, '#d87838'], [0.34, '#8a2888'], [0.5, '#2048d8'],
+    [0.62, '#18a8e0'], [0.78, '#a030a8'], [1, '#e0b050'],
+  ]), 0.16),
+  ni80: metalMat(0xb8b4bc, 0.22, oxideTexture([
+    [0, '#d0c8c0'], [0.18, '#e070a8'], [0.36, '#7028c8'], [0.52, '#2a48e8'],
+    [0.68, '#20c0e0'], [0.84, '#ff4aa0'], [1, '#e8c060'],
+  ]), 0.00),
+  braid: metalMat(0xa8b4c4, 0.2, oxideTexture([
+    [0, '#c0c8d0'], [0.2, '#5a48c8'], [0.4, '#2460e0'], [0.55, '#14c8d8'],
+    [0.72, '#7838d0'], [1, '#d0a848'],
+  ]), 0.08),
+  frame: metalMat(0xe0c070, 0.14, oxideTexture([
+    [0, '#f0d090'], [0.22, '#e09040'], [0.45, '#c05098'], [0.62, '#4868e0'],
+    [0.82, '#e878b0'], [1, '#f0c868'],
+  ]), 0.22),
+  ni90: metalMat(0xb4c0cc, 0.18, oxideTexture([
+    [0, '#c8d0d8'], [0.2, '#40d0e8'], [0.4, '#3048ff'], [0.58, '#b028e0'],
+    [0.76, '#ff3a88'], [1, '#f0c050'],
+  ]), -0.04),
 };
 
-const metalSpec = {
-  ss: { mat: mats.ss, lag: 0.28, glowMul: 1.15 },
-  ni80: { mat: mats.ni80, lag: 0.00, glowMul: 1.55 },
-  kanthal: { mat: mats.kanthal, lag: 0.16, glowMul: 1.05 },
-  ribbon: { mat: mats.ribbon, lag: 0.22, glowMul: 0.90 },
-  ni90: { mat: mats.ni90, lag: -0.04, glowMul: 1.70 },
-};
-
-const OX = {
-  ss: [0xc9d0d6, 0xe6d39a, 0xc9a24a, 0x7a4a22, 0x2f6cb0, 0x6a3a88, 0xd4b56a],
-  ni80: [0xb8c2cc, 0x7aa4d0, 0x3a5cff, 0x7a18c8, 0xe03a9a, 0xffb020],
-  kanthal: [0xc4c0b8, 0xd4a84a, 0xc44a14, 0x2a68ff, 0x9018e8, 0xff4aa8, 0xffd24a],
-  ribbon: [0xd0d4d8, 0xe8c45c, 0x8a4a12, 0x2a4a9a, 0xc9a020, 0x6a2a88],
-  ni90: [0xc8ced4, 0x66e0ff, 0x3a40ff, 0xc020e8, 0xff2d7a, 0xffcc44],
-};
-
-function colorRamp(arr, t) {
-  const u = THREE.MathUtils.clamp(t, 0, 1) * (arr.length - 1);
-  const i = Math.min(arr.length - 2, Math.floor(u));
-  const f = u - i;
-  const c = new THREE.Color(arr[i]);
-  c.lerp(new THREE.Color(arr[i + 1]), f);
-  return c;
-}
+const WRAPS = 5.5;
+const HELIX_R = 0.108;
+const PLATE_N = 0.072;
+const PLATE_B = 0.070;
+const PLATE_GAP = 0.012;
+const CLAPTON_R = 0.0064;
+const FRAME_R = 0.0105;
+const BUNDLE_B = PLATE_B * 2 + PLATE_GAP;
+const PITCH = BUNDLE_B * 0.955;
 
 function helixCenterline() {
-  const wraps = 5;
-  const radius = 1.18;
-  const pitch = 0.46;
+  const wraps = WRAPS;
+  const radius = HELIX_R;
+  const pitch = PITCH;
   const height = wraps * pitch;
-  const lead = 1.42;
-  const nHelix = 240;
+  const lead = 0.22;
+  const nHelix = 260;
   const helix = [];
   for (let i = 0; i <= nHelix; i++) {
     const t = i / nHelix;
@@ -186,18 +226,18 @@ function helixCenterline() {
   const tanOut = helix[nHelix].clone().sub(helix[nHelix - 1]).normalize();
   const leadIn = [];
   const leadOut = [];
-  for (let i = 8; i >= 1; i--) {
-    const u = i / 8;
+  for (let i = 6; i >= 1; i--) {
+    const u = i / 6;
     const p = helix[0].clone().addScaledVector(tanIn, -lead * u);
-    p.x += (1 - u) * 0.12;
-    p.y -= (1 - u) * 0.08;
+    p.x += (1 - u) * 0.05;
+    p.y -= (1 - u) * 0.04;
     leadIn.push(p);
   }
-  for (let i = 1; i <= 8; i++) {
-    const u = i / 8;
+  for (let i = 1; i <= 6; i++) {
+    const u = i / 6;
     const p = helix[nHelix].clone().addScaledVector(tanOut, lead * u);
-    p.x -= (1 - u) * 0.04;
-    p.y += u * 0.06;
+    p.x -= (1 - u) * 0.03;
+    p.y += u * 0.03;
     leadOut.push(p);
   }
   return new THREE.CatmullRomCurve3([...leadIn, ...helix, ...leadOut], false, 'centripetal');
@@ -206,32 +246,29 @@ function helixCenterline() {
 function framesOf(curve, n) {
   const pts = [];
   const tangents = [];
-  for (let i = 0; i <= n; i++) {
-    const u = i / n;
-    pts.push(curve.getPointAt(u));
-    tangents.push(curve.getTangentAt(u).normalize());
-  }
   const normals = [];
   const binormals = [];
-  const N = new THREE.Vector3();
-  if (Math.abs(tangents[0].y) < 0.92) {
-    N.crossVectors(tangents[0], new THREE.Vector3(0, 1, 0)).normalize();
-  } else {
-    N.crossVectors(tangents[0], new THREE.Vector3(1, 0, 0)).normalize();
-  }
+  const axis = new THREE.Vector3(0, 1, 0);
   for (let i = 0; i <= n; i++) {
-    if (i > 0) {
-      const axis = new THREE.Vector3().crossVectors(tangents[i - 1], tangents[i]);
-      const len = axis.length();
-      if (len > 1e-7) {
-        axis.multiplyScalar(1 / len);
-        const ang = Math.acos(THREE.MathUtils.clamp(tangents[i - 1].dot(tangents[i]), -1, 1));
-        N.applyAxisAngle(axis, ang);
-      }
-      N.addScaledVector(tangents[i], -N.dot(tangents[i])).normalize();
+    const u = i / n;
+    const p = curve.getPointAt(u);
+    const T = curve.getTangentAt(u).normalize();
+    pts.push(p);
+    tangents.push(T);
+    const radial = new THREE.Vector3(p.x, 0, p.z);
+    if (radial.lengthSq() < 1e-8) radial.set(1, 0, 0);
+    radial.normalize();
+    const B = new THREE.Vector3().crossVectors(T, radial);
+    if (B.lengthSq() < 1e-8) B.crossVectors(T, axis);
+    B.normalize();
+    if (B.y < 0) B.negate();
+    const N = new THREE.Vector3().crossVectors(B, T).normalize();
+    if (N.dot(radial) < 0) {
+      N.negate();
+      B.negate();
     }
-    normals.push(N.clone());
-    binormals.push(new THREE.Vector3().crossVectors(tangents[i], N).normalize());
+    normals.push(N);
+    binormals.push(B);
   }
   return { pts, tangents, normals, binormals };
 }
@@ -240,7 +277,8 @@ function curveFrom(points) {
   return new THREE.CatmullRomCurve3(points, false, 'catmullrom', 0.12);
 }
 
-function addTube(points, radius, tubular, radial, mat) {
+function addTube(points, radius, radial, mat) {
+  const tubular = Math.min(1800, Math.max(48, points.length - 1));
   const geo = new THREE.TubeGeometry(curveFrom(points), tubular, radius, radial, false);
   geo.computeVertexNormals();
   const mesh = new THREE.Mesh(geo, mat);
@@ -248,115 +286,278 @@ function addTube(points, radius, tubular, radial, mat) {
   return mesh;
 }
 
-function offsetPoints(fr, x, y) {
+function sweepCircle(points, normals, radius, segs, mat) {
+  const n = points.length;
+  const pos = new Float32Array(n * segs * 3);
+  const nrm = new Float32Array(n * segs * 3);
+  const uv = new Float32Array(n * segs * 2);
+  const T = new THREE.Vector3();
+  const N = new THREE.Vector3();
+  const B = new THREE.Vector3();
+  const P = new THREE.Vector3();
+  const Nr = new THREE.Vector3();
+  for (let i = 0; i < n; i++) {
+    const i1 = Math.min(n - 1, i + 1);
+    const i0 = Math.max(0, i - 1);
+    T.copy(points[i1]).sub(points[i0]);
+    if (T.lengthSq() < 1e-12) T.set(0, 1, 0);
+    else T.normalize();
+    N.copy(normals[i]);
+    N.addScaledVector(T, -N.dot(T));
+    if (N.lengthSq() < 1e-8) {
+      N.set(0, 1, 0);
+      N.addScaledVector(T, -N.dot(T));
+    }
+    N.normalize();
+    B.crossVectors(T, N).normalize();
+    N.crossVectors(B, T).normalize();
+    for (let j = 0; j < segs; j++) {
+      const a = (j / segs) * Math.PI * 2;
+      const ca = Math.cos(a);
+      const sa = Math.sin(a);
+      P.copy(points[i]).addScaledVector(N, ca * radius).addScaledVector(B, sa * radius);
+      Nr.copy(N).multiplyScalar(ca).addScaledVector(B, sa);
+      const o = (i * segs + j) * 3;
+      pos[o] = P.x;
+      pos[o + 1] = P.y;
+      pos[o + 2] = P.z;
+      nrm[o] = Nr.x;
+      nrm[o + 1] = Nr.y;
+      nrm[o + 2] = Nr.z;
+      const uo = (i * segs + j) * 2;
+      uv[uo] = i / (n - 1);
+      uv[uo + 1] = j / segs;
+    }
+  }
+  const idx = [];
+  for (let i = 0; i < n - 1; i++) {
+    for (let j = 0; j < segs; j++) {
+      const j2 = (j + 1) % segs;
+      const a = i * segs + j;
+      const b = i * segs + j2;
+      const c = (i + 1) * segs + j2;
+      const d = (i + 1) * segs + j;
+      idx.push(a, b, c, a, c, d);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
+  geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  geo.setIndex(idx);
+  const mesh = new THREE.Mesh(geo, mat);
+  stage.add(mesh);
+  return mesh;
+}
+
+function roundedRect(nx, by, rx, segs) {
+  const hw = nx * 0.5;
+  const hh = by * 0.5;
+  const r = Math.min(rx, hw * 0.9, hh * 0.9);
+  const pts = [];
+  const corners = [
+    [hw - r, hh - r, 0],
+    [-hw + r, hh - r, Math.PI * 0.5],
+    [-hw + r, -hh + r, Math.PI],
+    [hw - r, -hh + r, Math.PI * 1.5],
+  ];
+  for (const [cx, cy, a0] of corners) {
+    for (let i = 0; i <= segs; i++) {
+      const a = a0 + (i / segs) * Math.PI * 0.5;
+      pts.push({ x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r });
+    }
+  }
+  return pts;
+}
+
+function sweepProfile(fr, profile, mat) {
+  const n = fr.pts.length;
+  const m = profile.length;
+  const pos = new Float32Array(n * m * 3);
+  const uv = new Float32Array(n * m * 2);
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < m; j++) {
+      const p = profile[j];
+      const v = fr.pts[i];
+      const o = (i * m + j) * 3;
+      pos[o] = v.x + fr.normals[i].x * p.x + fr.binormals[i].x * p.y;
+      pos[o + 1] = v.y + fr.normals[i].y * p.x + fr.binormals[i].y * p.y;
+      pos[o + 2] = v.z + fr.normals[i].z * p.x + fr.binormals[i].z * p.y;
+      const uo = (i * m + j) * 2;
+      uv[uo] = n > 1 ? i / (n - 1) : 0;
+      uv[uo + 1] = j / m;
+    }
+  }
+  const idx = [];
+  for (let i = 0; i < n - 1; i++) {
+    for (let j = 0; j < m; j++) {
+      const j2 = (j + 1) % m;
+      const a = i * m + j;
+      const b = i * m + j2;
+      const c = (i + 1) * m + j2;
+      const d = (i + 1) * m + j;
+      idx.push(a, b, c, a, c, d);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  const mesh = new THREE.Mesh(geo, mat);
+  stage.add(mesh);
+  return mesh;
+}
+
+function sampleFrame(fr, u) {
+  const x = THREE.MathUtils.clamp(u, 0, 1) * (fr.pts.length - 1);
+  const i = Math.min(fr.pts.length - 2, Math.floor(x));
+  const f = x - i;
+  return {
+    p: fr.pts[i].clone().lerp(fr.pts[i + 1], f),
+    N: fr.normals[i].clone().lerp(fr.normals[i + 1], f).normalize(),
+    B: fr.binormals[i].clone().lerp(fr.binormals[i + 1], f).normalize(),
+  };
+}
+
+function resampleClosed(profile, count) {
+  const m = profile.length;
+  const lens = [];
+  let total = 0;
+  for (let i = 0; i < m; i++) {
+    const a = profile[i];
+    const b = profile[(i + 1) % m];
+    const d = Math.hypot(b.x - a.x, b.y - a.y);
+    lens.push(d);
+    total += d;
+  }
   const out = [];
-  for (let i = 0; i < fr.pts.length; i++) {
-    out.push(
-      fr.pts[i].clone()
-        .addScaledVector(fr.normals[i], x)
-        .addScaledVector(fr.binormals[i], y),
-    );
+  for (let i = 0; i < count; i++) {
+    let t = (i / count) * total;
+    let j = 0;
+    while (j < m - 1 && t > lens[j]) {
+      t -= lens[j];
+      j++;
+    }
+    const a = profile[j];
+    const b = profile[(j + 1) % m];
+    const f = lens[j] > 1e-8 ? t / lens[j] : 0;
+    out.push({ x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f });
   }
   return out;
 }
 
-function wrapAround(centerPts, fr, radius, turns, phase) {
-  const out = [];
-  const n = centerPts.length - 1;
+function profileNormals(profile) {
+  const m = profile.length;
+  const nrm = [];
+  for (let j = 0; j < m; j++) {
+    const a = profile[(j - 1 + m) % m];
+    const b = profile[(j + 1) % m];
+    const tx = b.x - a.x;
+    const ty = b.y - a.y;
+    const len = Math.hypot(tx, ty) || 1;
+    nrm.push({ x: ty / len, y: -tx / len });
+  }
+  let cx = 0;
+  let cy = 0;
+  for (const p of profile) {
+    cx += p.x;
+    cy += p.y;
+  }
+  cx /= m;
+  cy /= m;
+  for (let j = 0; j < m; j++) {
+    const dx = profile[j].x - cx;
+    const dy = profile[j].y - cy;
+    if (nrm[j].x * dx + nrm[j].y * dy < 0) {
+      nrm[j].x *= -1;
+      nrm[j].y *= -1;
+    }
+  }
+  return nrm;
+}
+
+function wrapOnProfile(fr, profile, turns, phase, outset) {
+  const loop = resampleClosed(profile, 72);
+  const nrm = profileNormals(loop);
+  const m = loop.length;
+  const n = Math.max(320, Math.floor(turns * 10));
+  const points = [];
+  const normals = [];
   for (let i = 0; i <= n; i++) {
     const u = i / n;
-    const ang = u * turns * Math.PI * 2 + phase;
-    const r = radius + 0.003 * Math.sin(u * 17.0 + phase);
-    out.push(
-      centerPts[i].clone()
-        .addScaledVector(fr.normals[i], Math.cos(ang) * r)
-        .addScaledVector(fr.binormals[i], Math.sin(ang) * r),
+    const s = sampleFrame(fr, u);
+    const v = ((u * turns + phase) % 1 + 1) % 1;
+    const x = v * m;
+    const j = Math.floor(x) % m;
+    const f = x - Math.floor(x);
+    const j2 = (j + 1) % m;
+    const px = loop[j].x + (loop[j2].x - loop[j].x) * f;
+    const py = loop[j].y + (loop[j2].y - loop[j].y) * f;
+    let nx = nrm[j].x + (nrm[j2].x - nrm[j].x) * f;
+    let ny = nrm[j].y + (nrm[j2].y - nrm[j].y) * f;
+    const nl = Math.hypot(nx, ny) || 1;
+    nx /= nl;
+    ny /= nl;
+    points.push(
+      s.p.clone()
+        .addScaledVector(s.N, px + nx * outset)
+        .addScaledVector(s.B, py + ny * outset),
+    );
+    normals.push(
+      s.N.clone().multiplyScalar(nx).addScaledVector(s.B, ny).normalize(),
     );
   }
-  return out;
+  return { points, normals };
 }
 
-function zipper(aPts, bPts, fr, turns, phase, amp) {
-  const out = [];
-  const n = aPts.length - 1;
-  for (let i = 0; i <= n; i++) {
-    const u = i / n;
-    const ang = u * turns * Math.PI * 2 + phase;
-    const w = 0.5 + 0.5 * Math.cos(ang);
-    const p = aPts[i].clone().lerp(bPts[i], w);
-    p.addScaledVector(fr.binormals[i], Math.sin(ang) * amp);
-    p.addScaledVector(fr.normals[i], Math.sin(ang * 2) * amp * 0.18);
-    out.push(p);
-  }
-  return out;
-}
-
-const SAMPLES = 360;
-const CORE_R = 0.054;
-const CORE_SEP = 0.064;
-const STAGGER_R = 0.017;
-const STAGGER_TURNS = 58;
-const FUSE_R = 0.014;
-const RIBBON_R = 0.029;
-const RIBBON_TURNS = 36;
-const ALIEN_R = 0.012;
-const ALIEN_TURNS = 44;
-
+const SAMPLES = 420;
 const centerline = helixCenterline();
+centerline.arcLengthDivisions = 800;
 const coilFrames = framesOf(centerline, SAMPLES);
-const coreL = offsetPoints(coilFrames, -CORE_SEP, 0);
-const coreR = offsetPoints(coilFrames, CORE_SEP, 0);
-const bundleR = CORE_SEP + CORE_R;
 
-addTube(coreL, CORE_R, 280, 10, mats.ss);
-addTube(coreR, CORE_R, 280, 10, mats.ss);
-addTube(
-  wrapAround(coreL, coilFrames, CORE_R + STAGGER_R * 0.92, STAGGER_TURNS, 0.0),
-  STAGGER_R, 460, 7, mats.ni80,
-);
-addTube(
-  wrapAround(coreR, coilFrames, CORE_R + STAGGER_R * 0.92, STAGGER_TURNS, Math.PI * 0.92),
-  STAGGER_R, 460, 7, mats.ni80,
-);
-addTube(
-  zipper(coreL, coreR, coilFrames, STAGGER_TURNS, Math.PI * 0.5, 0.01),
-  FUSE_R, 460, 6, mats.kanthal,
-);
-addTube(
-  wrapAround(coilFrames.pts, coilFrames, bundleR + CORE_R + 0.012, RIBBON_TURNS, 0.35),
-  RIBBON_R, 400, 8, mats.ribbon,
-);
-
-const alienPts = [];
-const nAlien = coilFrames.pts.length - 1;
-for (let i = 0; i <= nAlien; i++) {
-  const u = i / nAlien;
-  const ang = -u * ALIEN_TURNS * Math.PI * 2 + 0.7;
-  const r = bundleR + CORE_R + 0.03;
-  alienPts.push(
-    coilFrames.pts[i].clone()
-      .addScaledVector(coilFrames.normals[i], Math.cos(ang) * r)
-      .addScaledVector(coilFrames.binormals[i], Math.sin(ang) * r),
-  );
+const plateProf = roundedRect(PLATE_N, PLATE_B, 0.009, 5);
+const plateOff = (PLATE_B + PLATE_GAP) * 0.5;
+function offsetProfile(prof, dy) {
+  return prof.map((p) => ({ x: p.x, y: p.y + dy }));
 }
-addTube(alienPts, ALIEN_R, 400, 6, mats.ni90);
+sweepProfile(coilFrames, offsetProfile(plateProf, plateOff), mats.plate);
+sweepProfile(coilFrames, offsetProfile(plateProf, -plateOff), mats.plate);
 
-function addCap(p, mat) {
-  const s = new THREE.Mesh(new THREE.SphereGeometry(CORE_R * 1.05, 12, 10), mat);
+const bundleProf = roundedRect(PLATE_N, BUNDLE_B, 0.011, 6);
+const pathLen = centerline.getLength();
+const claptonTurns = Math.max(280, Math.round(pathLen / (CLAPTON_R * 1.55)));
+
+const clapA = wrapOnProfile(coilFrames, bundleProf, claptonTurns, 0.0, CLAPTON_R * 0.88);
+const clapB = wrapOnProfile(coilFrames, bundleProf, claptonTurns, 0.5, CLAPTON_R * 1.02);
+sweepCircle(clapA.points, clapA.normals, CLAPTON_R, 6, mats.ni80);
+sweepCircle(clapB.points, clapB.normals, CLAPTON_R * 0.84, 6, mats.ni90);
+
+const frameA = wrapOnProfile(coilFrames, bundleProf, WRAPS, 0.08, CLAPTON_R * 2.15);
+const frameB = wrapOnProfile(coilFrames, bundleProf, WRAPS, 0.58, CLAPTON_R * 2.15);
+sweepCircle(frameA.points, frameA.normals, FRAME_R, 8, mats.frame);
+sweepCircle(frameB.points, frameB.normals, FRAME_R, 8, mats.frame);
+
+function addCap(p, mat, r) {
+  const s = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 10), mat);
   s.position.copy(p);
   stage.add(s);
 }
-addCap(coreL[0], mats.ss);
-addCap(coreR[0], mats.ss);
-addCap(coreL[coreL.length - 1], mats.ss);
-addCap(coreR[coreR.length - 1], mats.ss);
+const end0 = coilFrames.pts[0];
+const end1 = coilFrames.pts[coilFrames.pts.length - 1];
+addCap(end0.clone().addScaledVector(coilFrames.binormals[0], plateOff), mats.plate, 0.012);
+addCap(end0.clone().addScaledVector(coilFrames.binormals[0], -plateOff), mats.plate, 0.012);
+addCap(end1.clone().addScaledVector(coilFrames.binormals[coilFrames.binormals.length - 1], plateOff), mats.plate, 0.012);
+addCap(end1.clone().addScaledVector(coilFrames.binormals[coilFrames.binormals.length - 1], -plateOff), mats.plate, 0.012);
 
 (function contain() {
-  stage.rotation.set(0.42, 0.58, -0.52);
+  /* Helix is along Y: lay it on the screen diagonal and fill the canvas width. */
+  stage.rotation.set(0.52, 0.72, -Math.PI * 0.25);
+  stage.updateMatrixWorld(true);
   const box = new THREE.Box3().setFromObject(stage);
   const size = box.getSize(new THREE.Vector3());
-  const maxDim = Math.max(size.x, size.y, size.z);
-  stage.scale.setScalar(6.15 / maxDim);
+  const viewW = 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) * camera.position.z;
+  stage.scale.setScalar((viewW * 1.04) / Math.max(size.x, 1e-6));
   box.setFromObject(stage);
   stage.position.sub(box.getCenter(new THREE.Vector3()));
   box.setFromObject(root);
@@ -372,56 +573,57 @@ addCap(coreR[coreR.length - 1], mats.ss);
   };
 })();
 
-const glowCol = new THREE.Color();
-const oxCol = new THREE.Color();
-
-function applyMetal(id, treat, glow) {
-  const spec = metalSpec[id];
-  const h = THREE.MathUtils.clamp(treat - spec.lag, 0, 1);
-  const g = THREE.MathUtils.clamp(glow * spec.glowMul - spec.lag * 0.45, 0, 1);
-  oxCol.copy(colorRamp(OX[id], 0.18 + h * 0.82));
-  glowCol.setHSL(0.055 - g * 0.04, 0.95, 0.18 + g * 0.42);
-  spec.mat.color.set(0xc9d0d6).lerp(oxCol, 0.42 + h * 0.38).lerp(glowCol, g * 0.38);
-  spec.mat.emissive.copy(glowCol);
-  spec.mat.emissiveIntensity = g * g * (1.35 + spec.glowMul);
-  spec.mat.roughness = THREE.MathUtils.lerp(0.24, 0.12, g);
-  spec.mat.iridescence = 0.35 + h * 0.65 * (1 - g * 0.5);
-  spec.mat.iridescenceIOR = 1.28;
-  spec.mat.iridescenceThicknessRange = [120 + h * 220, 360 + h * 480];
+function applyMetal(mat, treat, pulse) {
+  const lag = mat.userData.lag || 0;
+  const h = THREE.MathUtils.clamp(treat - lag, 0, 1);
+  const p = THREE.MathUtils.clamp(pulse - lag * 0.45, 0, 1);
+  mat.userData.treat = 0.42 + h * 0.52;
+  mat.userData.shift = p * 0.07;
+  if (mat.userData.uTreat) {
+    mat.userData.uTreat.value = mat.userData.treat;
+    mat.userData.uShift.value = mat.userData.shift;
+  }
+  mat.emissive.setHex(0x000000);
+  mat.emissiveIntensity = 0;
+  mat.roughness = THREE.MathUtils.lerp(0.2, 0.13, p);
+  mat.iridescence = 0.52 + h * 0.3 + p * 0.08;
+  mat.iridescenceIOR = 1.18 + p * 0.05;
+  mat.iridescenceThicknessRange = [150 + h * 160, 400 + h * 260 + p * 70];
+  mat.envMapIntensity = 0.82 + p * 0.1;
 }
 
 function applyFrame(frameNo) {
   const t = (frameNo - 1) / TOTAL;
   const ph = t * Math.PI * 2;
-  const glow = Math.max(
-    trap(t, 0.16, 0.28, 0.40, 0.62),
-    trap(t, 0.66, 0.74, 0.80, 0.92) * 0.55,
+  const pulse = Math.max(
+    trap(t, 0.14, 0.26, 0.48, 0.72),
+    trap(t, 0.70, 0.78, 0.86, 0.98) * 0.45,
   );
-  const treat = 0.72 + glow * 0.28;
+  const treat = 0.55 + pulse * 0.42;
 
-  applyMetal('ss', treat, glow);
-  applyMetal('ni80', treat, glow);
-  applyMetal('kanthal', treat, glow);
-  applyMetal('ribbon', treat, glow);
-  applyMetal('ni90', treat, glow);
+  applyMetal(mats.plate, treat, pulse);
+  applyMetal(mats.ni80, treat, pulse);
+  applyMetal(mats.braid, treat, pulse);
+  applyMetal(mats.frame, treat, pulse);
+  applyMetal(mats.ni90, treat, pulse);
 
-  heatLight.position.set(0.1, 0.05, 0.2);
-  heatLight.intensity = glow * 4.8;
-  heatLight.color.setHSL(0.05 - glow * 0.03, 1, 0.55);
+  heatLight.position.set(0.04, 0.02, 0.12);
+  heatLight.intensity = 0.04 + pulse * 0.14;
+  heatLight.color.setHSL(0.68 - pulse * 0.06, 0.42, 0.48);
 
-  const shake = glow * glow;
+  const shake = pulse * pulse * 0.55;
   const rest = stage.userData.rest;
   stage.position.set(
-    rest.x + Math.sin(t * 73.1) * 0.018 * shake + Math.sin(ph) * 0.012,
-    rest.y + Math.cos(ph) * 0.085 + Math.sin(t * 91.7) * 0.014 * shake,
-    rest.z + Math.sin(ph * 1.5) * 0.02,
+    rest.x + Math.sin(t * 73.1) * 0.008 * shake + Math.sin(ph) * 0.006,
+    rest.y + Math.cos(ph) * 0.018 + Math.sin(t * 91.7) * 0.006 * shake,
+    rest.z + Math.sin(ph * 1.5) * 0.01,
   );
   stage.rotation.set(
-    rest.rx + Math.sin(ph) * 0.07 + Math.sin(t * 67) * 0.012 * shake,
-    rest.ry + ph * 0.09 + Math.sin(ph) * 0.16,
-    rest.rz + Math.cos(ph) * 0.05,
+    rest.rx + Math.sin(ph) * 0.03 + Math.sin(t * 67) * 0.006 * shake,
+    rest.ry + Math.sin(ph) * 0.06,
+    rest.rz + Math.cos(ph) * 0.025,
   );
-  stage.scale.setScalar(rest.s * (1 + Math.sin(ph * 2) * 0.012 + glow * 0.02));
+  stage.scale.setScalar(rest.s * (1 + Math.sin(ph * 2) * 0.006));
 
   camera.lookAt(0, 0, 0);
   renderer.clear(true, true, true);
