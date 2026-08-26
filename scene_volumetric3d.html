@@ -5,7 +5,7 @@
   <title>Hyperlinks.SPACE — Exact-art 3D reconstruction</title>
   <style>
     html, body { margin: 0; background: transparent; overflow: hidden; }
-    canvas { display: block; width: 512px; height: 512px; background: transparent; }
+    canvas { display: block; background: transparent; }
   </style>
 </head>
 <body>
@@ -26,17 +26,21 @@
  */
 import * as THREE from 'three';
 
-const W = 512, H = 512, TOTAL = 90;
+const _qs = new URLSearchParams(location.search);
+const AVATAR_BG = _qs.get('avatarBg') === '1' || /avatarBg=1/.test(location.hash);
+const SIGN_ONLY = AVATAR_BG
+  || _qs.get('signOnly') === '1'
+  || /signOnly=1/.test(location.hash);
+/* Avatar: 800² native for Telegram video profile; else sticker/emoji 512. */
+const W = AVATAR_BG ? 800 : 512, H = W, TOTAL = 90;
 const WORLD = 20;
 const REST_SCALE = 0.92; /* match reference canvas fill */
 const DEPTH = 1.85;
 const CHUNK_DEPTH = 2.4; /* thick blocks so tumble reads as 3D */
-const SIGN_ONLY = new URLSearchParams(location.search).get('signOnly') === '1'
-  || /signOnly=1/.test(location.hash);
-/* CCW roll + right-side toward camera: right stem reads a little higher. Shine stays at t=0. */
-const SIGN_REST_RX = 0.05;
-const SIGN_REST_RY = -0.12;
-const SIGN_REST_RZ = 0.14;
+/* Avatar: frozen pose matched to blue-canvas reference (slight yaw, left edge nearer). */
+const SIGN_REST_RX = AVATAR_BG ? 0.04 : 0.05;
+const SIGN_REST_RY = AVATAR_BG ? -0.10 : -0.12;
+const SIGN_REST_RZ = AVATAR_BG ? 0.10 : 0.14;
 /*
  * Sign-only: fill the rounded canvas with a small harmony indent.
  * Metrics (lx/ly/frac) filled after texture clean.
@@ -54,9 +58,10 @@ const SVG_N_PATHS = [
   'M30.25 91L54.55 74.8L68.32 91H91V10H86.95V86.95H70.75L30.25 34.3V91Z',
   'M70.75 10L46.45 26.2L32.68 10H10V91H14.05V14.05H30.25L70.75 66.7V10Z',
 ];
-const SVG_N_GREEN = 0x1aaa11;
-const SVG_N_FACE = 0x1aaa11;
-const SVG_N_SIDE = 0x18b018;
+/* Avatar: punchier lime on deep jade field; emoji stays classic mint. */
+const SVG_N_GREEN = AVATAR_BG ? 0x00e828 : 0x1aaa11;
+const SVG_N_FACE = AVATAR_BG ? 0x22ff55 : 0x1aaa11;
+const SVG_N_SIDE = AVATAR_BG ? 0x0a9040 : 0x18b018;
 const SVG_N_DEPTH = 9;
 const SIGN_CRACKS = [
   [8, 14, 92, 84],
@@ -82,25 +87,146 @@ const renderer = new THREE.WebGLRenderer({
   powerPreference: 'high-performance',
 });
 renderer.setSize(W, H, false);
-renderer.setPixelRatio(SIGN_ONLY ? 2 : 1);
-renderer.setClearColor(0x000000, 0);
+renderer.domElement.style.width = `${W}px`;
+renderer.domElement.style.height = `${H}px`;
+renderer.setPixelRatio(AVATAR_BG ? 1 : (SIGN_ONLY ? 2 : 1));
+renderer.setClearColor(0x000000, AVATAR_BG ? 1 : 0);
 renderer.autoClear = true;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.NoToneMapping;
 document.body.appendChild(renderer.domElement);
 
+/* Living emerald field behind the N — designed for circular Telegram avatar crop. */
+let avatarBgTex = null;
+let avatarBgCtx = null;
+let avatarBgSize = 0;
+function initAvatarBackground() {
+  if (!AVATAR_BG) return;
+  avatarBgSize = 1024;
+  const c = document.createElement('canvas');
+  c.width = avatarBgSize;
+  c.height = avatarBgSize;
+  avatarBgCtx = c.getContext('2d');
+  avatarBgTex = new THREE.CanvasTexture(c);
+  avatarBgTex.colorSpace = THREE.SRGBColorSpace;
+  avatarBgTex.needsUpdate = true;
+  scene.background = avatarBgTex;
+}
+function paintAvatarBackground(t, pulse) {
+  if (!avatarBgCtx || !avatarBgTex) return;
+  const S = avatarBgSize;
+  const ctx = avatarBgCtx;
+  const ph = t * Math.PI * 2;
+  const breathe = 0.55 + 0.45 * pulse;
+
+  /* Deep jade field — bright lime N reads on light and dark Telegram. */
+  const lift = breathe * 12;
+  const base = ctx.createRadialGradient(
+    S * 0.50, S * 0.46, S * 0.10,
+    S * 0.50, S * 0.50, S * 0.74,
+  );
+  base.addColorStop(0.00, `rgb(${6 + lift | 0},${58 + lift | 0},${34 + lift * 0.4 | 0})`);
+  base.addColorStop(0.45, '#084028');
+  base.addColorStop(0.75, '#062e1d');
+  base.addColorStop(1.00, '#041f14');
+  ctx.fillStyle = base;
+  ctx.fillRect(0, 0, S, S);
+
+  /* Soft diagonal aurora ribbons — depth behind the sign. */
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 6; i++) {
+    const a = ph * (0.55 + i * 0.07) + i * 1.05;
+    const cx = S * (0.28 + 0.1 * i) + Math.cos(a) * S * 0.08;
+    const cy = S * (0.22 + 0.12 * i) + Math.sin(a * 1.15) * S * 0.06;
+    const band = ctx.createLinearGradient(cx - S * 0.45, cy - S * 0.2, cx + S * 0.5, cy + S * 0.35);
+    const a0 = 0.03 + 0.04 * breathe;
+    band.addColorStop(0.00, 'rgba(20,80,50,0)');
+    band.addColorStop(0.35, `rgba(40,210,120,${a0 * 0.55})`);
+    band.addColorStop(0.52, `rgba(120,255,180,${a0})`);
+    band.addColorStop(0.70, `rgba(30,160,90,${a0 * 0.45})`);
+    band.addColorStop(1.00, 'rgba(10,40,25,0)');
+    ctx.fillStyle = band;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, S * (0.55 + 0.04 * Math.sin(a)), S * (0.10 + 0.02 * Math.cos(a * 1.3)), -0.55 + i * 0.04, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  /* Orbiting bokeh motes — read as depth in the circle crop. */
+  for (let i = 0; i < 28; i++) {
+    const seed = i * 2.399;
+    const ang = ph * (0.35 + (i % 5) * 0.04) + seed;
+    const rad = S * (0.18 + (i % 7) * 0.055);
+    const x = S * 0.5 + Math.cos(ang) * rad;
+    const y = S * 0.5 + Math.sin(ang * 0.92 + 0.4) * rad * 0.88;
+    const r = 1.2 + (i % 4) * 1.8 + breathe * 1.5;
+    const glow = ctx.createRadialGradient(x, y, 0, x, y, r * 4);
+    const alpha = 0.08 + 0.12 * ((Math.sin(ph * 2 + seed) + 1) * 0.5) * breathe;
+    glow.addColorStop(0, `rgba(160,255,200,${alpha})`);
+    glow.addColorStop(0.45, `rgba(40,180,110,${alpha * 0.35})`);
+    glow.addColorStop(1, 'rgba(0,40,20,0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(x, y, r * 4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+
+  /* Dark cradle behind the logo so the N silhouettes cleanly. */
+  const cradle = ctx.createRadialGradient(S * 0.5, S * 0.48, S * 0.02, S * 0.5, S * 0.48, S * 0.46);
+  cradle.addColorStop(0.00, 'rgba(0,0,0,0.55)');
+  cradle.addColorStop(0.45, 'rgba(0,12,6,0.32)');
+  cradle.addColorStop(1.00, 'rgba(0,0,0,0)');
+  ctx.fillStyle = cradle;
+  ctx.fillRect(0, 0, S, S);
+
+  /* Concentric pulse rings — avatar-circle language. */
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 3; i++) {
+    const u = (t * 0.85 + i / 3) % 1;
+    const rr = S * (0.16 + u * 0.42);
+    const fade = Math.sin(u * Math.PI) * (0.10 + 0.08 * breathe);
+    ctx.strokeStyle = `rgba(70,220,140,${fade})`;
+    ctx.lineWidth = 1.5 + (1 - u) * 2.5;
+    ctx.beginPath();
+    ctx.arc(S * 0.5, S * 0.48, rr, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  /* Soft vignette for the circular Telegram crop. */
+  const vig = ctx.createRadialGradient(S * 0.5, S * 0.5, S * 0.30, S * 0.5, S * 0.5, S * 0.58);
+  vig.addColorStop(0.00, 'rgba(0,0,0,0)');
+  vig.addColorStop(0.72, 'rgba(0,0,0,0.18)');
+  vig.addColorStop(1.00, 'rgba(0,0,0,0.72)');
+  ctx.fillStyle = vig;
+  ctx.fillRect(0, 0, S, S);
+
+  avatarBgTex.needsUpdate = true;
+}
+
 const pmrem = new THREE.PMREMGenerator(renderer);
 const scene = new THREE.Scene();
+initAvatarBackground();
 if (SIGN_ONLY) {
   const envC = document.createElement('canvas');
   envC.width = 1024;
   envC.height = 512;
   const envG = envC.getContext('2d');
+  /* Saturated studio greens — punchier for avatar, classic for emoji. */
   const amb = envG.createLinearGradient(0, 0, 0, 512);
-  amb.addColorStop(0.00, '#e8f6f2');
-  amb.addColorStop(0.28, '#6ebc9a');
-  amb.addColorStop(0.55, '#3d8a6e');
-  amb.addColorStop(1.00, '#2a6a58');
+  if (AVATAR_BG) {
+    amb.addColorStop(0.00, '#f0fff4');
+    amb.addColorStop(0.22, '#5dff9a');
+    amb.addColorStop(0.50, '#12d45a');
+    amb.addColorStop(1.00, '#0aa344');
+  } else {
+    amb.addColorStop(0.00, '#e8f6f2');
+    amb.addColorStop(0.28, '#6ebc9a');
+    amb.addColorStop(0.55, '#3d8a6e');
+    amb.addColorStop(1.00, '#2a6a58');
+  }
   envG.fillStyle = amb;
   envG.fillRect(0, 0, 1024, 512);
   envG.fillStyle = '#ffffff';
@@ -114,7 +240,7 @@ if (SIGN_ONLY) {
   envTex.colorSpace = THREE.SRGBColorSpace;
   envTex.needsUpdate = true;
   scene.environment = pmrem.fromEquirectangular(envTex).texture;
-  scene.environmentIntensity = 1.55;
+  scene.environmentIntensity = AVATAR_BG ? 1.85 : 1.55;
 }
 const camera = new THREE.PerspectiveCamera(28, 1, 0.05, 200);
 camera.position.set(0, 0, 42);
@@ -126,13 +252,13 @@ if (SIGN_ONLY) root.add(fx);
 else scene.add(fx);
 
 /* Soft studio light — sign-only: crisp key for green specular shine */
-const keyLight = new THREE.DirectionalLight(SIGN_ONLY ? 0xffffff : 0xffffff, SIGN_ONLY ? 3.6 : 2.2);
+const keyLight = new THREE.DirectionalLight(SIGN_ONLY ? 0xffffff : 0xffffff, SIGN_ONLY ? (AVATAR_BG ? 4.2 : 3.6) : 2.2);
 keyLight.position.set(-6, 10, 16);
 scene.add(keyLight);
-const fillLight = new THREE.DirectionalLight(SIGN_ONLY ? 0xc8ffe0 : 0xa8c8ff, SIGN_ONLY ? 1.75 : 0.9);
+const fillLight = new THREE.DirectionalLight(SIGN_ONLY ? 0xb8ffd0 : 0xa8c8ff, SIGN_ONLY ? (AVATAR_BG ? 2.1 : 1.75) : 0.9);
 fillLight.position.set(8, -2, 10);
 scene.add(fillLight);
-const ambLight = new THREE.AmbientLight(SIGN_ONLY ? 0xe0fff0 : 0xffffff, SIGN_ONLY ? 0.62 : 0.7);
+const ambLight = new THREE.AmbientLight(SIGN_ONLY ? 0xd0ffe0 : 0xffffff, SIGN_ONLY ? (AVATAR_BG ? 0.72 : 0.62) : 0.7);
 scene.add(ambLight);
 const rimLight = new THREE.DirectionalLight(SIGN_ONLY ? 0xffffff : 0xffffff, SIGN_ONLY ? 2.8 : 1.1);
 rimLight.position.set(2, 4, -12);
@@ -1740,8 +1866,8 @@ function makeSvgSignFaceMat(x0 = 0) {
         vec2 uv = vec2(dot(x, normal), dot(y, normal)) * 0.495 + 0.5;
         vec3 col = texture2D(matcap, uv).rgb;
         float chrome = max(col.r, max(col.g, col.b));
-        /* Emerald chrome — not yellow-lime, not forest. */
-        col *= mix(vec3(0.22, 1.06, 0.48), vec3(1.0), smoothstep(0.50, 0.92, chrome));
+        vec3 tint = vec3(0.22, 1.06, 0.48);
+        col *= mix(tint, vec3(1.0), smoothstep(0.50, 0.92, chrome));
         col = min(vec3(1.0), col * (1.22 + uPunch * 0.18) + 0.08);
         /* Floor: recesses stay emerald, never drop to black. */
         col = max(col, vec3(0.12, 0.50, 0.32));
@@ -1876,17 +2002,20 @@ function buildSvgSign() {
     group.add(mesh);
     pieceMeshes.push(mesh);
 
-    const rimGeo = new THREE.ExtrudeGeometry(shape, {
-      depth: SVG_N_DEPTH * 0.45,
-      bevelEnabled: false,
-      curveSegments: 1,
-      steps: 1,
-    });
-    rimGeo.translate(0, 0, -SVG_N_DEPTH * 0.45);
-    const rim = new THREE.Mesh(rimGeo, rimMat.clone());
-    rim.scale.setScalar(1.02);
-    rim.position.z = -0.35;
-    mesh.add(rim);
+    /* Ghost rim reads as a second sign — skip on avatar. */
+    if (!AVATAR_BG) {
+      const rimGeo = new THREE.ExtrudeGeometry(shape, {
+        depth: SVG_N_DEPTH * 0.45,
+        bevelEnabled: false,
+        curveSegments: 1,
+        steps: 1,
+      });
+      rimGeo.translate(0, 0, -SVG_N_DEPTH * 0.45);
+      const rim = new THREE.Mesh(rimGeo, rimMat.clone());
+      rim.scale.setScalar(1.02);
+      rim.position.z = -0.35;
+      mesh.add(rim);
+    }
   }
 
   /* (glance is painted on face map — no free-floating bar) */
@@ -2244,6 +2373,21 @@ function aabbFitsRoundRect(box, half, corner) {
   return true;
 }
 
+/** AABB corners must sit inside a circle (Telegram video-avatar crop). */
+function aabbFitsCircle(box, radius) {
+  const r2 = radius * radius;
+  const pts = [
+    [box.min.x, box.min.y],
+    [box.min.x, box.max.y],
+    [box.max.x, box.min.y],
+    [box.max.x, box.max.y],
+  ];
+  for (const [x, y] of pts) {
+    if (x * x + y * y > r2 + 1e-8) return false;
+  }
+  return true;
+}
+
 function clampLocalXY(v, maxR) {
   const r = Math.hypot(v.x, v.y);
   if (r > maxR && r > 1e-8) {
@@ -2371,9 +2515,12 @@ function containRoot() {
     brand.n.rotation.set(SIGN_REST_RX, SIGN_REST_RY, SIGN_REST_RZ);
     brand.n.updateMatrixWorld(true);
     const viewHalf = viewSpan * 0.5;
+    /* Emoji: rounded square. Avatar frozen: true circle with modest pad (no tip clip). */
     const edgeIndent = 0.10;
     const A = viewHalf * (1 - edgeIndent);
     const CR = viewHalf * 2 * 0.18;
+    /* ~55% green fill like the blue-canvas reference still. */
+    const circleR = viewHalf * (AVATAR_BG ? 0.76 : 0.70);
     let lo = 0.2;
     let hi = 12;
     for (let i = 0; i < 22; i++) {
@@ -2387,7 +2534,10 @@ function containRoot() {
       root.position.y -= c.y;
       root.updateMatrixWorld(true);
       const box2 = new THREE.Box3().setFromObject(brand.n);
-      if (aabbFitsRoundRect(box2, A, CR)) lo = mid;
+      const ok = AVATAR_BG
+        ? aabbFitsCircle(box2, circleR)
+        : aabbFitsRoundRect(box2, A, CR);
+      if (ok) lo = mid;
       else hi = mid;
     }
     root.scale.setScalar(lo);
@@ -2457,6 +2607,11 @@ function applyFrame(fr) {
       n.position.set(rp.x, rp.y + 0.04, rp.z + 0.08);
       n.rotation.set(0.05, 0.07, 0);
       n.scale.setScalar(brand.nScale * 1.02);
+    } else if (AVATAR_BG && frozen) {
+      /* Exact reference still — single 3D N, no micro-wobble. */
+      n.position.set(rp.x, rp.y, rp.z);
+      n.rotation.set(SIGN_REST_RX, SIGN_REST_RY, SIGN_REST_RZ);
+      n.scale.setScalar(brand.nScale);
     } else {
       /* Shine phase: gentle turn so green facets catch light */
       n.position.set(
@@ -2512,6 +2667,11 @@ function applyFrame(fr) {
 
   if (SIGN_ONLY && crackOverlays.length) {
     for (const o of crackOverlays) {
+      if (AVATAR_BG) {
+        o.visible = false;
+        o.material.opacity = 0;
+        continue;
+      }
       if (o.userData.onWhole) {
         const on = crack > 0.02 && t < 0.22;
         o.visible = on;
@@ -3091,6 +3251,18 @@ function applyFrame(fr) {
     cb.coreMat.opacity = 0;
     cb.glow.visible = false;
     cb.core.visible = false;
+  }
+
+  if (AVATAR_BG) {
+    const bgPulse = Math.max(
+      trap(t, 0.00, 0.08, 0.18, 0.30),
+      crack * 0.55,
+      coreFlash * 0.9,
+      fxSurge * 0.75,
+      rebuild * 0.5,
+      0.25 + 0.25 * Math.sin(t * Math.PI * 2),
+    );
+    paintAvatarBackground(t, Math.min(1, bgPulse));
   }
 
   renderer.clear(true, true, true);
