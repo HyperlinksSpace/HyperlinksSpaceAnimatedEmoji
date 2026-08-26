@@ -71,7 +71,7 @@ async function encodeAvatarMp4() {
     '-vf', `scale=${SIZE}:${SIZE}:flags=lanczos,format=yuv420p`,
     '-c:v', 'libx264',
     '-preset', 'medium',
-    '-crf', '20',
+    '-crf', '18',
     '-pix_fmt', 'yuv420p',
     '-profile:v', 'high',
     '-level', '4.0',
