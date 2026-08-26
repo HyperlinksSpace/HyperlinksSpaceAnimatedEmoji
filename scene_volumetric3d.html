@@ -119,44 +119,35 @@ function paintAvatarBackground(t, pulse) {
   const ph = t * Math.PI * 2;
   const breathe = 0.55 + 0.45 * pulse;
 
-  /* Deep jade field — dark enough for mint N contrast, no black mud. */
-  const lift = breathe * 12;
-  const base = ctx.createRadialGradient(
-    S * 0.50, S * 0.46, S * 0.08,
-    S * 0.50, S * 0.52, S * 0.82,
-  );
-  base.addColorStop(0.00, `rgb(${18 + lift | 0},${78 + lift * 0.55 | 0},${48 + lift * 0.3 | 0})`);
-  base.addColorStop(0.40, '#0c4a30');
-  base.addColorStop(0.72, '#083524');
-  base.addColorStop(1.00, '#06281a');
-  ctx.fillStyle = base;
+  /* Flat deep jade — no radial falloff (reads as vignette in the circle crop). */
+  const g0 = 72 + breathe * 8 | 0;
+  ctx.fillStyle = `rgb(${14 + breathe * 4 | 0},${g0},${44 + breathe * 4 | 0})`;
   ctx.fillRect(0, 0, S, S);
 
-  /* Few soft aurora bands — depth without glitter. */
+  /* Soft living wash — even across the field, not corner-dark. */
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
   for (let i = 0; i < 3; i++) {
     const a = ph * (0.35 + i * 0.05) + i * 1.4;
-    const cx = S * (0.32 + 0.14 * i) + Math.cos(a) * S * 0.05;
-    const cy = S * (0.28 + 0.14 * i) + Math.sin(a * 1.1) * S * 0.04;
-    const band = ctx.createLinearGradient(cx - S * 0.4, cy, cx + S * 0.45, cy + S * 0.18);
-    const a0 = 0.035 + 0.035 * breathe;
+    const cx = S * (0.30 + 0.18 * i) + Math.cos(a) * S * 0.06;
+    const cy = S * (0.32 + 0.16 * i) + Math.sin(a * 1.1) * S * 0.05;
+    const band = ctx.createLinearGradient(cx - S * 0.45, cy, cx + S * 0.5, cy + S * 0.2);
+    const a0 = 0.04 + 0.04 * breathe;
     band.addColorStop(0.00, 'rgba(20,80,50,0)');
     band.addColorStop(0.5, `rgba(70,200,130,${a0})`);
     band.addColorStop(1.00, 'rgba(10,40,25,0)');
     ctx.fillStyle = band;
     ctx.beginPath();
-    ctx.ellipse(cx, cy, S * 0.48, S * 0.07, -0.45 + i * 0.06, 0, Math.PI * 2);
+    ctx.ellipse(cx, cy, S * 0.5, S * 0.08, -0.45 + i * 0.06, 0, Math.PI * 2);
     ctx.fill();
   }
 
-  /* Sparse soft motes. */
   for (let i = 0; i < 12; i++) {
     const seed = i * 2.399;
     const ang = ph * 0.28 + seed;
-    const rad = S * (0.22 + (i % 5) * 0.06);
+    const rad = S * (0.18 + (i % 5) * 0.07);
     const x = S * 0.5 + Math.cos(ang) * rad;
-    const y = S * 0.5 + Math.sin(ang * 0.9 + 0.3) * rad * 0.88;
+    const y = S * 0.5 + Math.sin(ang * 0.9 + 0.3) * rad * 0.9;
     const r = 2.2 + (i % 3) * 1.6;
     const glow = ctx.createRadialGradient(x, y, 0, x, y, r * 3.2);
     const alpha = 0.06 + 0.07 * ((Math.sin(ph * 1.6 + seed) + 1) * 0.5) * breathe;
@@ -166,21 +157,6 @@ function paintAvatarBackground(t, pulse) {
     ctx.beginPath();
     ctx.arc(x, y, r * 3.2, 0, Math.PI * 2);
     ctx.fill();
-  }
-  ctx.restore();
-
-  /* Quiet pulse rings. */
-  ctx.save();
-  ctx.globalCompositeOperation = 'lighter';
-  for (let i = 0; i < 2; i++) {
-    const u = (t * 0.7 + i / 2) % 1;
-    const rr = S * (0.18 + u * 0.36);
-    const fade = Math.sin(u * Math.PI) * (0.07 + 0.05 * breathe);
-    ctx.strokeStyle = `rgba(110,220,160,${fade})`;
-    ctx.lineWidth = 1.2;
-    ctx.beginPath();
-    ctx.arc(S * 0.5, S * 0.48, rr, 0, Math.PI * 2);
-    ctx.stroke();
   }
   ctx.restore();
 
@@ -2508,8 +2484,9 @@ function containRoot() {
     const edgeIndent = 0.10;
     const A = viewHalf * (1 - edgeIndent);
     const CR = viewHalf * 2 * 0.18;
-    /* ~55% green fill like the blue-canvas reference still. */
-    const circleR = viewHalf * (AVATAR_BG ? 0.76 : 0.70);
+    /* Voice-call stack: neighbor sits under our LEFT edge — keep jade pad there.
+     * Slightly smaller + optical right bias so the bright N doesn’t invade. */
+    const circleR = viewHalf * (AVATAR_BG ? 0.58 : 0.70);
     let lo = 0.2;
     let hi = 12;
     for (let i = 0; i < 22; i++) {
@@ -2536,6 +2513,10 @@ function containRoot() {
     const c3 = box3.getCenter(new THREE.Vector3());
     root.position.x -= c3.x;
     root.position.y -= c3.y;
+    if (AVATAR_BG) {
+      root.position.x += viewHalf * 0.09;
+      root.position.y += viewHalf * 0.055;
+    }
   } else {
     const box = new THREE.Box3().setFromObject(root);
     const size = box.getSize(new THREE.Vector3());
