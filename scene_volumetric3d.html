@@ -59,9 +59,9 @@ const SVG_N_PATHS = [
   'M70.75 10L46.45 26.2L32.68 10H10V91H14.05V14.05H30.25L70.75 66.7V10Z',
 ];
 /* Avatar: punchier lime on deep jade field; emoji stays classic mint. */
-const SVG_N_GREEN = AVATAR_BG ? 0x00e828 : 0x1aaa11;
-const SVG_N_FACE = AVATAR_BG ? 0x22ff55 : 0x1aaa11;
-const SVG_N_SIDE = AVATAR_BG ? 0x0a9040 : 0x18b018;
+const SVG_N_GREEN = AVATAR_BG ? 0x18ff4a : 0x1aaa11;
+const SVG_N_FACE = AVATAR_BG ? 0x44ff66 : 0x1aaa11;
+const SVG_N_SIDE = AVATAR_BG ? 0x1acc50 : 0x18b018;
 const SVG_N_DEPTH = 9;
 const SIGN_CRACKS = [
   [8, 14, 92, 84],
@@ -119,16 +119,16 @@ function paintAvatarBackground(t, pulse) {
   const ph = t * Math.PI * 2;
   const breathe = 0.55 + 0.45 * pulse;
 
-  /* Deep jade field — bright lime N reads on light and dark Telegram. */
-  const lift = breathe * 12;
+  /* Bright saturated jade — vivid on white, still green (not pastel wash). */
+  const lift = breathe * 22;
   const base = ctx.createRadialGradient(
-    S * 0.50, S * 0.46, S * 0.10,
-    S * 0.50, S * 0.50, S * 0.74,
+    S * 0.50, S * 0.46, S * 0.06,
+    S * 0.50, S * 0.50, S * 0.78,
   );
-  base.addColorStop(0.00, `rgb(${6 + lift | 0},${58 + lift | 0},${34 + lift * 0.4 | 0})`);
-  base.addColorStop(0.45, '#084028');
-  base.addColorStop(0.75, '#062e1d');
-  base.addColorStop(1.00, '#041f14');
+  base.addColorStop(0.00, `rgb(${55 + lift | 0},${175 + lift * 0.35 | 0},${110 + lift * 0.25 | 0})`);
+  base.addColorStop(0.35, `rgb(${22 + lift * 0.35 | 0},${130 + lift * 0.25 | 0},${78 + lift * 0.2 | 0})`);
+  base.addColorStop(0.68, '#167a4c');
+  base.addColorStop(1.00, '#116240');
   ctx.fillStyle = base;
   ctx.fillRect(0, 0, S, S);
 
@@ -140,11 +140,11 @@ function paintAvatarBackground(t, pulse) {
     const cx = S * (0.28 + 0.1 * i) + Math.cos(a) * S * 0.08;
     const cy = S * (0.22 + 0.12 * i) + Math.sin(a * 1.15) * S * 0.06;
     const band = ctx.createLinearGradient(cx - S * 0.45, cy - S * 0.2, cx + S * 0.5, cy + S * 0.35);
-    const a0 = 0.03 + 0.04 * breathe;
+    const a0 = 0.07 + 0.08 * breathe;
     band.addColorStop(0.00, 'rgba(20,80,50,0)');
-    band.addColorStop(0.35, `rgba(40,210,120,${a0 * 0.55})`);
-    band.addColorStop(0.52, `rgba(120,255,180,${a0})`);
-    band.addColorStop(0.70, `rgba(30,160,90,${a0 * 0.45})`);
+    band.addColorStop(0.35, `rgba(60,240,140,${a0 * 0.6})`);
+    band.addColorStop(0.52, `rgba(160,255,200,${a0})`);
+    band.addColorStop(0.70, `rgba(50,200,120,${a0 * 0.5})`);
     band.addColorStop(1.00, 'rgba(10,40,25,0)');
     ctx.fillStyle = band;
     ctx.beginPath();
@@ -161,9 +161,9 @@ function paintAvatarBackground(t, pulse) {
     const y = S * 0.5 + Math.sin(ang * 0.92 + 0.4) * rad * 0.88;
     const r = 1.2 + (i % 4) * 1.8 + breathe * 1.5;
     const glow = ctx.createRadialGradient(x, y, 0, x, y, r * 4);
-    const alpha = 0.08 + 0.12 * ((Math.sin(ph * 2 + seed) + 1) * 0.5) * breathe;
-    glow.addColorStop(0, `rgba(160,255,200,${alpha})`);
-    glow.addColorStop(0.45, `rgba(40,180,110,${alpha * 0.35})`);
+    const alpha = 0.14 + 0.18 * ((Math.sin(ph * 2 + seed) + 1) * 0.5) * breathe;
+    glow.addColorStop(0, `rgba(190,255,210,${alpha})`);
+    glow.addColorStop(0.45, `rgba(70,220,140,${alpha * 0.4})`);
     glow.addColorStop(1, 'rgba(0,40,20,0)');
     ctx.fillStyle = glow;
     ctx.beginPath();
@@ -172,10 +172,10 @@ function paintAvatarBackground(t, pulse) {
   }
   ctx.restore();
 
-  /* Dark cradle behind the logo so the N silhouettes cleanly. */
-  const cradle = ctx.createRadialGradient(S * 0.5, S * 0.48, S * 0.02, S * 0.5, S * 0.48, S * 0.46);
-  cradle.addColorStop(0.00, 'rgba(0,0,0,0.55)');
-  cradle.addColorStop(0.45, 'rgba(0,12,6,0.32)');
+  /* Very light cradle — edge only, keep field bright. */
+  const cradle = ctx.createRadialGradient(S * 0.5, S * 0.48, S * 0.06, S * 0.5, S * 0.48, S * 0.38);
+  cradle.addColorStop(0.00, 'rgba(0,10,5,0.10)');
+  cradle.addColorStop(0.6, 'rgba(0,12,6,0.04)');
   cradle.addColorStop(1.00, 'rgba(0,0,0,0)');
   ctx.fillStyle = cradle;
   ctx.fillRect(0, 0, S, S);
@@ -186,22 +186,14 @@ function paintAvatarBackground(t, pulse) {
   for (let i = 0; i < 3; i++) {
     const u = (t * 0.85 + i / 3) % 1;
     const rr = S * (0.16 + u * 0.42);
-    const fade = Math.sin(u * Math.PI) * (0.10 + 0.08 * breathe);
-    ctx.strokeStyle = `rgba(70,220,140,${fade})`;
-    ctx.lineWidth = 1.5 + (1 - u) * 2.5;
+    const fade = Math.sin(u * Math.PI) * (0.16 + 0.12 * breathe);
+    ctx.strokeStyle = `rgba(120,255,170,${fade})`;
+    ctx.lineWidth = 1.8 + (1 - u) * 2.8;
     ctx.beginPath();
     ctx.arc(S * 0.5, S * 0.48, rr, 0, Math.PI * 2);
     ctx.stroke();
   }
   ctx.restore();
-
-  /* Soft vignette for the circular Telegram crop. */
-  const vig = ctx.createRadialGradient(S * 0.5, S * 0.5, S * 0.30, S * 0.5, S * 0.5, S * 0.58);
-  vig.addColorStop(0.00, 'rgba(0,0,0,0)');
-  vig.addColorStop(0.72, 'rgba(0,0,0,0.18)');
-  vig.addColorStop(1.00, 'rgba(0,0,0,0.72)');
-  ctx.fillStyle = vig;
-  ctx.fillRect(0, 0, S, S);
 
   avatarBgTex.needsUpdate = true;
 }
@@ -1461,11 +1453,19 @@ function updateSignShineGlance(t, life, frozen) {
   if (SIGN_ONLY) {
     const ph = t * Math.PI * 2;
     nGlanceU.uShift.value = 46 + (frozen ? 0 : Math.sin(ph) * 8);
-    nGlanceU.uGain.value = frozen
-      ? 2.05
-      : (1.2 + 0.28 * Math.max(0, Math.cos(ph))) * Math.max(0.45, life);
-    nGlanceU.uWidth.value = frozen ? 22 : 18;
-    nGlanceU.uPunch.value = frozen ? 0.35 : 0;
+    if (AVATAR_BG) {
+      nGlanceU.uGain.value = frozen
+        ? 2.45
+        : (1.55 + 0.35 * Math.max(0, Math.cos(ph))) * Math.max(0.55, life);
+      nGlanceU.uWidth.value = frozen ? 26 : 18;
+      nGlanceU.uPunch.value = frozen ? 0.62 : 0.22;
+    } else {
+      nGlanceU.uGain.value = frozen
+        ? 2.05
+        : (1.2 + 0.28 * Math.max(0, Math.cos(ph))) * Math.max(0.45, life);
+      nGlanceU.uWidth.value = frozen ? 22 : 18;
+      nGlanceU.uPunch.value = frozen ? 0.35 : 0;
+    }
     if (brand.n && brand.n.userData.glanceBar) {
       brand.n.userData.glanceBar.visible = false;
     }
@@ -1866,16 +1866,16 @@ function makeSvgSignFaceMat(x0 = 0) {
         vec2 uv = vec2(dot(x, normal), dot(y, normal)) * 0.495 + 0.5;
         vec3 col = texture2D(matcap, uv).rgb;
         float chrome = max(col.r, max(col.g, col.b));
-        vec3 tint = vec3(0.22, 1.06, 0.48);
+        vec3 tint = ${AVATAR_BG ? 'vec3(0.38, 1.22, 0.52)' : 'vec3(0.22, 1.06, 0.48)'};
         col *= mix(tint, vec3(1.0), smoothstep(0.50, 0.92, chrome));
-        col = min(vec3(1.0), col * (1.22 + uPunch * 0.18) + 0.08);
+        col = min(vec3(1.0), col * (${AVATAR_BG ? '1.48' : '1.22'} + uPunch * ${AVATAR_BG ? '0.28' : '0.18'}) + ${AVATAR_BG ? '0.14' : '0.08'});
         /* Floor: recesses stay emerald, never drop to black. */
-        col = max(col, vec3(0.12, 0.50, 0.32));
+        col = max(col, ${AVATAR_BG ? 'vec3(0.22, 0.78, 0.42)' : 'vec3(0.12, 0.50, 0.32)'});
         float d = abs(vX - uShift) / max(uWidth, 0.001);
         float core = 1.0 - smoothstep(0.08, 0.28, d);
         float halo = 1.0 - smoothstep(0.28, 0.68, d);
         float a = max(core, halo * 0.48) * uGain;
-        col = mix(col, vec3(1.0), clamp(a, 0.0, 0.70));
+        col = mix(col, vec3(1.0), clamp(a, 0.0, ${AVATAR_BG ? '0.82' : '0.70'}));
         gl_FragColor = vec4(col, 1.0);
       }
     `,
@@ -1887,7 +1887,7 @@ function makeSvgSignFaceMat(x0 = 0) {
 function makeSvgSignSideMat() {
   return new THREE.MeshMatcapMaterial({
     matcap: greenChromeMatcap,
-    color: 0x3a8c34,
+    color: AVATAR_BG ? 0x48d858 : 0x3a8c34,
     toneMapped: false,
   });
 }
@@ -2854,11 +2854,19 @@ function applyFrame(fr) {
   }
 
   if (SIGN_ONLY) {
-    keyLight.intensity = frozen ? 4.2 : 3.6;
-    fillLight.intensity = frozen ? 1.85 : 1.75;
-    rimLight.intensity = frozen ? 2.4 : 2.8;
-    ambLight.intensity = frozen ? 0.68 : 0.62;
-    scene.environmentIntensity = frozen ? 1.75 : 1.55;
+    if (AVATAR_BG) {
+      keyLight.intensity = frozen ? 5.6 : 5.0;
+      fillLight.intensity = frozen ? 2.8 : 2.5;
+      rimLight.intensity = frozen ? 3.4 : 3.1;
+      ambLight.intensity = frozen ? 1.05 : 0.95;
+      scene.environmentIntensity = frozen ? 2.55 : 2.3;
+    } else {
+      keyLight.intensity = frozen ? 4.2 : 3.6;
+      fillLight.intensity = frozen ? 1.85 : 1.75;
+      rimLight.intensity = frozen ? 2.4 : 2.8;
+      ambLight.intensity = frozen ? 0.68 : 0.62;
+      scene.environmentIntensity = frozen ? 1.75 : 1.55;
+    }
   } else if (hero) {
     /* Harder key/rim, cooler fill off the white wordmark, no orange fire wash. */
     keyLight.intensity = 3.35;
@@ -2876,11 +2884,11 @@ function applyFrame(fr) {
   if (SIGN_ONLY && shineSweep) {
     const ph = t * Math.PI * 2;
     shineSweep.position.set(7.2 + Math.sin(ph) * 1.4, 7.6, 13.5);
-    shineSweep.intensity = (frozen ? 8.0 : 5.8) * life;
+    shineSweep.intensity = (frozen ? (AVATAR_BG ? 11.0 : 8.0) : (AVATAR_BG ? 7.5 : 5.8)) * life;
   }
   if (SIGN_ONLY && shineKick) {
     const ph = t * Math.PI * 2;
-    shineKick.intensity = (frozen ? 6.0 : 4.4) * life;
+    shineKick.intensity = (frozen ? (AVATAR_BG ? 8.5 : 6.0) : (AVATAR_BG ? 6.0 : 4.4)) * life;
     shineKick.position.set(-1.1 + Math.sin(ph) * 0.4, 2.3, 6.2);
   }
   updateSignShineGlance(t, life, frozen);
