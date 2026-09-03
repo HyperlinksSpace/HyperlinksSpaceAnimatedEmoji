@@ -41,6 +41,55 @@ const CHUNK_DEPTH = 2.4; /* thick blocks so tumble reads as 3D */
 const SIGN_REST_RX = AVATAR_BG ? 0.04 : 0.05;
 const SIGN_REST_RY = AVATAR_BG ? -0.10 : -0.12;
 const SIGN_REST_RZ = AVATAR_BG ? 0.10 : 0.14;
+/* Second boom: composed 3D tongues around the N (stems + slash, toward camera). */
+const FRONT_BOOM = [
+  { ang: 0.20, elev: 1.05, len: 1.05, wide: 1.00, delay: 0.00, bend: 1.15, twist: 1.8 },
+  { ang: 0.98, elev: 1.12, len: 1.08, wide: 1.02, delay: 0.012, bend: 1.22, twist: -1.6 },
+  { ang: 1.77, elev: 1.02, len: 1.04, wide: 0.98, delay: 0.006, bend: 1.10, twist: 2.0 },
+  { ang: 2.55, elev: 0.98, len: 1.00, wide: 0.94, delay: 0.018, bend: 1.05, twist: -1.9 },
+  { ang: 3.34, elev: 1.08, len: 1.06, wide: 1.00, delay: 0.008, bend: 1.18, twist: 1.5 },
+  { ang: 4.12, elev: 1.00, len: 1.02, wide: 0.96, delay: 0.016, bend: 1.12, twist: -2.1 },
+  { ang: 4.91, elev: 1.10, len: 1.10, wide: 1.04, delay: 0.004, bend: 1.25, twist: 1.7 },
+  { ang: 5.69, elev: 0.96, len: 0.98, wide: 0.92, delay: 0.020, bend: 0.98, twist: -1.4 },
+];
+const _frontBoomEuler = new THREE.Euler(SIGN_REST_RX, SIGN_REST_RY, SIGN_REST_RZ, 'XYZ');
+const _logoBoomBox = new THREE.Box3();
+const _logoBoomWorld = new THREE.Vector3();
+const _logoBoomFx = new THREE.Vector3();
+const _logoBoomRoot = new THREE.Vector3();
+const _logoFaceDir = new THREE.Vector3();
+function frontBoomDir(ang, elev) {
+  const dir = new THREE.Vector3(
+    Math.cos(elev) * Math.cos(ang),
+    Math.cos(elev) * Math.sin(ang),
+    Math.sin(elev),
+  );
+  if (brand.n) dir.applyQuaternion(brand.n.quaternion);
+  else dir.applyEuler(_frontBoomEuler);
+  return dir.normalize();
+}
+function logoBoomWorldCenter() {
+  if (!brand.n) return _logoBoomWorld.set(0, 0, 0);
+  brand.n.updateMatrixWorld(true);
+  /* SVG viewBox center — the N’s pinch — not the group pivot (viewBox 0,0 = bottom-left). */
+  _logoBoomWorld.set(50.5, 50.5, SVG_N_DEPTH * 0.2);
+  brand.n.localToWorld(_logoBoomWorld);
+  brand.n.getWorldDirection(_logoFaceDir);
+  _logoBoomWorld.addScaledVector(_logoFaceDir, 0.2);
+  return _logoBoomWorld;
+}
+function logoBoomFxOrigin() {
+  fx.updateMatrixWorld(true);
+  _logoBoomFx.copy(logoBoomWorldCenter());
+  fx.worldToLocal(_logoBoomFx);
+  return _logoBoomFx;
+}
+function logoBoomRootOrigin() {
+  root.updateMatrixWorld(true);
+  _logoBoomRoot.copy(logoBoomWorldCenter());
+  root.worldToLocal(_logoBoomRoot);
+  return _logoBoomRoot;
+}
 /*
  * Sign-only: fill the rounded canvas with a small harmony indent.
  * Metrics (lx/ly/frac) filled after texture clean.
@@ -1186,13 +1235,15 @@ function buildLightnings() {
   }
 }
 
-function setBoltGeom(bolt, from, to, frameKey, thickScale) {
+function setBoltGeom(bolt, from, to, frameKey, thickScale, skipBoxClamp) {
   const rnd = seeded(bolt.seed * 31 + frameKey * 17);
   const pts = wildBoltPoints(from, to, SIGN_ONLY ? (11 + (bolt.seed % 5)) : (8 + (bolt.seed % 5)), rnd);
   const cap = SIGN_ONLY
     ? (root.userData.fxCap || (root.userData.burstLocalMax || 8) * 0.72)
     : (root.userData.canvasCap || 8);
-  for (const p of pts) clampLocalBox(p, cap * 0.9);
+  if (!skipBoxClamp) {
+    for (const p of pts) clampLocalBox(p, cap * 0.9);
+  }
   const curve = new THREE.CatmullRomCurve3(pts);
   curve.curveType = 'centripetal';
   const thick = SIGN_ONLY
@@ -2439,6 +2490,52 @@ function maxFxAlongDir(dir, extra, pad) {
   return lo;
 }
 
+function fitsFxLocal(v, pad) {
+  _fxFit.copy(v);
+  fx.localToWorld(_fxFit);
+  const camZ = camera.position.z;
+  const half = Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) * Math.max(6, camZ - _fxFit.z) * (1 - pad);
+  return Math.abs(_fxFit.x) <= half && Math.abs(_fxFit.y) <= half;
+}
+
+function maxFxAlongFrom(origin, dir, extra, pad) {
+  let lo = 0;
+  let hi = 48;
+  for (let i = 0; i < 14; i++) {
+    const mid = (lo + hi) * 0.5;
+    _tmpA.copy(origin).addScaledVector(dir, mid + extra);
+    if (fitsFxLocal(_tmpA, pad)) lo = mid;
+    else hi = mid;
+  }
+  return lo;
+}
+
+function clampFxAround(p, origin, cap, pad) {
+  let dx = p.x - origin.x;
+  let dy = p.y - origin.y;
+  const r = Math.hypot(dx, dy);
+  if (r > cap && r > 1e-8) {
+    const k = cap / r;
+    p.x = origin.x + dx * k;
+    p.y = origin.y + dy * k;
+    dx = p.x - origin.x;
+    dy = p.y - origin.y;
+  }
+  if (fitsFxLocal(p, pad)) return p;
+  let lo = 0;
+  let hi = 1;
+  for (let i = 0; i < 12; i++) {
+    const m = (lo + hi) * 0.5;
+    p.x = origin.x + dx * m;
+    p.y = origin.y + dy * m;
+    if (fitsFxLocal(p, pad)) lo = m;
+    else hi = m;
+  }
+  p.x = origin.x + dx * lo;
+  p.y = origin.y + dy * lo;
+  return p;
+}
+
 function clampFxPoint(p, cap, pad) {
   clampLocalBox(p, cap);
   if (fitsFxView(p, pad)) return p;
@@ -2579,7 +2676,7 @@ function applyFrame(fr) {
   const tCycle = (fr - 1) / Math.max(1, TOTAL - 1);
   const t = frozen && SIGN_ONLY ? 0 : tCycle;
   const hero = frozen && !SIGN_ONLY;
-  const settle = SIGN_ONLY ? smooth01(0.90, 0.998, t) : 0;
+  const settle = SIGN_ONLY ? smooth01(0.93, 0.998, t) : 0;
   const damp = 1 - settle;
   const boomAmt = trap(t, 0.08, 0.22, 0.52, 0.88);
   const zoomN = trap(t, 0.12, 0.28, 0.46, 0.76);
@@ -2593,13 +2690,13 @@ function applyFrame(fr) {
   const crack = SIGN_ONLY ? trap(t, 0.05, 0.11, 0.18, 0.25) : 0;
   const coreFlash = SIGN_ONLY ? trap(t, 0.26, 0.34, 0.50, 0.60) : 0;
   const fxSurge = SIGN_ONLY ? trap(t, 0.36, 0.42, 0.47, 0.55) : 0;
-  const rebuild = SIGN_ONLY ? trap(t, 0.52, 0.62, 0.74, 0.82) : 0;
-  /* Snap boom once pieces lock — done before settle so the loop can rest */
-  const reassembleBoom = SIGN_ONLY ? trap(t, 0.80, 0.82, 0.86, 0.91) : 0;
+  const rebuild = SIGN_ONLY ? trap(t, 0.50, 0.60, 0.70, 0.78) : 0;
+  /* Snap boom once pieces lock — same overall beat as before, then settle to freeze */
+  const reassembleBoom = SIGN_ONLY ? trap(t, 0.76, 0.80, 0.88, 0.935) : 0;
   const boomFlash = Math.max(coreFlash, reassembleBoom) * damp;
   const boomSurge = Math.max(fxSurge, reassembleBoom * 1.25) * damp;
   const sphereAmt = SIGN_ONLY ? trap(t, 0.18, 0.28, 0.46, 0.60) : 0;
-  const showWhole = SIGN_ONLY ? (t < 0.18 || t > 0.80) : (destroy < 0.28);
+  const showWhole = SIGN_ONLY ? (t < 0.18 || t > 0.76) : (destroy < 0.28);
   for (const w of brand.nWholes) w.visible = showWhole;
   for (const w of brand.tWholes) w.visible = showWhole;
 
@@ -2685,7 +2782,7 @@ function applyFrame(fr) {
         o.visible = on;
         o.material.opacity = on ? Math.min(1, crack * 1.5) : 0;
       } else {
-        const live = t >= 0.16 && t <= 0.82;
+        const live = t >= 0.16 && t <= 0.78;
         o.visible = live;
         o.material.opacity = live ? 0.95 : 0;
       }
@@ -2695,7 +2792,7 @@ function applyFrame(fr) {
   for (const p of pieces) {
     const isChunk = p.kind === 'nChunk' || p.kind === 'tChunk';
     if (SIGN_ONLY && isChunk) {
-      const live = t >= 0.16 && t <= 0.82;
+      const live = t >= 0.16 && t <= 0.78;
       if (!live) {
         p.mesh.visible = false;
         continue;
@@ -2738,7 +2835,7 @@ function applyFrame(fr) {
     const d = isChunk ? trap(t, 0.16 + p.delay, 0.32 + p.delay, 0.58, 0.94) : e;
 
     if (isChunk) {
-      if (SIGN_ONLY && t > 0.82) {
+      if (SIGN_ONLY && t > 0.78) {
         p.mesh.visible = false;
         continue;
       }
@@ -2922,21 +3019,21 @@ function applyFrame(fr) {
   fireLight2.intensity = SIGN_ONLY ? (11 * boomFlash) : (hero ? 0 : (0.8 + 3.5 * blast + 2.5 * tear + 2 * fill));
   fireLight.color.setHex(SIGN_ONLY ? (reassembleBoom > coreFlash ? 0xfff2a0 : 0xff3a10) : 0xff5511);
   fireLight2.color.setHex(SIGN_ONLY ? (reassembleBoom > coreFlash ? 0xc8ff80 : 0xffc040) : 0xffcc44);
-  fireLight.position.set(
-    SIGN_ONLY ? 0 : (1.35 + Math.sin(t * 6.1) * 0.7),
-    SIGN_ONLY ? 0 : (-0.85 + Math.cos(t * 5.4) * 0.55),
-    SIGN_ONLY ? (1.5 + reassembleBoom * 7) : (2.2 + 1.4 * tear),
-  );
-  fireLight2.position.set(
-    SIGN_ONLY ? 1 : (-1.55 + Math.cos(t * 4.8) * 0.5),
-    SIGN_ONLY ? 1.5 : (1.25 + Math.sin(t * 7.2) * 0.4),
-    SIGN_ONLY ? (2.5 + reassembleBoom * 6) : 3.1,
-  );
-
-  /* ——— Tongues: skip winding ribbons (they read as fur). Fires are signFlames. ——— */
-  for (const tongue of tongues) {
-    for (const L of tongue.layers) L.mat.opacity = 0;
-    tongue.group.visible = false;
+  if (SIGN_ONLY && reassembleBoom > 0.02) {
+    const lc = logoBoomRootOrigin();
+    fireLight.position.set(lc.x, lc.y, lc.z + 1.5 + reassembleBoom * 7);
+    fireLight2.position.set(lc.x + 0.55, lc.y + 0.45, lc.z + 2.5 + reassembleBoom * 6);
+  } else {
+    fireLight.position.set(
+      SIGN_ONLY ? 0 : (1.35 + Math.sin(t * 6.1) * 0.7),
+      SIGN_ONLY ? 0 : (-0.85 + Math.cos(t * 5.4) * 0.55),
+      SIGN_ONLY ? (1.5 + reassembleBoom * 7) : (2.2 + 1.4 * tear),
+    );
+    fireLight2.position.set(
+      SIGN_ONLY ? 1 : (-1.55 + Math.cos(t * 4.8) * 0.5),
+      SIGN_ONLY ? 1.5 : (1.25 + Math.sin(t * 7.2) * 0.4),
+      SIGN_ONLY ? (2.5 + reassembleBoom * 6) : 3.1,
+    );
   }
 
   if (SIGN_ONLY) {
@@ -2944,12 +3041,91 @@ function applyFrame(fr) {
     root.userData.fxCap = signFxCap(boomSurge);
   }
 
+  /* ——— Tongues: first shatter uses teardrop fires; second boom uses composed 3D tongues. ——— */
+  const frontBoomOn = SIGN_ONLY && reassembleBoom > 0.02;
+  const boomN0 = frontBoomOn ? logoBoomFxOrigin().clone() : null;
+  if (frontBoomOn) {
+    const n0 = boomN0;
+    const R = signSphereR || 12.5;
+    const cap = root.userData.fxCap || 8;
+    const bloom = 1 + boomSurge * 3.8;
+    for (let i = 0; i < tongues.length; i++) {
+      const tongue = tongues[i];
+      const spec = FRONT_BOOM[i % FRONT_BOOM.length];
+      const on = reassembleBoom * trap(t, 0.76 + spec.delay, 0.80 + spec.delay, 0.88, 0.935);
+      if (on < 0.04) {
+        for (const L of tongue.layers) L.mat.opacity = 0;
+        tongue.group.visible = false;
+        continue;
+      }
+      const dir = frontBoomDir(spec.ang, spec.elev);
+      dir.add(new THREE.Vector3(
+        Math.sin(t * 7.2 + spec.twist) * 0.05,
+        Math.cos(t * 6.4 + spec.bend) * 0.04,
+        Math.sin(t * 5.1 + i) * 0.025,
+      )).normalize();
+      const origin = n0.clone();
+      const flutter = 0.72 + 0.28 * Math.abs(Math.sin(t * 14 + spec.twist));
+      const want = R * spec.len * 0.55 * (0.4 + 0.6 * on) * flutter * bloom;
+      const len = Math.min(want, maxFxAlongFrom(n0, dir, 0.45, 0.16), cap * 0.9);
+      origin.addScaledVector(dir, len * 0.12);
+      const wide = spec.wide * (1.6 + 1.1 * on) * (0.85 + 0.15 * flutter);
+      const phase = spec.twist + t * 6.5 + i * 0.4;
+      updateTongueRibbon(
+        tongue,
+        origin,
+        dir,
+        len,
+        wide,
+        spec.bend * (0.7 + 0.35 * on),
+        spec.twist * on,
+        phase,
+        Math.min(1, on * 1.15),
+      );
+      tongue.group.renderOrder = 60;
+      for (const L of tongue.layers) {
+        L.mat.depthTest = false;
+        L.mesh.renderOrder = 60 + (L === tongue.layers[0] ? 2 : 1);
+      }
+    }
+  } else {
+    for (const tongue of tongues) {
+      for (const L of tongue.layers) L.mat.opacity = 0;
+      tongue.group.visible = false;
+    }
+  }
+
   for (const f of signFlames) {
+    if (SIGN_ONLY && frontBoomOn) {
+      const spec = FRONT_BOOM[Math.abs(f.seed | 0) % FRONT_BOOM.length];
+      const e = reassembleBoom * trap(t, 0.76 + spec.delay, 0.80 + spec.delay, 0.88, 0.935);
+      if (e < 0.05) {
+        f.mesh.visible = false;
+        continue;
+      }
+      f.mesh.visible = true;
+      const dir = frontBoomDir(spec.ang + 0.08, spec.elev * 0.92);
+      const n0 = boomN0;
+      const R = signSphereR || 12.5;
+      const cap = SIGN_ONLY ? (root.userData.fxCap || 8) : (root.userData.canvasCap || 8);
+      const flutter = 0.65 + 0.35 * Math.abs(Math.sin(t * 16 + spec.twist));
+      const want = R * spec.len * 0.48 * (0.4 + 0.6 * e) * flutter * (1 + boomSurge * 3.8);
+      const len = Math.min(want, maxFxAlongFrom(n0, dir, 0.45, 0.16), cap * 0.9);
+      f.mesh.position.copy(n0).addScaledVector(dir, 0.12 * e);
+      f.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+      f.mesh.rotateZ(SIGN_REST_RZ * 0.6 + Math.sin(t * 8 + spec.twist) * 0.12);
+      f.mesh.scale.set(
+        spec.wide * (1.5 + 0.9 * e) * (0.75 + 0.25 * flutter),
+        len,
+        1,
+      );
+      f.mesh.material.depthTest = false;
+      f.mesh.renderOrder = 63;
+      f.mesh.material.opacity = Math.min(1, 0.55 + e * 0.4);
+      continue;
+    }
     const e = SIGN_ONLY
-      ? boomFlash * (0.82 + 0.18 * Math.max(
-        trap(t, 0.42 + f.delay, 0.50 + f.delay, 0.62, 0.74),
-        trap(t, 0.80 + f.delay * 0.35, 0.82 + f.delay * 0.25, 0.86, 0.91),
-      ))
+      ? boomFlash * (0.82 + 0.18 * trap(t, 0.42 + f.delay, 0.50 + f.delay, 0.62, 0.74))
       : (hero ? 0 : Math.max(blast, tear, fill) * (0.75 + 0.25 * trap(t, 0.12 + f.delay, 0.22 + f.delay, 0.58, 0.86)));
     if (e < 0.05) {
       f.mesh.visible = false;
@@ -2980,11 +3156,7 @@ function applyFrame(fr) {
       f.mesh.position.copy(f.origin).multiplyScalar(0.55 + 0.9 * e).addScaledVector(dir, 0.2);
       clampLocalBox(f.mesh.position, cap * 0.55);
     }
-    if (SIGN_ONLY && reassembleBoom > 0.02) {
-      f.mesh.position.z = Math.max(1.4, Math.abs(f.mesh.position.z)) + 2.2 * reassembleBoom;
-      f.mesh.material.depthTest = false;
-      f.mesh.renderOrder = 62;
-    } else if (SIGN_ONLY) {
+    if (SIGN_ONLY) {
       f.mesh.material.depthTest = true;
       f.mesh.renderOrder = 3;
     }
@@ -3009,12 +3181,44 @@ function applyFrame(fr) {
       { t0: 0.44, flight: 0.14 },
       { t0: 0.49, flight: 0.2 },
       { t0: 0.56, flight: 0.15 },
-      { t0: 0.805, flight: 0.11 },
-      { t0: 0.84, flight: 0.09 },
+      { t0: 0.77, flight: 0.16 },
+      { t0: 0.82, flight: 0.14 },
     ];
     const R = signSphereR || 12.5;
     const fxCap = root.userData.fxCap || (root.userData.burstLocalMax || 8) * 0.72;
     for (const sp of signSparks) {
+      if (frontBoomOn) {
+        const spec = FRONT_BOOM[Math.abs((sp.burst | 0) + ((sp.seed * 9) | 0)) % FRONT_BOOM.length];
+        const k = sparkFlightK(t, 0.77 + spec.delay * 0.5, sp.delay * 0.12, 0.16);
+        if (k < 0.02) {
+          sp.mesh.visible = false;
+          continue;
+        }
+        sp.mesh.visible = true;
+        const dir = frontBoomDir(spec.ang + (sp.seed - 0.5) * 0.18, spec.elev + (sp.seed - 0.5) * 0.06);
+        const n0 = boomN0;
+        const travel = Math.min(1, k);
+        const e = 1 - (1 - travel) * (1 - travel);
+        const tail = (sp.len || 1.6) * sp.breakMul * (0.55 + 0.4 * boomSurge);
+        const want = 0.12 + e * R * spec.len * sp.reachMul * (1 + boomSurge * 2.8);
+        const dist = Math.min(want, maxFxAlongFrom(n0, dir, tail, 0.16), Math.max(0.2, fxCap));
+        sp.mesh.position.copy(n0).addScaledVector(dir, dist * 0.7);
+        clampFxAround(sp.mesh.position, n0, Math.max(0.4, fxCap), 0.16);
+        sp.chip.material.depthTest = false;
+        sp.head.material.depthTest = false;
+        sp.chip.renderOrder = 64;
+        sp.head.renderOrder = 65;
+        sp.mesh.renderOrder = 64;
+        sp.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+        sp.mesh.rotateZ(SIGN_REST_RZ * 0.4 + spec.twist * 0.08);
+        const fade = k < 0.12 ? k / 0.12 : k > 0.62 ? Math.max(0, 1 - (k - 0.62) / 0.45) : 1;
+        sp.chip.material.opacity = Math.min(1, fade * 0.95);
+        sp.chip.scale.set(0.7 + 0.25 * (1 - travel), 0.85 + 0.55 * (1 - travel * 0.3), 1);
+        sp.head.visible = sp.headAmt > 0.15;
+        sp.head.material.opacity = sp.head.visible ? fade * 0.7 : 0;
+        sp.head.scale.setScalar(0.5 + 0.35 * (1 - travel));
+        continue;
+      }
       const b0 = sparkBursts[sp.burst % sparkBursts.length];
       const b1 = sparkBursts[(sp.burst + 3) % sparkBursts.length];
       const k = Math.max(
@@ -3036,20 +3240,11 @@ function applyFrame(fr) {
       const dist = Math.min(want, maxFxAlongDir(dir, tail, 0.16), Math.max(0.2, fxCap));
       sp.mesh.position.copy(sp.origin).multiplyScalar(0.4 + 0.75 * boomSurge).addScaledVector(dir, dist * 0.7);
       clampFxPoint(sp.mesh.position, Math.max(0.4, fxCap), 0.16);
-      if (reassembleBoom > 0.02) {
-        sp.mesh.position.z = Math.max(1.5, Math.abs(sp.mesh.position.z)) + 2.4 * reassembleBoom;
-        sp.chip.material.depthTest = false;
-        sp.head.material.depthTest = false;
-        sp.chip.renderOrder = 64;
-        sp.head.renderOrder = 65;
-        sp.mesh.renderOrder = 64;
-      } else {
-        sp.chip.material.depthTest = true;
-        sp.head.material.depthTest = true;
-        sp.chip.renderOrder = 6;
-        sp.head.renderOrder = 7;
-        sp.mesh.renderOrder = 6;
-      }
+      sp.chip.material.depthTest = true;
+      sp.head.material.depthTest = true;
+      sp.chip.renderOrder = 6;
+      sp.head.renderOrder = 7;
+      sp.mesh.renderOrder = 6;
       sp.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
       sp.mesh.rotateZ(sp.twist + t * sp.spin * 0.35);
       const fade = k < 0.1 ? k / 0.1 : k > 0.62 ? Math.max(0, 1 - (k - 0.62) / 0.5) : 1;
@@ -3134,40 +3329,47 @@ function applyFrame(fr) {
         continue;
       }
       const rnd = seeded((bolt.seed | 0) + frameKey * 11 + bi);
-      if (rnd() > 0.82 + 0.12 * boomSurge) {
+      if (!frontBoomOn && rnd() > 0.82 + 0.12 * boomSurge) {
         bolt.glow.visible = false;
         bolt.core.visible = false;
         continue;
       }
       const R = signSphereR || 12.5;
       const cap = root.userData.fxCap || (root.userData.burstLocalMax || 8) * 0.72;
-      const reach = R * (0.22 + rnd() * 0.42) * (1 + boomSurge * 3.6);
-      _tmpA.copy(randUnit3(rnd)).multiplyScalar(0.55 + rnd() * R * 0.55);
-      _tmpC.copy(randUnit3(rnd));
-      flattenSurgeDir(_tmpC, boomSurge * 0.22);
-      _tmpB.copy(_tmpA).addScaledVector(_tmpC, reach * (0.4 + rnd() * 0.85));
-      clampFxPoint(_tmpA, cap, 0.16);
-      clampFxPoint(_tmpB, cap, 0.16);
-      if (reassembleBoom > 0.02) {
-        const zLift = 2.0 + 4.5 * reassembleBoom;
-        _tmpA.z = Math.max(1.6, Math.abs(_tmpA.z)) + zLift;
-        _tmpB.z = Math.max(1.6, Math.abs(_tmpB.z)) + zLift;
+      if (frontBoomOn) {
+        const spec = FRONT_BOOM[bi % FRONT_BOOM.length];
+        const dir = frontBoomDir(spec.ang, spec.elev);
+        const n0 = boomN0;
+        const reach = R * spec.len * (0.22 + 0.42) * (1 + boomSurge * 3.6);
+        _tmpA.copy(n0).addScaledVector(dir, 0.08 * R);
+        _tmpB.copy(_tmpA).addScaledVector(dir, reach * 0.7);
+        clampFxAround(_tmpA, n0, cap, 0.16);
+        clampFxAround(_tmpB, n0, cap, 0.16);
+      } else {
+        const reach = R * (0.22 + rnd() * 0.42) * (1 + boomSurge * 3.6);
+        _tmpA.copy(randUnit3(rnd)).multiplyScalar(0.55 + rnd() * R * 0.55);
+        _tmpC.copy(randUnit3(rnd));
+        flattenSurgeDir(_tmpC, boomSurge * 0.22);
+        _tmpB.copy(_tmpA).addScaledVector(_tmpC, reach * (0.4 + rnd() * 0.85));
+        clampFxPoint(_tmpA, cap, 0.16);
+        clampFxPoint(_tmpB, cap, 0.16);
       }
       if (bolt.lastKey !== frameKey) {
-        setBoltGeom(bolt, _tmpA, _tmpB, frameKey + bi * 3 + (bolt.seed | 0), 1.15 + rnd() * 0.7 + boomSurge * 0.45);
+        setBoltGeom(bolt, _tmpA, _tmpB, frameKey + bi * 3 + (bolt.seed | 0), 1.15 + rnd() * 0.7 + (frontBoomOn ? 0.35 : boomSurge * 0.45), frontBoomOn);
         bolt.lastKey = frameKey;
       }
-      const flick = Math.sin(t * 90 + bolt.seed) > -0.28 ? 1 : 0.18;
+      const flick = frontBoomOn
+        ? (Math.sin(t * 42 + bolt.seed) > -0.45 ? 1 : 0.35)
+        : (Math.sin(t * 90 + bolt.seed) > -0.28 ? 1 : 0.18);
       bolt.glow.visible = true;
       bolt.core.visible = true;
-      const front = reassembleBoom > 0.02;
-      bolt.glowMat.depthTest = !front;
-      bolt.coreMat.depthTest = !front;
-      bolt.glow.renderOrder = front ? 72 : 40;
-      bolt.core.renderOrder = front ? 73 : 41;
+      bolt.glowMat.depthTest = !frontBoomOn;
+      bolt.coreMat.depthTest = !frontBoomOn;
+      bolt.glow.renderOrder = frontBoomOn ? 72 : 40;
+      bolt.core.renderOrder = frontBoomOn ? 73 : 41;
       bolt.glowMat.blending = THREE.AdditiveBlending;
       bolt.coreMat.blending = THREE.AdditiveBlending;
-      bolt.glowMat.color.setHex(reassembleBoom > 0.2 ? 0xfff8d0 : 0xa8fff4);
+      bolt.glowMat.color.setHex(frontBoomOn ? 0xfff4c0 : 0xa8fff4);
       bolt.coreMat.color.setHex(0xffffff);
       bolt.glowMat.opacity = Math.min(1, on * 1.5) * flick;
       bolt.coreMat.opacity = Math.min(1, on * 1.7) * flick;
@@ -3227,29 +3429,37 @@ function applyFrame(fr) {
       }
       const R = signSphereR || 12.5;
       const cap = root.userData.fxCap || (root.userData.burstLocalMax || 8) * 0.72;
-      const mid = randUnit3(rnd).multiplyScalar(0.7 + rnd() * R * 0.5);
-      _tmpC.copy(randUnit3(rnd));
-      flattenSurgeDir(_tmpC, boomSurge * 0.22);
-      const tip = mid.clone().addScaledVector(_tmpC, R * (0.18 + rnd() * 0.38) * (1 + boomSurge * 3.4));
-      clampFxPoint(mid, cap, 0.16);
-      clampFxPoint(tip, cap, 0.16);
-      if (reassembleBoom > 0.02) {
-        const zLift = 2.0 + 4.5 * reassembleBoom;
-        mid.z = Math.max(1.6, Math.abs(mid.z)) + zLift;
-        tip.z = Math.max(1.6, Math.abs(tip.z)) + zLift;
+      let mid;
+      let tip;
+      if (frontBoomOn) {
+        const spec = FRONT_BOOM[(bi + 2) % FRONT_BOOM.length];
+        const dir = frontBoomDir(spec.ang + 0.35, spec.elev * 0.7);
+        const n0 = boomN0;
+        mid = n0.clone().addScaledVector(dir, 0.12 * R);
+        tip = mid.clone().addScaledVector(dir, R * spec.len * (0.18 + 0.38) * (1 + boomSurge * 3.4) * 0.45);
+        clampFxAround(mid, n0, cap, 0.16);
+        clampFxAround(tip, n0, cap, 0.16);
+      } else {
+        mid = randUnit3(rnd).multiplyScalar(0.7 + rnd() * R * 0.5);
+        _tmpC.copy(randUnit3(rnd));
+        flattenSurgeDir(_tmpC, boomSurge * 0.22);
+        tip = mid.clone().addScaledVector(_tmpC, R * (0.18 + rnd() * 0.38) * (1 + boomSurge * 3.4));
+        clampFxPoint(mid, cap, 0.16);
+        clampFxPoint(tip, cap, 0.16);
       }
       if (bolt.lastKey !== frameKey) {
-        setBoltGeom(bolt, mid, tip, frameKey + bi + 9, 1.05 + rnd() * 0.35 + boomSurge * 0.55);
+        setBoltGeom(bolt, mid, tip, frameKey + bi + 9, 1.05 + rnd() * 0.35 + (frontBoomOn ? 0.25 : boomSurge * 0.55), true);
         bolt.lastKey = frameKey;
       }
-      const flick = Math.sin(t * 118 + bolt.seed) > -0.15 ? 1 : 0.14;
+      const flick = frontBoomOn
+        ? (Math.sin(t * 36 + bolt.seed) > -0.35 ? 1 : 0.28)
+        : (Math.sin(t * 118 + bolt.seed) > -0.15 ? 1 : 0.14);
       bolt.glow.visible = true;
       bolt.core.visible = true;
-      const front = reassembleBoom > 0.02;
-      bolt.glowMat.depthTest = !front;
-      bolt.coreMat.depthTest = !front;
-      bolt.glow.renderOrder = front ? 74 : 40;
-      bolt.core.renderOrder = front ? 75 : 41;
+      bolt.glowMat.depthTest = !frontBoomOn;
+      bolt.coreMat.depthTest = !frontBoomOn;
+      bolt.glow.renderOrder = frontBoomOn ? 74 : 40;
+      bolt.core.renderOrder = frontBoomOn ? 75 : 41;
       bolt.glowMat.blending = THREE.AdditiveBlending;
       bolt.coreMat.blending = THREE.AdditiveBlending;
       const col = signBoltPal[(rnd() * signBoltPal.length) | 0];
