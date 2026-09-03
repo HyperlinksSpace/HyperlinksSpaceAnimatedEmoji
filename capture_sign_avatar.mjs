@@ -133,6 +133,11 @@ async function main() {
     writeFileSync(join(FRAMES, `frame_${String(fr).padStart(4, '0')}.png`), Buffer.from(b64, 'base64'));
     if (fr % 15 === 0) console.log(`  frame ${fr}/${TOTAL}`);
   }
+  /* Bit-exact loop join: last frame is a copy of the frozen first frame. */
+  copyFileSync(
+    join(FRAMES, 'frame_0001.png'),
+    join(FRAMES, `frame_${String(TOTAL).padStart(4, '0')}.png`),
+  );
 
   await browser.close();
   server.close();

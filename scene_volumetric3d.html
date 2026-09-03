@@ -272,6 +272,13 @@ function trap(t, a, b, c, d) {
   const u = (t - c) / (d - c); return 1 - u * u * (3 - 2 * u);
 }
 
+function smooth01(a, b, t) {
+  if (t <= a) return 0;
+  if (t >= b) return 1;
+  const u = (t - a) / (b - a);
+  return u * u * (3 - 2 * u);
+}
+
 function flamePath(ctx, cx, top, bot, halfW) {
   const hh = bot - top;
   const baseW = Math.max(8, halfW * 0.16);
@@ -2567,10 +2574,13 @@ function containRoot() {
 }
 
 function applyFrame(fr) {
-  /* Sign-only: [0, 1) so Telegram's first frame is the hero and the loop joins. */
-  const t = SIGN_ONLY ? (fr - 1) / TOTAL : (fr - 1) / Math.max(1, TOTAL - 1);
-  const frozen = fr === 1;
+  /* Sign-only: last frame is the frozen first pose. Phases finish early, then settle. */
+  const frozen = SIGN_ONLY ? (fr === 1 || fr === TOTAL) : (fr === 1);
+  const tCycle = (fr - 1) / Math.max(1, TOTAL - 1);
+  const t = frozen && SIGN_ONLY ? 0 : tCycle;
   const hero = frozen && !SIGN_ONLY;
+  const settle = SIGN_ONLY ? smooth01(0.90, 0.998, t) : 0;
+  const damp = 1 - settle;
   const boomAmt = trap(t, 0.08, 0.22, 0.52, 0.88);
   const zoomN = trap(t, 0.12, 0.28, 0.46, 0.76);
   const zoomT = trap(t, 0.30, 0.46, 0.60, 0.86);
@@ -2580,16 +2590,16 @@ function applyFrame(fr) {
   const lifeSoft = life * life;
 
   /* Wholes punch then shatter into reference-textured chunks */
-  const crack = SIGN_ONLY ? trap(t, 0.06, 0.12, 0.20, 0.28) : 0;
-  const coreFlash = SIGN_ONLY ? trap(t, 0.30, 0.38, 0.58, 0.68) : 0;
-  const fxSurge = SIGN_ONLY ? trap(t, 0.42, 0.48, 0.53, 0.62) : 0;
-  const rebuild = SIGN_ONLY ? trap(t, 0.62, 0.72, 0.86, 0.94) : 0;
-  /* Snap boom once pieces lock back into the N */
-  const reassembleBoom = SIGN_ONLY ? trap(t, 0.915, 0.932, 0.958, 0.995) : 0;
-  const boomFlash = Math.max(coreFlash, reassembleBoom);
-  const boomSurge = Math.max(fxSurge, reassembleBoom * 1.25);
-  const sphereAmt = SIGN_ONLY ? trap(t, 0.20, 0.32, 0.54, 0.70) : 0;
-  const showWhole = SIGN_ONLY ? (t < 0.20 || t > 0.92) : (destroy < 0.28);
+  const crack = SIGN_ONLY ? trap(t, 0.05, 0.11, 0.18, 0.25) : 0;
+  const coreFlash = SIGN_ONLY ? trap(t, 0.26, 0.34, 0.50, 0.60) : 0;
+  const fxSurge = SIGN_ONLY ? trap(t, 0.36, 0.42, 0.47, 0.55) : 0;
+  const rebuild = SIGN_ONLY ? trap(t, 0.52, 0.62, 0.74, 0.82) : 0;
+  /* Snap boom once pieces lock — done before settle so the loop can rest */
+  const reassembleBoom = SIGN_ONLY ? trap(t, 0.80, 0.82, 0.86, 0.91) : 0;
+  const boomFlash = Math.max(coreFlash, reassembleBoom) * damp;
+  const boomSurge = Math.max(fxSurge, reassembleBoom * 1.25) * damp;
+  const sphereAmt = SIGN_ONLY ? trap(t, 0.18, 0.28, 0.46, 0.60) : 0;
+  const showWhole = SIGN_ONLY ? (t < 0.18 || t > 0.80) : (destroy < 0.28);
   for (const w of brand.nWholes) w.visible = showWhole;
   for (const w of brand.tWholes) w.visible = showWhole;
 
@@ -2611,20 +2621,21 @@ function applyFrame(fr) {
       n.scale.setScalar(brand.nScale);
     } else {
       /* Shine phase: gentle turn so green facets catch light */
+      const k = SIGN_ONLY ? damp : 1;
       n.position.set(
-        rp.x + Math.sin(ph * 2.1) * (SIGN_ONLY ? 0.015 : 0.1) * life,
-        rp.y + (SIGN_ONLY ? 0 : 0.12 * zoomN) + Math.cos(ph * 1.8) * (SIGN_ONLY ? 0.012 : 0.08) * life,
-        rp.z + (SIGN_ONLY ? 0 : 0.55 * zoomN + 0.2 * boomAmt) + Math.sin(ph * 2.4) * (SIGN_ONLY ? 0.03 : 0.14) * life,
+        rp.x + Math.sin(ph * 2.1) * (SIGN_ONLY ? 0.015 : 0.1) * life * k,
+        rp.y + (SIGN_ONLY ? 0 : 0.12 * zoomN) + Math.cos(ph * 1.8) * (SIGN_ONLY ? 0.012 : 0.08) * life * k,
+        rp.z + (SIGN_ONLY ? 0 : 0.55 * zoomN + 0.2 * boomAmt) + Math.sin(ph * 2.4) * (SIGN_ONLY ? 0.03 : 0.14) * life * k,
       );
       const restRx = SIGN_ONLY ? SIGN_REST_RX : 0;
       const restRy = SIGN_ONLY ? SIGN_REST_RY : 0;
       const restRz = SIGN_ONLY ? SIGN_REST_RZ : 0;
       n.rotation.set(
-        restRx - (SIGN_ONLY ? 0 : 0.1 * zoomN) + Math.sin(ph * 2.6) * pitch * life + Math.sin(ph * 5.2) * (SIGN_ONLY ? 0.012 : 0.05) * life,
-        restRy + (SIGN_ONLY ? 0 : 0.12 * boomAmt) + Math.cos(ph * 1.7) * yaw * life + Math.sin(ph * 4.0) * (SIGN_ONLY ? 0.018 : 0.07) * life,
-        restRz + (SIGN_ONLY ? 0 : 0.05 * zoomN) + Math.sin(ph * 2.5) * (SIGN_ONLY ? 0.016 : 0.16) * life,
+        restRx - (SIGN_ONLY ? 0 : 0.1 * zoomN) + Math.sin(ph * 2.6) * pitch * life * k + Math.sin(ph * 5.2) * (SIGN_ONLY ? 0.012 : 0.05) * life * k,
+        restRy + (SIGN_ONLY ? 0 : 0.12 * boomAmt) + Math.cos(ph * 1.7) * yaw * life * k + Math.sin(ph * 4.0) * (SIGN_ONLY ? 0.018 : 0.07) * life * k,
+        restRz + (SIGN_ONLY ? 0 : 0.05 * zoomN) + Math.sin(ph * 2.5) * (SIGN_ONLY ? 0.016 : 0.16) * life * k,
       );
-      const shinePulse = 1 + reassembleBoom * 0.14;
+      const shinePulse = 1 + reassembleBoom * 0.14 * k;
       n.scale.setScalar(brand.nScale * (SIGN_ONLY ? 1 : (1 + 0.04 * zoomN) * (1 + Math.sin(ph * 3.6) * 0.015 * life)) * shinePulse);
     }
   }
@@ -2674,7 +2685,7 @@ function applyFrame(fr) {
         o.visible = on;
         o.material.opacity = on ? Math.min(1, crack * 1.5) : 0;
       } else {
-        const live = t >= 0.18 && t <= 0.92;
+        const live = t >= 0.16 && t <= 0.82;
         o.visible = live;
         o.material.opacity = live ? 0.95 : 0;
       }
@@ -2684,7 +2695,7 @@ function applyFrame(fr) {
   for (const p of pieces) {
     const isChunk = p.kind === 'nChunk' || p.kind === 'tChunk';
     if (SIGN_ONLY && isChunk) {
-      const live = t >= 0.18 && t <= 0.92;
+      const live = t >= 0.16 && t <= 0.82;
       if (!live) {
         p.mesh.visible = false;
         continue;
@@ -2727,7 +2738,7 @@ function applyFrame(fr) {
     const d = isChunk ? trap(t, 0.16 + p.delay, 0.32 + p.delay, 0.58, 0.94) : e;
 
     if (isChunk) {
-      if (SIGN_ONLY && t > 0.96) {
+      if (SIGN_ONLY && t > 0.82) {
         p.mesh.visible = false;
         continue;
       }
@@ -2808,8 +2819,8 @@ function applyFrame(fr) {
     : contain;
 
   /* Whole sign: yaw/pitch so the stack’s side volume reads */
-  const shake = (SIGN_ONLY ? 0.02 : 0.35) + (SIGN_ONLY ? 0.04 : 0.65) * life;
-  const wobble = 0.5 + 0.5 * lifeSoft;
+    const shake = ((SIGN_ONLY ? 0.02 : 0.35) + (SIGN_ONLY ? 0.04 : 0.65) * life) * (SIGN_ONLY ? damp : 1);
+    const wobble = (0.5 + 0.5 * lifeSoft) * (SIGN_ONLY ? damp : 1);
   const wt = t;
   const sx = Math.sin(wt * 9.5) * (SIGN_ONLY ? 0.008 : 0.1) * shake + Math.sin(wt * 19.0) * (SIGN_ONLY ? 0.004 : 0.03) * shake;
   const sy = Math.cos(wt * 7.6 + 0.8) * (SIGN_ONLY ? 0.01 : 0.22) * shake + Math.sin(wt * 14.0) * (SIGN_ONLY ? 0.005 : 0.06) * shake;
@@ -2846,23 +2857,24 @@ function applyFrame(fr) {
     }
   }
   if (SIGN_ONLY) {
-    fx.position.set(0, 0, 0);
+    /* Second boom: pull the whole FX layer in front of the assembled N */
+    fx.position.set(0, 0, reassembleBoom > 0.02 ? (2.8 + 6.5 * reassembleBoom) : 0);
     fx.rotation.set(0, 0, 0);
   }
 
   if (SIGN_ONLY) {
     if (AVATAR_BG) {
-      keyLight.intensity = frozen ? 4.0 : 3.7;
-      fillLight.intensity = frozen ? 1.9 : 1.75;
-      rimLight.intensity = frozen ? 2.2 : 2.4;
-      ambLight.intensity = frozen ? 0.72 : 0.68;
-      scene.environmentIntensity = frozen ? 1.9 : 1.75;
+      keyLight.intensity = frozen ? 4.0 : (3.7 + (4.0 - 3.7) * settle);
+      fillLight.intensity = frozen ? 1.9 : (1.75 + (1.9 - 1.75) * settle);
+      rimLight.intensity = frozen ? 2.2 : (2.4 + (2.2 - 2.4) * settle);
+      ambLight.intensity = frozen ? 0.72 : (0.68 + (0.72 - 0.68) * settle);
+      scene.environmentIntensity = frozen ? 1.9 : (1.75 + (1.9 - 1.75) * settle);
     } else {
-      keyLight.intensity = frozen ? 4.2 : 3.6;
-      fillLight.intensity = frozen ? 1.85 : 1.75;
-      rimLight.intensity = frozen ? 2.4 : 2.8;
-      ambLight.intensity = frozen ? 0.68 : 0.62;
-      scene.environmentIntensity = frozen ? 1.75 : 1.55;
+      keyLight.intensity = frozen ? 4.2 : (3.6 + (4.2 - 3.6) * settle);
+      fillLight.intensity = frozen ? 1.85 : (1.75 + (1.85 - 1.75) * settle);
+      rimLight.intensity = frozen ? 2.4 : (2.8 + (2.4 - 2.8) * settle);
+      ambLight.intensity = frozen ? 0.68 : (0.62 + (0.68 - 0.62) * settle);
+      scene.environmentIntensity = frozen ? 1.75 : (1.55 + (1.75 - 1.55) * settle);
     }
   } else if (hero) {
     /* Harder key/rim, cooler fill off the white wordmark, no orange fire wash. */
@@ -2880,15 +2892,19 @@ function applyFrame(fr) {
   }
   if (SIGN_ONLY && shineSweep) {
     const ph = t * Math.PI * 2;
-    shineSweep.position.set(7.2 + Math.sin(ph) * 1.4, 7.6, 13.5);
-    shineSweep.intensity = (frozen ? (AVATAR_BG ? 6.5 : 8.0) : (AVATAR_BG ? 5.0 : 5.8)) * life;
+    shineSweep.position.set(7.2 + Math.sin(ph) * 1.4 * damp, 7.6, 13.5);
+    const shineFrz = AVATAR_BG ? 6.5 : 8.0;
+    const shineLive = AVATAR_BG ? 5.0 : 5.8;
+    shineSweep.intensity = (frozen ? shineFrz : (shineLive + (shineFrz - shineLive) * settle)) * (frozen ? 1 : (life * damp + settle));
   }
   if (SIGN_ONLY && shineKick) {
     const ph = t * Math.PI * 2;
-    shineKick.intensity = (frozen ? (AVATAR_BG ? 4.8 : 6.0) : (AVATAR_BG ? 3.8 : 4.4)) * life;
-    shineKick.position.set(-1.1 + Math.sin(ph) * 0.4, 2.3, 6.2);
+    const kickFrz = AVATAR_BG ? 4.8 : 6.0;
+    const kickLive = AVATAR_BG ? 3.8 : 4.4;
+    shineKick.intensity = (frozen ? kickFrz : (kickLive + (kickFrz - kickLive) * settle)) * (frozen ? 1 : (life * damp + settle));
+    shineKick.position.set(-1.1 + Math.sin(ph) * 0.4 * damp, 2.3, 6.2);
   }
-  updateSignShineGlance(t, life, frozen);
+  updateSignShineGlance(frozen ? 0 : t * damp, frozen ? 1 : (life * damp + settle), frozen || settle > 0.85);
 
   camera.position.set(
     hero || SIGN_ONLY ? 0 : (0.15 + 2.0 * destroy + 1.0 * boomAmt + Math.sin(t * 55) * 0.15 * tear),
@@ -2909,12 +2925,12 @@ function applyFrame(fr) {
   fireLight.position.set(
     SIGN_ONLY ? 0 : (1.35 + Math.sin(t * 6.1) * 0.7),
     SIGN_ONLY ? 0 : (-0.85 + Math.cos(t * 5.4) * 0.55),
-    SIGN_ONLY ? 0 : (2.2 + 1.4 * tear),
+    SIGN_ONLY ? (1.5 + reassembleBoom * 7) : (2.2 + 1.4 * tear),
   );
   fireLight2.position.set(
     SIGN_ONLY ? 1 : (-1.55 + Math.cos(t * 4.8) * 0.5),
     SIGN_ONLY ? 1.5 : (1.25 + Math.sin(t * 7.2) * 0.4),
-    SIGN_ONLY ? 3 : 3.1,
+    SIGN_ONLY ? (2.5 + reassembleBoom * 6) : 3.1,
   );
 
   /* ——— Tongues: skip winding ribbons (they read as fur). Fires are signFlames. ——— */
@@ -2932,7 +2948,7 @@ function applyFrame(fr) {
     const e = SIGN_ONLY
       ? boomFlash * (0.82 + 0.18 * Math.max(
         trap(t, 0.42 + f.delay, 0.50 + f.delay, 0.62, 0.74),
-        trap(t, 0.915 + f.delay * 0.35, 0.932 + f.delay * 0.25, 0.958, 0.995),
+        trap(t, 0.80 + f.delay * 0.35, 0.82 + f.delay * 0.25, 0.86, 0.91),
       ))
       : (hero ? 0 : Math.max(blast, tear, fill) * (0.75 + 0.25 * trap(t, 0.12 + f.delay, 0.22 + f.delay, 0.58, 0.86)));
     if (e < 0.05) {
@@ -2964,6 +2980,14 @@ function applyFrame(fr) {
       f.mesh.position.copy(f.origin).multiplyScalar(0.55 + 0.9 * e).addScaledVector(dir, 0.2);
       clampLocalBox(f.mesh.position, cap * 0.55);
     }
+    if (SIGN_ONLY && reassembleBoom > 0.02) {
+      f.mesh.position.z = Math.max(1.4, Math.abs(f.mesh.position.z)) + 2.2 * reassembleBoom;
+      f.mesh.material.depthTest = false;
+      f.mesh.renderOrder = 62;
+    } else if (SIGN_ONLY) {
+      f.mesh.material.depthTest = true;
+      f.mesh.renderOrder = 3;
+    }
     const len = SIGN_ONLY
       ? Math.min(want, maxFxAlongDir(dir, 0.45, 0.16), cap * 0.9)
       : Math.min(want, remainingInBox(f.mesh.position, dir, cap * 0.94));
@@ -2985,8 +3009,8 @@ function applyFrame(fr) {
       { t0: 0.44, flight: 0.14 },
       { t0: 0.49, flight: 0.2 },
       { t0: 0.56, flight: 0.15 },
-      { t0: 0.92, flight: 0.11 },
-      { t0: 0.945, flight: 0.09 },
+      { t0: 0.805, flight: 0.11 },
+      { t0: 0.84, flight: 0.09 },
     ];
     const R = signSphereR || 12.5;
     const fxCap = root.userData.fxCap || (root.userData.burstLocalMax || 8) * 0.72;
@@ -3012,6 +3036,20 @@ function applyFrame(fr) {
       const dist = Math.min(want, maxFxAlongDir(dir, tail, 0.16), Math.max(0.2, fxCap));
       sp.mesh.position.copy(sp.origin).multiplyScalar(0.4 + 0.75 * boomSurge).addScaledVector(dir, dist * 0.7);
       clampFxPoint(sp.mesh.position, Math.max(0.4, fxCap), 0.16);
+      if (reassembleBoom > 0.02) {
+        sp.mesh.position.z = Math.max(1.5, Math.abs(sp.mesh.position.z)) + 2.4 * reassembleBoom;
+        sp.chip.material.depthTest = false;
+        sp.head.material.depthTest = false;
+        sp.chip.renderOrder = 64;
+        sp.head.renderOrder = 65;
+        sp.mesh.renderOrder = 64;
+      } else {
+        sp.chip.material.depthTest = true;
+        sp.head.material.depthTest = true;
+        sp.chip.renderOrder = 6;
+        sp.head.renderOrder = 7;
+        sp.mesh.renderOrder = 6;
+      }
       sp.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
       sp.mesh.rotateZ(sp.twist + t * sp.spin * 0.35);
       const fade = k < 0.1 ? k / 0.1 : k > 0.62 ? Math.max(0, 1 - (k - 0.62) / 0.5) : 1;
@@ -3110,6 +3148,11 @@ function applyFrame(fr) {
       _tmpB.copy(_tmpA).addScaledVector(_tmpC, reach * (0.4 + rnd() * 0.85));
       clampFxPoint(_tmpA, cap, 0.16);
       clampFxPoint(_tmpB, cap, 0.16);
+      if (reassembleBoom > 0.02) {
+        const zLift = 2.0 + 4.5 * reassembleBoom;
+        _tmpA.z = Math.max(1.6, Math.abs(_tmpA.z)) + zLift;
+        _tmpB.z = Math.max(1.6, Math.abs(_tmpB.z)) + zLift;
+      }
       if (bolt.lastKey !== frameKey) {
         setBoltGeom(bolt, _tmpA, _tmpB, frameKey + bi * 3 + (bolt.seed | 0), 1.15 + rnd() * 0.7 + boomSurge * 0.45);
         bolt.lastKey = frameKey;
@@ -3117,8 +3160,11 @@ function applyFrame(fr) {
       const flick = Math.sin(t * 90 + bolt.seed) > -0.28 ? 1 : 0.18;
       bolt.glow.visible = true;
       bolt.core.visible = true;
-      bolt.glowMat.depthTest = true;
-      bolt.coreMat.depthTest = true;
+      const front = reassembleBoom > 0.02;
+      bolt.glowMat.depthTest = !front;
+      bolt.coreMat.depthTest = !front;
+      bolt.glow.renderOrder = front ? 72 : 40;
+      bolt.core.renderOrder = front ? 73 : 41;
       bolt.glowMat.blending = THREE.AdditiveBlending;
       bolt.coreMat.blending = THREE.AdditiveBlending;
       bolt.glowMat.color.setHex(reassembleBoom > 0.2 ? 0xfff8d0 : 0xa8fff4);
@@ -3187,6 +3233,11 @@ function applyFrame(fr) {
       const tip = mid.clone().addScaledVector(_tmpC, R * (0.18 + rnd() * 0.38) * (1 + boomSurge * 3.4));
       clampFxPoint(mid, cap, 0.16);
       clampFxPoint(tip, cap, 0.16);
+      if (reassembleBoom > 0.02) {
+        const zLift = 2.0 + 4.5 * reassembleBoom;
+        mid.z = Math.max(1.6, Math.abs(mid.z)) + zLift;
+        tip.z = Math.max(1.6, Math.abs(tip.z)) + zLift;
+      }
       if (bolt.lastKey !== frameKey) {
         setBoltGeom(bolt, mid, tip, frameKey + bi + 9, 1.05 + rnd() * 0.35 + boomSurge * 0.55);
         bolt.lastKey = frameKey;
@@ -3194,8 +3245,11 @@ function applyFrame(fr) {
       const flick = Math.sin(t * 118 + bolt.seed) > -0.15 ? 1 : 0.14;
       bolt.glow.visible = true;
       bolt.core.visible = true;
-      bolt.glowMat.depthTest = true;
-      bolt.coreMat.depthTest = true;
+      const front = reassembleBoom > 0.02;
+      bolt.glowMat.depthTest = !front;
+      bolt.coreMat.depthTest = !front;
+      bolt.glow.renderOrder = front ? 74 : 40;
+      bolt.core.renderOrder = front ? 75 : 41;
       bolt.glowMat.blending = THREE.AdditiveBlending;
       bolt.coreMat.blending = THREE.AdditiveBlending;
       const col = signBoltPal[(rnd() * signBoltPal.length) | 0];
@@ -3245,7 +3299,7 @@ function applyFrame(fr) {
   boltLight.position.set(
     SIGN_ONLY ? 0 : (Math.sin(t * 11.4) * 2.4),
     SIGN_ONLY ? 0 : (Math.cos(t * 9.1) * 1.8),
-    SIGN_ONLY ? 0 : (2.4 + fill),
+    SIGN_ONLY ? (2.2 + reassembleBoom * 7) : (2.4 + fill),
   );
 
   /* No radial fireball flash — that reads as fireworks. */
@@ -3264,16 +3318,19 @@ function applyFrame(fr) {
   }
 
   if (AVATAR_BG) {
-    const bgPulse = Math.max(
-      trap(t, 0.00, 0.08, 0.18, 0.30),
-      crack * 0.55,
-      coreFlash * 0.9,
-      fxSurge * 0.75,
-      rebuild * 0.5,
-      reassembleBoom,
-      0.25 + 0.25 * Math.sin(t * Math.PI * 2),
-    );
-    paintAvatarBackground(t, Math.min(1, bgPulse), reassembleBoom);
+    const bgT = frozen ? 0 : t * damp;
+    const bgPulse = frozen
+      ? 0.25
+      : Math.max(
+        trap(bgT, 0.00, 0.08, 0.18, 0.30),
+        crack * 0.55,
+        coreFlash * 0.9,
+        fxSurge * 0.75,
+        rebuild * 0.5,
+        reassembleBoom,
+        0.25 + 0.25 * Math.sin(bgT * Math.PI * 2),
+      );
+    paintAvatarBackground(bgT, Math.min(1, bgPulse), frozen ? 0 : reassembleBoom);
   }
 
   renderer.clear(true, true, true);
