@@ -112,16 +112,17 @@ function initAvatarBackground() {
   avatarBgTex.needsUpdate = true;
   scene.background = avatarBgTex;
 }
-function paintAvatarBackground(t, pulse) {
+function paintAvatarBackground(t, pulse, boom = 0) {
   if (!avatarBgCtx || !avatarBgTex) return;
   const S = avatarBgSize;
   const ctx = avatarBgCtx;
   const ph = t * Math.PI * 2;
   const breathe = 0.55 + 0.45 * pulse;
+  const boomAmt = Math.max(0, Math.min(1, boom));
 
   /* Flat deep jade — no radial falloff (reads as vignette in the circle crop). */
-  const g0 = 72 + breathe * 8 | 0;
-  ctx.fillStyle = `rgb(${14 + breathe * 4 | 0},${g0},${44 + breathe * 4 | 0})`;
+  const g0 = 72 + breathe * 8 + boomAmt * 28 | 0;
+  ctx.fillStyle = `rgb(${14 + breathe * 4 + boomAmt * 36 | 0},${g0},${44 + breathe * 4 + boomAmt * 18 | 0})`;
   ctx.fillRect(0, 0, S, S);
 
   /* Soft living wash — even across the field, not corner-dark. */
@@ -132,7 +133,7 @@ function paintAvatarBackground(t, pulse) {
     const cx = S * (0.30 + 0.18 * i) + Math.cos(a) * S * 0.06;
     const cy = S * (0.32 + 0.16 * i) + Math.sin(a * 1.1) * S * 0.05;
     const band = ctx.createLinearGradient(cx - S * 0.45, cy, cx + S * 0.5, cy + S * 0.2);
-    const a0 = 0.04 + 0.04 * breathe;
+    const a0 = 0.04 + 0.04 * breathe + boomAmt * 0.08;
     band.addColorStop(0.00, 'rgba(20,80,50,0)');
     band.addColorStop(0.5, `rgba(70,200,130,${a0})`);
     band.addColorStop(1.00, 'rgba(10,40,25,0)');
@@ -157,6 +158,28 @@ function paintAvatarBackground(t, pulse) {
     ctx.beginPath();
     ctx.arc(x, y, r * 3.2, 0, Math.PI * 2);
     ctx.fill();
+  }
+
+  /* Shockwave flash when the N snaps back together */
+  if (boomAmt > 0.02) {
+    const cx = S * 0.5;
+    const cy = S * 0.5;
+    const ring = 0.12 + boomAmt * 0.42;
+    const flash = ctx.createRadialGradient(cx, cy, S * 0.02, cx, cy, S * ring);
+    flash.addColorStop(0.00, `rgba(255,250,220,${0.55 * boomAmt})`);
+    flash.addColorStop(0.28, `rgba(180,255,140,${0.32 * boomAmt})`);
+    flash.addColorStop(0.62, `rgba(60,200,120,${0.14 * boomAmt})`);
+    flash.addColorStop(1.00, 'rgba(10,40,25,0)');
+    ctx.fillStyle = flash;
+    ctx.beginPath();
+    ctx.arc(cx, cy, S * ring, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = `rgba(230,255,200,${0.55 * boomAmt})`;
+    ctx.lineWidth = Math.max(2, S * 0.008 * (0.6 + boomAmt));
+    ctx.beginPath();
+    ctx.arc(cx, cy, S * (0.18 + boomAmt * 0.28), 0, Math.PI * 2);
+    ctx.stroke();
   }
   ctx.restore();
 
@@ -2561,6 +2584,10 @@ function applyFrame(fr) {
   const coreFlash = SIGN_ONLY ? trap(t, 0.30, 0.38, 0.58, 0.68) : 0;
   const fxSurge = SIGN_ONLY ? trap(t, 0.42, 0.48, 0.53, 0.62) : 0;
   const rebuild = SIGN_ONLY ? trap(t, 0.62, 0.72, 0.86, 0.94) : 0;
+  /* Snap boom once pieces lock back into the N */
+  const reassembleBoom = SIGN_ONLY ? trap(t, 0.915, 0.932, 0.958, 0.995) : 0;
+  const boomFlash = Math.max(coreFlash, reassembleBoom);
+  const boomSurge = Math.max(fxSurge, reassembleBoom * 1.25);
   const sphereAmt = SIGN_ONLY ? trap(t, 0.20, 0.32, 0.54, 0.70) : 0;
   const showWhole = SIGN_ONLY ? (t < 0.20 || t > 0.92) : (destroy < 0.28);
   for (const w of brand.nWholes) w.visible = showWhole;
@@ -2597,7 +2624,7 @@ function applyFrame(fr) {
         restRy + (SIGN_ONLY ? 0 : 0.12 * boomAmt) + Math.cos(ph * 1.7) * yaw * life + Math.sin(ph * 4.0) * (SIGN_ONLY ? 0.018 : 0.07) * life,
         restRz + (SIGN_ONLY ? 0 : 0.05 * zoomN) + Math.sin(ph * 2.5) * (SIGN_ONLY ? 0.016 : 0.16) * life,
       );
-      const shinePulse = 1;
+      const shinePulse = 1 + reassembleBoom * 0.14;
       n.scale.setScalar(brand.nScale * (SIGN_ONLY ? 1 : (1 + 0.04 * zoomN) * (1 + Math.sin(ph * 3.6) * 0.015 * life)) * shinePulse);
     }
   }
@@ -2777,7 +2804,7 @@ function applyFrame(fr) {
       - 0.04 * Math.max(0, (t - 0.55) / 0.35))
     : (1 - 0.14 * Math.max(boomAmt, destroy) - 0.04 * fill);
   const containSafe = SIGN_ONLY
-    ? (1 - 0.08 * sphereAmt - 0.03 * coreFlash)
+    ? (1 - 0.08 * sphereAmt - 0.03 * boomFlash + 0.06 * reassembleBoom)
     : contain;
 
   /* Whole sign: yaw/pitch so the stack’s side volume reads */
@@ -2875,10 +2902,10 @@ function applyFrame(fr) {
   const blast = trap(t, 0.10, 0.20, 0.52, 0.9);
   const flash = trap(t, 0.13, 0.17, 0.22, 0.32);
 
-  fireLight.intensity = SIGN_ONLY ? (14 * coreFlash) : (hero ? 0 : (1.2 + 5 * blast + 3 * tear + 2.5 * fill));
-  fireLight2.intensity = SIGN_ONLY ? (11 * coreFlash) : (hero ? 0 : (0.8 + 3.5 * blast + 2.5 * tear + 2 * fill));
-  fireLight.color.setHex(SIGN_ONLY ? 0xff3a10 : 0xff5511);
-  fireLight2.color.setHex(SIGN_ONLY ? 0xffc040 : 0xffcc44);
+  fireLight.intensity = SIGN_ONLY ? (14 * boomFlash) : (hero ? 0 : (1.2 + 5 * blast + 3 * tear + 2.5 * fill));
+  fireLight2.intensity = SIGN_ONLY ? (11 * boomFlash) : (hero ? 0 : (0.8 + 3.5 * blast + 2.5 * tear + 2 * fill));
+  fireLight.color.setHex(SIGN_ONLY ? (reassembleBoom > coreFlash ? 0xfff2a0 : 0xff3a10) : 0xff5511);
+  fireLight2.color.setHex(SIGN_ONLY ? (reassembleBoom > coreFlash ? 0xc8ff80 : 0xffc040) : 0xffcc44);
   fireLight.position.set(
     SIGN_ONLY ? 0 : (1.35 + Math.sin(t * 6.1) * 0.7),
     SIGN_ONLY ? 0 : (-0.85 + Math.cos(t * 5.4) * 0.55),
@@ -2898,12 +2925,15 @@ function applyFrame(fr) {
 
   if (SIGN_ONLY) {
     root.updateMatrixWorld(true);
-    root.userData.fxCap = signFxCap(fxSurge);
+    root.userData.fxCap = signFxCap(boomSurge);
   }
 
   for (const f of signFlames) {
     const e = SIGN_ONLY
-      ? coreFlash * (0.82 + 0.18 * trap(t, 0.42 + f.delay, 0.50 + f.delay, 0.62, 0.74))
+      ? boomFlash * (0.82 + 0.18 * Math.max(
+        trap(t, 0.42 + f.delay, 0.50 + f.delay, 0.62, 0.74),
+        trap(t, 0.915 + f.delay * 0.35, 0.932 + f.delay * 0.25, 0.958, 0.995),
+      ))
       : (hero ? 0 : Math.max(blast, tear, fill) * (0.75 + 0.25 * trap(t, 0.12 + f.delay, 0.22 + f.delay, 0.58, 0.86)));
     if (e < 0.05) {
       f.mesh.visible = false;
@@ -2917,16 +2947,16 @@ function applyFrame(fr) {
       Math.cos(t * 8.1 + f.seed) * 0.32,
       Math.sin(t * 6.2 + f.phase0 * 0.7) * 0.18,
     ));
-    if (SIGN_ONLY) flattenSurgeDir(dir, fxSurge * 0.25);
+    if (SIGN_ONLY) flattenSurgeDir(dir, boomSurge * 0.25);
     else dir.normalize();
     const R = signSphereR || 12.5;
     const cap = SIGN_ONLY ? (root.userData.fxCap || 8) : (root.userData.canvasCap || 8);
     const want = SIGN_ONLY
-      ? R * f.lenMul * f.breakMul * (0.4 + 0.6 * e) * flutter * (1 + fxSurge * 3.8)
+      ? R * f.lenMul * f.breakMul * (0.4 + 0.6 * e) * flutter * (1 + boomSurge * 3.8)
       : (4.4 + 5.8 * e) * f.lenMul * f.breakMul * flutter;
     if (SIGN_ONLY && f.origin) {
-      f.mesh.position.copy(f.origin).multiplyScalar(0.5 + 0.7 * fxSurge);
-      clampFxPoint(f.mesh.position, cap * (0.2 + 0.22 * fxSurge), 0.16);
+      f.mesh.position.copy(f.origin).multiplyScalar(0.5 + 0.7 * boomSurge);
+      clampFxPoint(f.mesh.position, cap * (0.2 + 0.22 * boomSurge), 0.16);
     } else if (SIGN_ONLY) {
       f.mesh.position.copy(dir).multiplyScalar(0.15 + 0.35 * e);
       clampLocalXY(f.mesh.position, cap * 0.35);
@@ -2941,7 +2971,7 @@ function applyFrame(fr) {
     f.mesh.rotateZ((f.twist || 0) + Math.sin(t * 9 + f.phase0) * 0.45);
     f.mesh.rotateX((f.spin || 0) * e * 0.4);
     f.mesh.scale.set(
-      f.wide * (0.7 + 0.45 * e) * (1 + fxSurge * 0.4) * (0.75 + 0.35 * flutter),
+      f.wide * (0.7 + 0.45 * e) * (1 + boomSurge * 0.4) * (0.75 + 0.35 * flutter),
       len,
       1,
     );
@@ -2955,6 +2985,8 @@ function applyFrame(fr) {
       { t0: 0.44, flight: 0.14 },
       { t0: 0.49, flight: 0.2 },
       { t0: 0.56, flight: 0.15 },
+      { t0: 0.92, flight: 0.11 },
+      { t0: 0.945, flight: 0.09 },
     ];
     const R = signSphereR || 12.5;
     const fxCap = root.userData.fxCap || (root.userData.burstLocalMax || 8) * 0.72;
@@ -2966,19 +2998,19 @@ function applyFrame(fr) {
         sparkFlightK(t, b1.t0, sp.delay * 0.7, b1.flight * 0.85),
       );
       const flickRnd = seeded(((sp.seed * 97) | 0) + Math.floor(t * 48) * 13)();
-      if (k < 0 || coreFlash < 0.04 || flickRnd > 0.78 + 0.16 * fxSurge) {
+      if (k < 0 || boomFlash < 0.04 || flickRnd > 0.78 + 0.16 * boomSurge) {
         sp.mesh.visible = false;
         continue;
       }
       sp.mesh.visible = true;
-      const dir = sp.dir.clone().lerp(sp.side, 0.45 + 0.4 * fxSurge + 0.15 * Math.sin(t * 14 + sp.seed));
-      flattenSurgeDir(dir, fxSurge * 0.28);
+      const dir = sp.dir.clone().lerp(sp.side, 0.45 + 0.4 * boomSurge + 0.15 * Math.sin(t * 14 + sp.seed));
+      flattenSurgeDir(dir, boomSurge * 0.28);
       const travel = Math.min(1, k);
       const e = 1 - (1 - travel) * (1 - travel);
-      const tail = (sp.len || 1.6) * sp.breakMul * (0.55 + 0.4 * fxSurge);
-      const want = 0.12 + e * R * sp.reachMul * (1 + fxSurge * 2.8);
+      const tail = (sp.len || 1.6) * sp.breakMul * (0.55 + 0.4 * boomSurge);
+      const want = 0.12 + e * R * sp.reachMul * (1 + boomSurge * 2.8);
       const dist = Math.min(want, maxFxAlongDir(dir, tail, 0.16), Math.max(0.2, fxCap));
-      sp.mesh.position.copy(sp.origin).multiplyScalar(0.4 + 0.75 * fxSurge).addScaledVector(dir, dist * 0.7);
+      sp.mesh.position.copy(sp.origin).multiplyScalar(0.4 + 0.75 * boomSurge).addScaledVector(dir, dist * 0.7);
       clampFxPoint(sp.mesh.position, Math.max(0.4, fxCap), 0.16);
       sp.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
       sp.mesh.rotateZ(sp.twist + t * sp.spin * 0.35);
@@ -2987,7 +3019,7 @@ function applyFrame(fr) {
       sp.chip.material.opacity = Math.min(1, fade * pop);
       sp.chip.scale.set(
         (0.85 + 0.4 * (1 - travel)) * (0.7 + 0.5 * sp.breakMul),
-        sp.breakMul * (0.55 + 0.7 * (1 - travel * 0.45)) * (1 + fxSurge * 0.85),
+        sp.breakMul * (0.55 + 0.7 * (1 - travel * 0.45)) * (1 + boomSurge * 0.85),
         1,
       );
       const showHead = sp.headAmt > 0.01 && flickRnd < 0.35;
@@ -3055,7 +3087,7 @@ function applyFrame(fr) {
   for (let bi = 0; bi < bolts.length; bi++) {
     const bolt = bolts[bi];
     if (SIGN_ONLY) {
-      const on = coreFlash * (0.88 + 0.12 * ((bolt.seed % 9) / 9));
+      const on = boomFlash * (0.88 + 0.12 * ((bolt.seed % 9) / 9));
       if (on < 0.06) {
         bolt.glowMat.opacity = 0;
         bolt.coreMat.opacity = 0;
@@ -3064,22 +3096,22 @@ function applyFrame(fr) {
         continue;
       }
       const rnd = seeded((bolt.seed | 0) + frameKey * 11 + bi);
-      if (rnd() > 0.82 + 0.12 * fxSurge) {
+      if (rnd() > 0.82 + 0.12 * boomSurge) {
         bolt.glow.visible = false;
         bolt.core.visible = false;
         continue;
       }
       const R = signSphereR || 12.5;
       const cap = root.userData.fxCap || (root.userData.burstLocalMax || 8) * 0.72;
-      const reach = R * (0.22 + rnd() * 0.42) * (1 + fxSurge * 3.6);
+      const reach = R * (0.22 + rnd() * 0.42) * (1 + boomSurge * 3.6);
       _tmpA.copy(randUnit3(rnd)).multiplyScalar(0.55 + rnd() * R * 0.55);
       _tmpC.copy(randUnit3(rnd));
-      flattenSurgeDir(_tmpC, fxSurge * 0.22);
+      flattenSurgeDir(_tmpC, boomSurge * 0.22);
       _tmpB.copy(_tmpA).addScaledVector(_tmpC, reach * (0.4 + rnd() * 0.85));
       clampFxPoint(_tmpA, cap, 0.16);
       clampFxPoint(_tmpB, cap, 0.16);
       if (bolt.lastKey !== frameKey) {
-        setBoltGeom(bolt, _tmpA, _tmpB, frameKey + bi * 3 + (bolt.seed | 0), 1.15 + rnd() * 0.7 + fxSurge * 0.45);
+        setBoltGeom(bolt, _tmpA, _tmpB, frameKey + bi * 3 + (bolt.seed | 0), 1.15 + rnd() * 0.7 + boomSurge * 0.45);
         bolt.lastKey = frameKey;
       }
       const flick = Math.sin(t * 90 + bolt.seed) > -0.28 ? 1 : 0.18;
@@ -3089,7 +3121,7 @@ function applyFrame(fr) {
       bolt.coreMat.depthTest = true;
       bolt.glowMat.blending = THREE.AdditiveBlending;
       bolt.coreMat.blending = THREE.AdditiveBlending;
-      bolt.glowMat.color.setHex(0xa8fff4);
+      bolt.glowMat.color.setHex(reassembleBoom > 0.2 ? 0xfff8d0 : 0xa8fff4);
       bolt.coreMat.color.setHex(0xffffff);
       bolt.glowMat.opacity = Math.min(1, on * 1.5) * flick;
       bolt.coreMat.opacity = Math.min(1, on * 1.7) * flick;
@@ -3135,14 +3167,14 @@ function applyFrame(fr) {
   for (let bi = 0; bi < boltBranches.length; bi++) {
     const bolt = boltBranches[bi];
     if (SIGN_ONLY) {
-      const on = coreFlash * 0.95;
+      const on = boomFlash * 0.95;
       if (on < 0.1) {
         bolt.glow.visible = false;
         bolt.core.visible = false;
         continue;
       }
       const rnd = seeded((bolt.seed | 0) + frameKey * 7 + bi + 20);
-      if (rnd() > 0.45 + 0.3 * fxSurge) {
+      if (rnd() > 0.45 + 0.3 * boomSurge) {
         bolt.glow.visible = false;
         bolt.core.visible = false;
         continue;
@@ -3151,12 +3183,12 @@ function applyFrame(fr) {
       const cap = root.userData.fxCap || (root.userData.burstLocalMax || 8) * 0.72;
       const mid = randUnit3(rnd).multiplyScalar(0.7 + rnd() * R * 0.5);
       _tmpC.copy(randUnit3(rnd));
-      flattenSurgeDir(_tmpC, fxSurge * 0.22);
-      const tip = mid.clone().addScaledVector(_tmpC, R * (0.18 + rnd() * 0.38) * (1 + fxSurge * 3.4));
+      flattenSurgeDir(_tmpC, boomSurge * 0.22);
+      const tip = mid.clone().addScaledVector(_tmpC, R * (0.18 + rnd() * 0.38) * (1 + boomSurge * 3.4));
       clampFxPoint(mid, cap, 0.16);
       clampFxPoint(tip, cap, 0.16);
       if (bolt.lastKey !== frameKey) {
-        setBoltGeom(bolt, mid, tip, frameKey + bi + 9, 1.05 + rnd() * 0.35 + fxSurge * 0.55);
+        setBoltGeom(bolt, mid, tip, frameKey + bi + 9, 1.05 + rnd() * 0.35 + boomSurge * 0.55);
         bolt.lastKey = frameKey;
       }
       const flick = Math.sin(t * 118 + bolt.seed) > -0.15 ? 1 : 0.14;
@@ -3208,7 +3240,7 @@ function applyFrame(fr) {
     bolt.glowMat.opacity = on * (SIGN_ONLY ? 1.0 : 0.55) * flick;
     bolt.coreMat.opacity = on * (SIGN_ONLY ? 1.2 : 0.85) * flick;
   }
-  boltLight.intensity = SIGN_ONLY ? 18 * coreFlash : (hero ? 0 : 2.5 * blast + 3 * tear + 3.5 * fill);
+  boltLight.intensity = SIGN_ONLY ? 18 * boomFlash : (hero ? 0 : 2.5 * blast + 3 * tear + 3.5 * fill);
   boltLight.color.setHex(SIGN_ONLY ? (Math.sin(t * 28) > 0 ? 0xff6a10 : 0x2a8cff) : (Math.sin(t * 28) > 0 ? 0xffee66 : 0x66eeff));
   boltLight.position.set(
     SIGN_ONLY ? 0 : (Math.sin(t * 11.4) * 2.4),
@@ -3238,9 +3270,10 @@ function applyFrame(fr) {
       coreFlash * 0.9,
       fxSurge * 0.75,
       rebuild * 0.5,
+      reassembleBoom,
       0.25 + 0.25 * Math.sin(t * Math.PI * 2),
     );
-    paintAvatarBackground(t, Math.min(1, bgPulse));
+    paintAvatarBackground(t, Math.min(1, bgPulse), reassembleBoom);
   }
 
   renderer.clear(true, true, true);
