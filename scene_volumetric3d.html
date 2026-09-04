@@ -41,16 +41,17 @@ const CHUNK_DEPTH = 2.4; /* thick blocks so tumble reads as 3D */
 const SIGN_REST_RX = AVATAR_BG ? 0.04 : 0.05;
 const SIGN_REST_RY = AVATAR_BG ? -0.10 : -0.12;
 const SIGN_REST_RZ = AVATAR_BG ? 0.10 : 0.14;
-/* Second boom: composed 3D tongues around the N (stems + slash, toward camera). */
+/* Second boom: 3 screen-plane licks + open quarter (petal elev → flower). */
 const FRONT_BOOM = [
-  { ang: 0.20, elev: 1.05, len: 1.05, wide: 1.00, delay: 0.00, bend: 1.15, twist: 1.8 },
-  { ang: 0.98, elev: 1.12, len: 1.08, wide: 1.02, delay: 0.012, bend: 1.22, twist: -1.6 },
-  { ang: 1.77, elev: 1.02, len: 1.04, wide: 0.98, delay: 0.006, bend: 1.10, twist: 2.0 },
-  { ang: 2.55, elev: 0.98, len: 1.00, wide: 0.94, delay: 0.018, bend: 1.05, twist: -1.9 },
-  { ang: 3.34, elev: 1.08, len: 1.06, wide: 1.00, delay: 0.008, bend: 1.18, twist: 1.5 },
-  { ang: 4.12, elev: 1.00, len: 1.02, wide: 0.96, delay: 0.016, bend: 1.12, twist: -2.1 },
-  { ang: 4.91, elev: 1.10, len: 1.10, wide: 1.04, delay: 0.004, bend: 1.25, twist: 1.7 },
-  { ang: 5.69, elev: 0.96, len: 0.98, wide: 0.92, delay: 0.020, bend: 0.98, twist: -1.4 },
+  { ang: -0.55, elev: 0.06, len: 1.55, wide: 1.45, delay: 0.000, bend: 1.25, twist: 0.95, role: 'hero' },
+  { ang: 2.35, elev: 0.10, len: 1.15, wide: 1.20, delay: 0.010, bend: 1.05, twist: -0.8, role: 'side' },
+  { ang: 3.85, elev: 0.04, len: 0.95, wide: 1.05, delay: 0.018, bend: 1.15, twist: 1.1, role: 'down' },
+];
+/* Sparse long strikes — one direction at a time, not a clock web. */
+const SIGN_BOLT_STRIKES = [
+  { ang: 0.65, elev: 0.08, start: 0.6, reach: 7.2, kink: 0.85 },
+  { ang: 2.95, elev: 0.12, start: 0.7, reach: 6.4, kink: -1.05 },
+  { ang: 4.55, elev: 0.06, start: 0.55, reach: 7.0, kink: 0.7 },
 ];
 const _frontBoomEuler = new THREE.Euler(SIGN_REST_RX, SIGN_REST_RY, SIGN_REST_RZ, 'XYZ');
 const _logoBoomBox = new THREE.Box3();
@@ -201,7 +202,7 @@ function paintAvatarBackground(t, pulse, boom = 0) {
     const r = 2.2 + (i % 3) * 1.6;
     const glow = ctx.createRadialGradient(x, y, 0, x, y, r * 3.2);
     const alpha = 0.06 + 0.07 * ((Math.sin(ph * 1.6 + seed) + 1) * 0.5) * breathe;
-    glow.addColorStop(0, `rgba(160,240,190,${alpha})`);
+    glow.addColorStop(0, `rgba(245,250,240,${alpha})`);
     glow.addColorStop(1, 'rgba(0,40,20,0)');
     ctx.fillStyle = glow;
     ctx.beginPath();
@@ -246,13 +247,13 @@ if (SIGN_ONLY) {
   /* Saturated studio greens — punchier for avatar, classic for emoji. */
   const amb = envG.createLinearGradient(0, 0, 0, 512);
   if (AVATAR_BG) {
-    amb.addColorStop(0.00, '#f6fff8');
-    amb.addColorStop(0.22, '#b8e8c8');
-    amb.addColorStop(0.50, '#5eb888');
+    amb.addColorStop(0.00, '#ffffff');
+    amb.addColorStop(0.22, '#e8f2ea');
+    amb.addColorStop(0.50, '#6eb888');
     amb.addColorStop(1.00, '#2f8a5c');
   } else {
-    amb.addColorStop(0.00, '#e8f6f2');
-    amb.addColorStop(0.28, '#6ebc9a');
+    amb.addColorStop(0.00, '#ffffff');
+    amb.addColorStop(0.28, '#8ec8aa');
     amb.addColorStop(0.55, '#3d8a6e');
     amb.addColorStop(1.00, '#2a6a58');
   }
@@ -284,10 +285,10 @@ else scene.add(fx);
 const keyLight = new THREE.DirectionalLight(SIGN_ONLY ? 0xffffff : 0xffffff, SIGN_ONLY ? (AVATAR_BG ? 4.2 : 3.6) : 2.2);
 keyLight.position.set(-6, 10, 16);
 scene.add(keyLight);
-const fillLight = new THREE.DirectionalLight(SIGN_ONLY ? 0xb8ffd0 : 0xa8c8ff, SIGN_ONLY ? (AVATAR_BG ? 2.1 : 1.75) : 0.9);
+const fillLight = new THREE.DirectionalLight(SIGN_ONLY ? 0xffffff : 0xa8c8ff, SIGN_ONLY ? (AVATAR_BG ? 2.1 : 1.75) : 0.9);
 fillLight.position.set(8, -2, 10);
 scene.add(fillLight);
-const ambLight = new THREE.AmbientLight(SIGN_ONLY ? 0xd0ffe0 : 0xffffff, SIGN_ONLY ? (AVATAR_BG ? 0.72 : 0.62) : 0.7);
+const ambLight = new THREE.AmbientLight(0xffffff, SIGN_ONLY ? (AVATAR_BG ? 0.72 : 0.62) : 0.7);
 scene.add(ambLight);
 const rimLight = new THREE.DirectionalLight(SIGN_ONLY ? 0xffffff : 0xffffff, SIGN_ONLY ? 2.8 : 1.1);
 rimLight.position.set(2, 4, -12);
@@ -298,19 +299,19 @@ if (SIGN_ONLY) {
   shineSweep = new THREE.DirectionalLight(0xffffff, 0);
   shineSweep.position.set(8, 6, 14);
   scene.add(shineSweep);
-  shineKick = new THREE.PointLight(0xccffee, 0, 30, 1.4);
+  shineKick = new THREE.PointLight(0xffffff, 0, 30, 1.4);
   shineKick.position.set(0, 2, 6);
   root.add(shineKick);
 }
 
 /* Explosion lights — green tear burst in sign-only */
-const fireLight = new THREE.PointLight(SIGN_ONLY ? 0x66ff99 : 0xff6a12, 0, 28, 1.6);
+const fireLight = new THREE.PointLight(SIGN_ONLY ? 0xfff2d0 : 0xff6a12, 0, 28, 1.6);
 fireLight.position.set(0, 0, 2);
 root.add(fireLight);
-const fireLight2 = new THREE.PointLight(SIGN_ONLY ? 0xb8ff66 : 0xffee66, 0, 18, 2);
+const fireLight2 = new THREE.PointLight(SIGN_ONLY ? 0xffe8b0 : 0xffee66, 0, 18, 2);
 fireLight2.position.set(1, 1.5, 3);
 root.add(fireLight2);
-const boltLight = new THREE.PointLight(SIGN_ONLY ? 0xccffee : 0xaad8ff, 0, 22, 1.8);
+const boltLight = new THREE.PointLight(SIGN_ONLY ? 0xfff8f0 : 0xaad8ff, 0, 22, 1.8);
 boltLight.position.set(0, 0, 4);
 root.add(boltLight);
 
@@ -341,79 +342,114 @@ function flamePath(ctx, cx, top, bot, halfW) {
   ctx.closePath();
 }
 
-/** Broken, asymmetric fire tongue — not a symmetric teardrop. */
+/** Broken, asymmetric fire tongue — crescent spine, not a straight spike. */
 function jaggedFlamePath(ctx, cx, top, bot, halfW, rnd, lean) {
-  const steps = 8 + ((rnd() * 6) | 0);
+  const steps = 8 + ((rnd() * 4) | 0);
+  const curve = lean * (0.85 + rnd() * 0.4);
+  const hook = lean * (0.18 + rnd() * 0.25);
   ctx.beginPath();
-  ctx.moveTo(cx + lean * 0.2, bot);
+  ctx.moveTo(cx + lean * 0.06, bot);
   for (let i = 1; i <= steps; i++) {
     const u = i / steps;
-    const y = bot + (top - bot) * (u * u * 0.35 + u * 0.65);
-    const taper = Math.pow(1 - u, 0.48);
-    const jag = (rnd() - 0.38) * halfW * (0.55 + rnd() * 0.7);
-    const split = rnd() > 0.82 ? halfW * (0.25 + rnd() * 0.45) : 0;
-    ctx.lineTo(cx + lean * (1 - u) + halfW * taper + jag + split, y);
+    /* Softer height curve — stubby lick, not a spear tip. */
+    const y = bot + (top - bot) * (u * 0.55 + u * u * 0.45);
+    const taper = Math.pow(1 - u, 0.28) * (0.55 + 0.45 * Math.sin(Math.max(0.05, u) * Math.PI));
+    const arc = curve * (u * u) + hook * Math.sin(u * Math.PI);
+    const jag = (rnd() - 0.4) * halfW * (0.18 + rnd() * 0.28);
+    ctx.lineTo(cx + lean * (1 - u) * 0.25 + arc + halfW * taper + jag, y);
   }
   for (let i = steps; i >= 0; i--) {
     const u = i / steps;
-    const y = bot + (top - bot) * (u * u * 0.35 + u * 0.65);
-    const taper = Math.pow(1 - u, 0.52);
-    const jag = (rnd() - 0.62) * halfW * (0.5 + rnd() * 0.75);
-    ctx.lineTo(cx + lean * (1 - u) - halfW * 0.72 * taper + jag, y);
+    const y = bot + (top - bot) * (u * 0.55 + u * u * 0.45);
+    const taper = Math.pow(1 - u, 0.3) * (0.55 + 0.45 * Math.sin(Math.max(0.05, u) * Math.PI));
+    const arc = curve * (u * u) + hook * Math.sin(u * Math.PI);
+    const jag = (rnd() - 0.6) * halfW * (0.16 + rnd() * 0.26);
+    ctx.lineTo(cx + lean * (1 - u) * 0.25 + arc - halfW * 0.9 * taper + jag, y);
   }
   ctx.closePath();
 }
 
+/** Cartoon flame ribbon along a crescent path (silhouette curves; not a straight plane). */
+function makeCurvedFlameGeo(bend, seed) {
+  const rnd = seeded(seed * 19 + 3);
+  const segs = 12 + ((rnd() * 3) | 0);
+  const positions = [];
+  const uvs = [];
+  const indices = [];
+  const sBend = bend * (0.7 + rnd() * 0.45);
+  const hook = (rnd() - 0.5) * 0.45;
+  for (let i = 0; i <= segs; i++) {
+    const u = i / segs;
+    const px = sBend * (u * u) + hook * Math.sin(u * Math.PI);
+    const py = u;
+    const pz = sBend * 0.14 * u * u;
+    const tx = 2 * sBend * u + hook * Math.PI * Math.cos(u * Math.PI);
+    const ty = 1;
+    const tlen = Math.hypot(tx, ty) || 1;
+    const nx = -ty / tlen;
+    const ny = tx / tlen;
+    /* Keep ribbon fat along most of the length — no needle taper. */
+    const taper = 0.72 + 0.28 * Math.pow(1 - u, 0.55);
+    const w = taper * (1.05 + rnd() * 0.08);
+    const jag = (rnd() - 0.5) * 0.06 * (1 - u * 0.5);
+    positions.push(px + nx * w + jag, py + ny * w, pz);
+    positions.push(px - nx * w - jag * 0.6, py - ny * w, pz);
+    uvs.push(0, u, 1, u);
+    if (i < segs) {
+      const a = i * 2;
+      indices.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  return geo;
+}
+
 function makeSignFlameTex(seed) {
   const rnd = seeded(seed * 91 + 5);
-  const w = 256, h = 512;
+  const w = 256, h = 360;
   const c = document.createElement('canvas');
   c.width = w;
   c.height = h;
   const ctx = c.getContext('2d');
-  const cx = w * (0.38 + rnd() * 0.24);
-  const top = 8 + rnd() * 36;
-  const bot = 508;
-  const hw = 70 + rnd() * 70;
-  const lean = (rnd() - 0.5) * 46;
-  const pathSeed = seed * 17 + 4;
-  jaggedFlamePath(ctx, cx, top, bot, hw, seeded(pathSeed), lean);
-  ctx.fillStyle = '#1a0000';
+  const lean = (rnd() > 0.5 ? 1 : -1) * (55 + rnd() * 70);
+  const cx = w * 0.48 - lean * 0.28;
+  const top = 12 + rnd() * 16;
+  const bot = 350;
+  const hw = 58 + rnd() * 28;
+  /* Aggressive leaning tongue — sharp tip, not a round petal. */
+  jaggedFlamePath(ctx, cx, top, bot, hw, rnd, lean);
+  ctx.fillStyle = '#140000';
   ctx.fill();
-  jaggedFlamePath(ctx, cx, top + 14, bot - 4, hw * 0.82, seeded(pathSeed), lean * 0.85);
-  ctx.fillStyle = '#8a0000';
+  jaggedFlamePath(ctx, cx + lean * 0.04, top + 14, bot - 8, hw * 0.78, rnd, lean * 0.95);
+  ctx.fillStyle = '#7a0000';
   ctx.fill();
-  jaggedFlamePath(ctx, cx, top + 22, bot - 10, hw * 0.66, seeded(pathSeed), lean * 0.7);
-  const body = ctx.createLinearGradient(cx, bot, cx + lean * 0.4, top);
-  body.addColorStop(0.00, '#ff0a00');
-  body.addColorStop(0.28, '#ff3a00');
-  body.addColorStop(0.55, '#ff7a00');
-  body.addColorStop(0.78, '#ffc020');
-  body.addColorStop(1.00, '#fffce8');
+  jaggedFlamePath(ctx, cx + lean * 0.08, top + 28, bot - 18, hw * 0.58, rnd, lean * 0.9);
+  const body = ctx.createLinearGradient(cx - lean * 0.1, bot, cx + lean * 0.45, top);
+  body.addColorStop(0.00, '#ff0800');
+  body.addColorStop(0.22, '#ff4200');
+  body.addColorStop(0.5, '#ff8800');
+  body.addColorStop(0.78, '#ffc418');
+  body.addColorStop(1.00, '#fff2b0');
   ctx.fillStyle = body;
   ctx.fill();
-  jaggedFlamePath(ctx, cx + (rnd() - 0.5) * 10, top + 90, bot - 70, hw * 0.28, seeded(pathSeed + 1), lean * 0.4);
-  const core = ctx.createLinearGradient(cx, bot - 70, cx, top + 24);
-  core.addColorStop(0.00, '#ffb000');
-  core.addColorStop(0.5, '#fff4c8');
-  core.addColorStop(1.00, '#ffffff');
-  ctx.fillStyle = core;
-  ctx.fill();
-  const shreds = 2 + ((rnd() * 3) | 0);
-  for (let s = 0; s < shreds; s++) {
-    const sx = cx + (rnd() - 0.5) * hw * 1.35;
-    const sy0 = bot - 40 - rnd() * 220;
-    const sy1 = sy0 - 40 - rnd() * 90;
-    const sw = 8 + rnd() * 18;
-    ctx.fillStyle = s === 0 ? '#1a0000' : (rnd() > 0.5 ? '#ff4a00' : '#ffcc44');
-    ctx.beginPath();
-    ctx.moveTo(sx, sy0);
-    ctx.lineTo(sx + sw * (0.4 + rnd()), sy0 - (sy0 - sy1) * 0.45);
-    ctx.lineTo(sx + (rnd() - 0.5) * 10, sy1);
-    ctx.lineTo(sx - sw * (0.3 + rnd() * 0.5), sy0 - (sy0 - sy1) * 0.55);
-    ctx.closePath();
+  /* Secondary fork tip — breaks the single-petal silhouette. */
+  if (rnd() > 0.25) {
+    const forkLean = lean * (0.35 + rnd() * 0.4);
+    jaggedFlamePath(ctx, cx - lean * 0.22, top + 90 + rnd() * 40, bot - 30, hw * (0.22 + rnd() * 0.12), rnd, forkLean);
+    ctx.fillStyle = 'rgba(255,100,0,0.85)';
     ctx.fill();
   }
+  jaggedFlamePath(ctx, cx + lean * 0.12, top + 85, bot - 55, hw * 0.22, rnd, lean * 0.5);
+  const core = ctx.createLinearGradient(cx, bot - 55, cx + lean * 0.25, top + 50);
+  core.addColorStop(0.00, '#ffaa00');
+  core.addColorStop(0.55, '#ffe060');
+  core.addColorStop(1.00, '#fff8e0');
+  ctx.fillStyle = core;
+  ctx.fill();
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.minFilter = THREE.LinearFilter;
@@ -564,7 +600,13 @@ function buildSignSphereFx() {
     const rnd = seeded(i * 131 + 19);
     const dir = randUnit3(rnd);
     const side = randUnit3(rnd);
-    const origin = randUnit3(rnd).multiplyScalar(0.6 + rnd() * 2.4);
+    /* Bias sparks onto different sides — not a shared center hub. */
+    const pocketA = (i * 2.17) % (Math.PI * 2);
+    const origin = new THREE.Vector3(
+      Math.cos(pocketA) * (0.9 + rnd() * 1.8) + (rnd() - 0.5) * 0.6,
+      Math.sin(pocketA) * (0.9 + rnd() * 1.8) + (rnd() - 0.5) * 0.6,
+      0.25 + rnd() * 0.9,
+    );
     const len = 1.8 + rnd() * 2.4;
     const wid = 0.85 + rnd() * 0.9;
     const chipGeo = new THREE.PlaneGeometry(wid, len, 2, 5);
@@ -666,6 +708,30 @@ const _tmpA = new THREE.Vector3();
 const _tmpB = new THREE.Vector3();
 const _tmpC = new THREE.Vector3();
 const _fxFit = new THREE.Vector3();
+const _flameRight = new THREE.Vector3();
+const _flameFwd = new THREE.Vector3();
+const _flameUp = new THREE.Vector3();
+const _flameMat = new THREE.Matrix4();
+const _flameQuat = new THREE.Quaternion();
+
+/** Keep flame card facing camera while tip still points along dir (avoid edge-on needles). */
+function orientFlameCard(mesh, tipDir) {
+  _flameUp.copy(tipDir).normalize();
+  camera.getWorldPosition(_tmpC);
+  mesh.parent.updateMatrixWorld(true);
+  mesh.parent.worldToLocal(_tmpC);
+  _flameFwd.subVectors(_tmpC, mesh.position);
+  _flameRight.crossVectors(_flameUp, _flameFwd);
+  if (_flameRight.lengthSq() < 1e-8) {
+    mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), _flameUp);
+    return;
+  }
+  _flameRight.normalize();
+  _flameFwd.crossVectors(_flameRight, _flameUp).normalize();
+  _flameMat.makeBasis(_flameRight, _flameUp, _flameFwd);
+  _flameQuat.setFromRotationMatrix(_flameMat);
+  mesh.quaternion.copy(_flameQuat);
+}
 
 function storeGeoBase(geo) {
   const pos = geo.attributes.position;
@@ -889,27 +955,27 @@ function wildBoltPoints(a, b, segs, rnd) {
   const up = Math.abs(dir.y) < 0.85 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0);
   const n = new THREE.Vector3().crossVectors(dir, up).normalize();
   const n2 = new THREE.Vector3().crossVectors(dir, n).normalize();
-  let kn = (rnd() - 0.5) * dist * (SIGN_ONLY ? 0.22 : 0.34);
-  let kn2 = (rnd() - 0.5) * dist * (SIGN_ONLY ? 0.22 : 0.3);
+  let kn = (rnd() - 0.5) * dist * (SIGN_ONLY ? 0.38 : 0.34);
+  let kn2 = (rnd() - 0.5) * dist * (SIGN_ONLY ? 0.34 : 0.3);
   let uCursor = 0;
-  const steps = SIGN_ONLY ? (7 + ((rnd() * 7) | 0)) : (7 + ((rnd() * 7) | 0));
+  const steps = SIGN_ONLY ? (10 + ((rnd() * 8) | 0)) : (7 + ((rnd() * 7) | 0));
   for (let i = 1; i < steps; i++) {
-    uCursor += (0.05 + rnd() * 0.24) * (rnd() > 0.2 ? 1 : -0.4);
+    uCursor += (0.04 + rnd() * 0.2) * (rnd() > 0.18 ? 1 : -0.35);
     uCursor = Math.max(0.04, Math.min(0.97, uCursor));
-    kn += (rnd() - 0.5) * dist * (0.2 + rnd() * 0.36);
-    kn2 += (rnd() - 0.5) * dist * (0.18 + rnd() * 0.32);
-    kn *= 0.34;
-    kn2 *= 0.34;
-    if (rnd() > 0.5) {
-      kn += (rnd() - 0.5) * dist * (0.32 + rnd() * 0.4);
-      kn2 += (rnd() - 0.5) * dist * (0.28 + rnd() * 0.36);
+    kn += (rnd() - 0.5) * dist * (SIGN_ONLY ? (0.32 + rnd() * 0.45) : (0.2 + rnd() * 0.36));
+    kn2 += (rnd() - 0.5) * dist * (SIGN_ONLY ? (0.28 + rnd() * 0.4) : (0.18 + rnd() * 0.32));
+    kn *= SIGN_ONLY ? 0.42 : 0.34;
+    kn2 *= SIGN_ONLY ? 0.42 : 0.34;
+    if (rnd() > (SIGN_ONLY ? 0.35 : 0.5)) {
+      kn += (rnd() - 0.5) * dist * (SIGN_ONLY ? (0.45 + rnd() * 0.55) : (0.32 + rnd() * 0.4));
+      kn2 += (rnd() - 0.5) * dist * (SIGN_ONLY ? (0.4 + rnd() * 0.48) : (0.28 + rnd() * 0.36));
     }
     const p = new THREE.Vector3().lerpVectors(a, b, uCursor);
     p.addScaledVector(n, kn);
     p.addScaledVector(n2, kn2);
     pts.push(p);
   }
-  pts.push(b.clone().add(n.clone().multiplyScalar((rnd() - 0.5) * dist * (SIGN_ONLY ? 0.18 : 0.12))));
+  pts.push(b.clone().add(n.clone().multiplyScalar((rnd() - 0.5) * dist * (SIGN_ONLY ? 0.28 : 0.12))));
   return pts;
 }
 
@@ -1135,36 +1201,104 @@ async function buildFireBomb() {
   /* Teardrop fires — previous N look. Full scene: more, longer, fill the canvas. */
   {
     const fr = seeded(8801);
-    const nFlame = SIGN_ONLY ? 4 : 6;
+    const nFlame = SIGN_ONLY ? 3 : 6;
+    /* First boom: left/bottom blast pocket — open upper-right. */
+    const sidePockets = [
+      { x: -2.35, y: 1.15, z: 0.6 },
+      { x: -1.85, y: -1.75, z: 0.55 },
+      { x: 0.95, y: -2.15, z: 0.5 },
+    ];
+    const pocketAssign = [0, 1, 2];
     for (let i = 0; i < nFlame; i++) {
       const seed = 3 + i * 17 + ((fr() * 40) | 0);
       const rnd = seeded(seed * 9 + 2);
-      const geo = new THREE.PlaneGeometry(1, 1, 6, 18);
-      geo.translate(0, 0.5, 0);
-      const pos = geo.attributes.position;
-      for (let vi = 0; vi < pos.count; vi++) {
-        const y = pos.getY(vi);
-        pos.setX(vi, pos.getX(vi) + (rnd() - 0.5) * 0.28 * (1.05 - y));
-        pos.setY(vi, pos.getY(vi) + (rnd() - 0.5) * 0.08);
-      }
-      pos.needsUpdate = true;
-      const mesh = new THREE.Mesh(
-        geo,
-        new THREE.MeshBasicMaterial({
-          map: makeSignFlameTex(seed),
-          transparent: true,
-          alphaTest: 0.12,
-          depthWrite: false,
-          depthTest: true,
-          toneMapped: false,
-          side: THREE.DoubleSide,
-        }),
-      );
+      const bend = (rnd() > 0.5 ? 1 : -1) * (0.7 + rnd() * 0.85);
+      const geo = SIGN_ONLY
+        ? (() => {
+          /* Short fat card — silhouette comes from tex, not a stretched ribbon. */
+          const g = new THREE.PlaneGeometry(1, 1, 4, 10);
+          g.translate(0, 0.42, 0);
+          const p = g.attributes.position;
+          const lean = bend * 0.22;
+          for (let vi = 0; vi < p.count; vi++) {
+            const y = p.getY(vi);
+            const u = Math.max(0, Math.min(1, y + 0.08));
+            p.setX(vi, p.getX(vi) * (0.95 - 0.35 * u) + lean * u * u);
+            p.setY(vi, p.getY(vi) + (rnd() - 0.5) * 0.03);
+          }
+          p.needsUpdate = true;
+          return g;
+        })()
+        : (() => {
+          const g = new THREE.PlaneGeometry(1, 1, 6, 18);
+          g.translate(0, 0.5, 0);
+          const p = g.attributes.position;
+          for (let vi = 0; vi < p.count; vi++) {
+            const y = p.getY(vi);
+            p.setX(vi, p.getX(vi) + (rnd() - 0.5) * 0.22 * (1.05 - y));
+            p.setY(vi, p.getY(vi) + (rnd() - 0.5) * 0.06);
+          }
+          p.needsUpdate = true;
+          return g;
+        })();
+      const mesh = SIGN_ONLY
+        ? new THREE.Sprite(
+          new THREE.SpriteMaterial({
+            map: makeSignFlameTex(seed),
+            transparent: true,
+            alphaTest: 0.12,
+            depthWrite: false,
+            depthTest: false,
+            toneMapped: false,
+            sizeAttenuation: true,
+          }),
+        )
+        : new THREE.Mesh(
+          geo,
+          new THREE.MeshBasicMaterial({
+            map: makeSignFlameTex(seed),
+            transparent: true,
+            alphaTest: 0.12,
+            depthWrite: false,
+            depthTest: true,
+            toneMapped: false,
+            side: THREE.DoubleSide,
+          }),
+        );
       mesh.renderOrder = 3;
       fx.add(mesh);
       const dir = randUnit3(rnd);
       const origin = randUnit3(rnd).multiplyScalar(0.55 + rnd() * 2.2);
       const aim = randUnit3(rnd);
+      const base = FRONT_BOOM[i % FRONT_BOOM.length];
+      const isHero = base.role === 'hero' || i === 0;
+      const boomLayout = {
+        ang: base.ang + (rnd() - 0.5) * (isHero ? 0.1 : 0.18),
+        elev: base.elev + (rnd() - 0.5) * 0.05,
+        len: base.len * (isHero ? (1.08 + rnd() * 0.18) : (0.85 + rnd() * 0.3)),
+        wide: base.wide * (isHero ? (1.08 + rnd() * 0.15) : (0.9 + rnd() * 0.25)),
+        delay: base.delay + rnd() * 0.008,
+        twist: base.twist + (rnd() - 0.5) * 0.45,
+        originJitter: 1.05 + rnd() * 0.45,
+        role: base.role || 'side',
+        lean: bend * (0.45 + rnd() * 0.45),
+      };
+      const pocket = sidePockets[pocketAssign[i % pocketAssign.length]];
+      const sideMul = (i === 0 ? 1.3 : 1.05) + rnd() * 0.2;
+      const firstLayout = {
+        ox: pocket.x * sideMul + (rnd() - 0.5) * 0.3,
+        oy: pocket.y * sideMul + (rnd() - 0.5) * 0.3,
+        oz: pocket.z * sideMul + (rnd() - 0.5) * 0.12,
+        ang: Math.atan2(pocket.y, pocket.x) + (rnd() - 0.5) * 0.45,
+        elev: 0.02 + rnd() * 0.12,
+        delay: (i === 0 ? 0 : 0.01 + i * 0.018) + rnd() * 0.02,
+        skipChance: 0,
+        lenBias: i === 0 ? (1.4 + rnd() * 0.2) : i === 1 ? (1.05 + rnd() * 0.2) : (0.9 + rnd() * 0.2),
+        wideBias: i === 0 ? (1.35 + rnd() * 0.15) : (1.05 + rnd() * 0.25),
+        curl: bend * (0.55 + rnd() * 0.4),
+        tipSweep: bend * (0.25 + rnd() * 0.35),
+        lean: bend * (0.5 + rnd() * 0.45),
+      };
       signFlames.push({
         mesh,
         geo,
@@ -1173,14 +1307,16 @@ async function buildFireBomb() {
         aim,
         ang: Math.atan2(dir.y, dir.x),
         elev: Math.asin(THREE.MathUtils.clamp(dir.z, -1, 1)),
-        lenMul: SIGN_ONLY ? (0.28 + rnd() * 0.5) : (0.85 + rnd() * 0.7),
-        wide: SIGN_ONLY ? (1.8 + rnd() * 1.6) : (2.1 + rnd() * 1.8),
+        lenMul: SIGN_ONLY ? (isHero ? (0.72 + rnd() * 0.18) : (0.42 + rnd() * 0.22)) : (0.85 + rnd() * 0.7),
+        wide: SIGN_ONLY ? (isHero ? (5.0 + rnd() * 1.0) : (3.8 + rnd() * 1.0)) : (2.1 + rnd() * 1.8),
         seed,
         delay: rnd() * 0.14,
-        spin: (rnd() - 0.5) * 1.8,
+        spin: (rnd() - 0.5) * 1.4,
         phase0: rnd() * 6.2,
-        twist: (rnd() - 0.5) * 2.2,
-        breakMul: SIGN_ONLY ? (0.35 + rnd() * 0.95) : (0.7 + rnd() * 0.7),
+        twist: (rnd() - 0.5) * 1.4,
+        breakMul: SIGN_ONLY ? (0.85 + rnd() * 0.35) : (0.7 + rnd() * 0.7),
+        boomLayout,
+        firstLayout,
       });
     }
   }
@@ -1219,7 +1355,7 @@ function makeBoltPair(isYellow, parent, order) {
 function buildLightnings() {
   const nMain = SIGN_ONLY ? 3 : 6;
   for (let i = 0; i < nMain; i++) {
-    const b = makeBoltPair(i % 2 === 0, fx, 40);
+    const b = makeBoltPair(true, fx, 40);
     b.seed = i * 91 + 5;
     b.slot = i;
     bolts.push(b);
@@ -1237,7 +1373,7 @@ function buildLightnings() {
 
 function setBoltGeom(bolt, from, to, frameKey, thickScale, skipBoxClamp) {
   const rnd = seeded(bolt.seed * 31 + frameKey * 17);
-  const pts = wildBoltPoints(from, to, SIGN_ONLY ? (11 + (bolt.seed % 5)) : (8 + (bolt.seed % 5)), rnd);
+  const pts = wildBoltPoints(from, to, SIGN_ONLY ? (14 + (bolt.seed % 6)) : (8 + (bolt.seed % 5)), rnd);
   const cap = SIGN_ONLY
     ? (root.userData.fxCap || (root.userData.burstLocalMax || 8) * 0.72)
     : (root.userData.canvasCap || 8);
@@ -1247,12 +1383,12 @@ function setBoltGeom(bolt, from, to, frameKey, thickScale, skipBoxClamp) {
   const curve = new THREE.CatmullRomCurve3(pts);
   curve.curveType = 'centripetal';
   const thick = SIGN_ONLY
-    ? (0.62 + rnd() * 0.28) * thickScale
+    ? (0.048 + rnd() * 0.032) * thickScale
     : (0.16 + rnd() * 0.18) * thickScale;
   bolt.glow.geometry.dispose();
   bolt.core.geometry.dispose();
-  bolt.glow.geometry = new THREE.TubeGeometry(curve, SIGN_ONLY ? 12 : 16, thick * (SIGN_ONLY ? 1.55 : 2.4), SIGN_ONLY ? 4 : 4, false);
-  bolt.core.geometry = new THREE.TubeGeometry(curve, SIGN_ONLY ? 12 : 16, thick, SIGN_ONLY ? 3 : 3, false);
+  bolt.glow.geometry = new THREE.TubeGeometry(curve, SIGN_ONLY ? 18 : 16, thick * (SIGN_ONLY ? 2.6 : 2.4), SIGN_ONLY ? 5 : 4, false);
+  bolt.core.geometry = new THREE.TubeGeometry(curve, SIGN_ONLY ? 18 : 16, thick, SIGN_ONLY ? 4 : 3, false);
 }
 
 function setCamBoltGeom(bolt, fill, frameKey) {
@@ -1842,8 +1978,8 @@ function makeGreenChromeMatcapTex() {
   const g = c.getContext('2d');
   const sky = g.createLinearGradient(0, 0, 0, s);
   sky.addColorStop(0.00, '#ffffff');
-  sky.addColorStop(0.18, '#f4f7fb');
-  sky.addColorStop(0.36, '#cfd8e2');
+  sky.addColorStop(0.18, '#fafaf6');
+  sky.addColorStop(0.36, '#e4e6dc');
   sky.addColorStop(0.52, '#a8b89a');
   sky.addColorStop(0.72, '#7e9a72');
   sky.addColorStop(1.00, '#5c7a52');
@@ -1852,7 +1988,7 @@ function makeGreenChromeMatcapTex() {
   const win = g.createRadialGradient(s * 0.34, s * 0.28, 0, s * 0.34, s * 0.28, s * 0.48);
   win.addColorStop(0.00, '#ffffff');
   win.addColorStop(0.14, '#ffffff');
-  win.addColorStop(0.38, 'rgba(236,242,248,0.7)');
+  win.addColorStop(0.38, 'rgba(252,250,240,0.75)');
   win.addColorStop(1.00, 'rgba(0,0,0,0)');
   g.fillStyle = win;
   g.fillRect(0, 0, s, s);
@@ -2891,6 +3027,10 @@ function applyFrame(fr) {
       const breathe = 1 + Math.sin(ph * p.w1 * 0.4) * 0.025 * layerLife;
       p.mesh.scale.setScalar(p.restScale * shrink * breathe);
     }
+    if (SIGN_ONLY && p.kind === 'boom') {
+      p.mesh.visible = false;
+      continue;
+    }
     if (!SIGN_ONLY && p.kind === 'boom' && destroy > 0.22) {
       p.mesh.visible = false;
       continue;
@@ -2954,8 +3094,8 @@ function applyFrame(fr) {
     }
   }
   if (SIGN_ONLY) {
-    /* Second boom: pull the whole FX layer in front of the assembled N */
-    fx.position.set(0, 0, reassembleBoom > 0.02 ? (2.8 + 6.5 * reassembleBoom) : 0);
+    /* Keep FX just in front of the N — avoid camera punch that stretches tongues. */
+    fx.position.set(0, 0, reassembleBoom > 0.02 ? (0.35 + 0.9 * reassembleBoom) : 0);
     fx.rotation.set(0, 0, 0);
   }
 
@@ -3015,10 +3155,10 @@ function applyFrame(fr) {
   const blast = trap(t, 0.10, 0.20, 0.52, 0.9);
   const flash = trap(t, 0.13, 0.17, 0.22, 0.32);
 
-  fireLight.intensity = SIGN_ONLY ? (14 * boomFlash) : (hero ? 0 : (1.2 + 5 * blast + 3 * tear + 2.5 * fill));
-  fireLight2.intensity = SIGN_ONLY ? (11 * boomFlash) : (hero ? 0 : (0.8 + 3.5 * blast + 2.5 * tear + 2 * fill));
-  fireLight.color.setHex(SIGN_ONLY ? (reassembleBoom > coreFlash ? 0xfff2a0 : 0xff3a10) : 0xff5511);
-  fireLight2.color.setHex(SIGN_ONLY ? (reassembleBoom > coreFlash ? 0xc8ff80 : 0xffc040) : 0xffcc44);
+  fireLight.intensity = SIGN_ONLY ? (12 * boomFlash) : (hero ? 0 : (1.2 + 5 * blast + 3 * tear + 2.5 * fill));
+  fireLight2.intensity = SIGN_ONLY ? (8 * boomFlash) : (hero ? 0 : (0.8 + 3.5 * blast + 2.5 * tear + 2 * fill));
+  fireLight.color.setHex(SIGN_ONLY ? (reassembleBoom > coreFlash ? 0xfff6c8 : 0xff2a08) : 0xff5511);
+  fireLight2.color.setHex(SIGN_ONLY ? (reassembleBoom > coreFlash ? 0xffffff : 0xffd060) : 0xffcc44);
   if (SIGN_ONLY && reassembleBoom > 0.02) {
     const lc = logoBoomRootOrigin();
     fireLight.position.set(lc.x, lc.y, lc.z + 1.5 + reassembleBoom * 7);
@@ -3041,92 +3181,127 @@ function applyFrame(fr) {
     root.userData.fxCap = signFxCap(boomSurge);
   }
 
-  /* ——— Tongues: first shatter uses teardrop fires; second boom uses composed 3D tongues. ——— */
+  /* ——— Sign second boom: same cartoon jagged flames as first boom (no winding tongues). ——— */
   const frontBoomOn = SIGN_ONLY && reassembleBoom > 0.02;
   const boomN0 = frontBoomOn ? logoBoomFxOrigin().clone() : null;
-  if (frontBoomOn) {
-    const n0 = boomN0;
-    const R = signSphereR || 12.5;
-    const cap = root.userData.fxCap || 8;
-    const bloom = 1 + boomSurge * 3.8;
-    for (let i = 0; i < tongues.length; i++) {
-      const tongue = tongues[i];
-      const spec = FRONT_BOOM[i % FRONT_BOOM.length];
-      const on = reassembleBoom * trap(t, 0.76 + spec.delay, 0.80 + spec.delay, 0.88, 0.935);
-      if (on < 0.04) {
-        for (const L of tongue.layers) L.mat.opacity = 0;
-        tongue.group.visible = false;
-        continue;
-      }
-      const dir = frontBoomDir(spec.ang, spec.elev);
-      dir.add(new THREE.Vector3(
-        Math.sin(t * 7.2 + spec.twist) * 0.05,
-        Math.cos(t * 6.4 + spec.bend) * 0.04,
-        Math.sin(t * 5.1 + i) * 0.025,
-      )).normalize();
-      const origin = n0.clone();
-      const flutter = 0.72 + 0.28 * Math.abs(Math.sin(t * 14 + spec.twist));
-      const want = R * spec.len * 0.55 * (0.4 + 0.6 * on) * flutter * bloom;
-      const len = Math.min(want, maxFxAlongFrom(n0, dir, 0.45, 0.16), cap * 0.9);
-      origin.addScaledVector(dir, len * 0.12);
-      const wide = spec.wide * (1.6 + 1.1 * on) * (0.85 + 0.15 * flutter);
-      const phase = spec.twist + t * 6.5 + i * 0.4;
-      updateTongueRibbon(
-        tongue,
-        origin,
-        dir,
-        len,
-        wide,
-        spec.bend * (0.7 + 0.35 * on),
-        spec.twist * on,
-        phase,
-        Math.min(1, on * 1.15),
-      );
-      tongue.group.renderOrder = 60;
-      for (const L of tongue.layers) {
-        L.mat.depthTest = false;
-        L.mesh.renderOrder = 60 + (L === tongue.layers[0] ? 2 : 1);
-      }
-    }
-  } else {
-    for (const tongue of tongues) {
-      for (const L of tongue.layers) L.mat.opacity = 0;
-      tongue.group.visible = false;
-    }
+  for (const tongue of tongues) {
+    for (const L of tongue.layers) L.mat.opacity = 0;
+    tongue.group.visible = false;
   }
 
   for (const f of signFlames) {
     if (SIGN_ONLY && frontBoomOn) {
-      const spec = FRONT_BOOM[Math.abs(f.seed | 0) % FRONT_BOOM.length];
-      const e = reassembleBoom * trap(t, 0.76 + spec.delay, 0.80 + spec.delay, 0.88, 0.935);
+      /* Screen-plane blast — low elev + big XY push (high elev = flower). */
+      const L = f.boomLayout || FRONT_BOOM[Math.abs(f.seed | 0) % FRONT_BOOM.length];
+      const e = reassembleBoom * trap(t, 0.76 + (L.delay || 0), 0.79 + (L.delay || 0), 0.865, 0.925);
       if (e < 0.05) {
         f.mesh.visible = false;
         continue;
       }
       f.mesh.visible = true;
-      const dir = frontBoomDir(spec.ang + 0.08, spec.elev * 0.92);
+      const flutter = 0.82 + 0.18 * Math.abs(Math.sin(t * (16 + (f.seed % 7)) + f.phase0));
+      const lean = (L.lean || 0) * e;
+      const ang = (L.ang ?? 0)
+        + (L.twist || 0) * 0.1
+        + f.twist * 0.12
+        + lean * 0.28
+        + Math.sin(t * 6.2 + f.phase0) * 0.1;
+      const elev = Math.min(0.22, (L.elev ?? 0.08)
+        + Math.cos(t * 5.1 + f.seed) * 0.04
+        + lean * 0.05);
+      const dir = frontBoomDir(ang, elev);
+      dir.z *= 0.35;
+      dir.normalize();
       const n0 = boomN0;
-      const R = signSphereR || 12.5;
-      const cap = SIGN_ONLY ? (root.userData.fxCap || 8) : (root.userData.canvasCap || 8);
-      const flutter = 0.65 + 0.35 * Math.abs(Math.sin(t * 16 + spec.twist));
-      const want = R * spec.len * 0.48 * (0.4 + 0.6 * e) * flutter * (1 + boomSurge * 3.8);
-      const len = Math.min(want, maxFxAlongFrom(n0, dir, 0.45, 0.16), cap * 0.9);
-      f.mesh.position.copy(n0).addScaledVector(dir, 0.12 * e);
-      f.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
-      f.mesh.rotateZ(SIGN_REST_RZ * 0.6 + Math.sin(t * 8 + spec.twist) * 0.12);
+      const hero = L.role === 'hero';
+      const push = ((L.originJitter || 0.9) + (hero ? 2.4 : 1.8) * e) * (1.25 + 0.4 * boomSurge);
+      const wide = f.wide * (L.wide ?? 1) * (hero ? (1.15 + 0.4 * e) : (0.9 + 0.3 * e)) * flutter;
+      const tall = f.wide * (L.len ?? 1) * f.lenMul * (hero ? (1.25 + 0.5 * e) : (0.95 + 0.35 * e)) * flutter;
+      f.mesh.position.copy(n0).addScaledVector(dir, push);
+      f.mesh.position.z += 0.35 + e * 0.55;
       f.mesh.scale.set(
-        spec.wide * (1.5 + 0.9 * e) * (0.75 + 0.25 * flutter),
-        len,
+        Math.max(hero ? 5.4 : 3.6, wide * (hero ? 0.95 : 0.78)),
+        Math.max(hero ? 6.6 : 4.2, tall * (hero ? 1.05 : 0.88)),
         1,
       );
+      f.mesh.material.rotation = Math.atan2(dir.y, dir.x) - Math.PI * 0.5
+        + lean * 0.85
+        + (f.twist || 0) * 0.4
+        + Math.sin(t * 9 + f.phase0) * 0.22;
       f.mesh.material.depthTest = false;
-      f.mesh.renderOrder = 63;
-      f.mesh.material.opacity = Math.min(1, 0.55 + e * 0.4);
+      f.mesh.renderOrder = hero ? 64 : 63;
+      f.mesh.material.opacity = Math.min(1, (hero ? 1.0 : 0.92) + e * 0.08);
       continue;
     }
     const e = SIGN_ONLY
       ? boomFlash * (0.82 + 0.18 * trap(t, 0.42 + f.delay, 0.50 + f.delay, 0.62, 0.74))
       : (hero ? 0 : Math.max(blast, tear, fill) * (0.75 + 0.25 * trap(t, 0.12 + f.delay, 0.22 + f.delay, 0.58, 0.86)));
+    if (SIGN_ONLY && !frontBoomOn) {
+      /* First boom: side-pocket origins, staggered, plump cartoon — not a centered X. */
+      const L = f.firstLayout;
+      if (L && L.skipChance > 0.7) {
+        f.mesh.visible = false;
+        continue;
+      }
+      const e1 = coreFlash * trap(
+        t,
+        0.28 + (L ? L.delay : f.delay),
+        0.34 + (L ? L.delay * 0.5 : f.delay * 0.5),
+        0.48,
+        0.58,
+      );
+      if (e1 < 0.05) {
+        f.mesh.visible = false;
+        continue;
+      }
+      f.mesh.visible = true;
+      const flutter = 0.78 + 0.22 * Math.abs(Math.sin(t * (16 + (f.seed % 8)) + f.phase0));
+      const live = seeded(((f.seed | 0) * 41) + Math.floor(t * 20) * 13);
+      const lean = (L ? L.lean : 0) * e1;
+      /* Shared blast heading — pocket only offsets origin (radial ang = flower). */
+      const blastAng = -2.55 + (live() - 0.5) * 0.35 + (L ? (L.ang + 2.55) * 0.15 : 0);
+      const ang = blastAng
+        + lean * 0.25
+        + Math.sin(t * 6.8 + f.phase0) * 0.1;
+      const elev = Math.min(0.16, 0.04 + Math.cos(t * 5.2 + f.seed) * 0.04);
+      const dir = new THREE.Vector3(
+        Math.cos(elev) * Math.cos(ang),
+        Math.cos(elev) * Math.sin(ang),
+        Math.sin(elev) * 0.35,
+      ).normalize();
+      const lenBias = L ? L.lenBias : 1;
+      const wideBias = L ? L.wideBias : 1;
+      const hero = lenBias > 1.05;
+      const wide = f.wide * wideBias * (hero ? (1.4 + 0.5 * e1) : (1.1 + 0.35 * e1)) * flutter;
+      const tall = f.wide * f.lenMul * lenBias * (hero ? (1.6 + 0.65 * e1) : (1.15 + 0.45 * e1)) * flutter;
+      if (L) {
+        f.mesh.position.set(
+          L.ox * (1.2 + 0.55 * boomSurge) + (live() - 0.5) * 0.35 * e1,
+          L.oy * (1.2 + 0.55 * boomSurge) + (live() - 0.5) * 0.35 * e1,
+          L.oz * (0.85 + 0.45 * boomSurge) + 0.4,
+        );
+        f.mesh.position.addScaledVector(dir, (hero ? 1.4 : 0.9) * e1);
+      } else {
+        f.mesh.position.copy(f.origin).multiplyScalar(1.1 + 0.6 * boomSurge);
+      }
+      f.mesh.material.depthTest = false;
+      f.mesh.renderOrder = hero ? 63 : 62;
+      const tipSweep = (L ? L.tipSweep : 0) * e1;
+      const curl = (L ? L.curl : 0);
+      f.mesh.scale.set(
+        Math.max(hero ? 5.8 : 4.4, wide * (hero ? 0.95 : 0.88)),
+        Math.max(hero ? 7.0 : 5.2, tall * (hero ? 1.1 : 0.98)),
+        1,
+      );
+      f.mesh.material.rotation = Math.atan2(dir.y, dir.x) - Math.PI * 0.5
+        + lean * 0.75
+        + (f.twist || 0) * 0.35
+        + curl * e1 * 0.6
+        + tipSweep * 0.45
+        + Math.sin(t * 8.5 + f.phase0) * 0.18;
+      f.mesh.material.opacity = Math.min(1, (hero ? 0.98 : 0.88) + e1 * 0.15);
+      continue;
+    }
     if (e < 0.05) {
       f.mesh.visible = false;
       continue;
@@ -3187,78 +3362,8 @@ function applyFrame(fr) {
     const R = signSphereR || 12.5;
     const fxCap = root.userData.fxCap || (root.userData.burstLocalMax || 8) * 0.72;
     for (const sp of signSparks) {
-      if (frontBoomOn) {
-        const spec = FRONT_BOOM[Math.abs((sp.burst | 0) + ((sp.seed * 9) | 0)) % FRONT_BOOM.length];
-        const k = sparkFlightK(t, 0.77 + spec.delay * 0.5, sp.delay * 0.12, 0.16);
-        if (k < 0.02) {
-          sp.mesh.visible = false;
-          continue;
-        }
-        sp.mesh.visible = true;
-        const dir = frontBoomDir(spec.ang + (sp.seed - 0.5) * 0.18, spec.elev + (sp.seed - 0.5) * 0.06);
-        const n0 = boomN0;
-        const travel = Math.min(1, k);
-        const e = 1 - (1 - travel) * (1 - travel);
-        const tail = (sp.len || 1.6) * sp.breakMul * (0.55 + 0.4 * boomSurge);
-        const want = 0.12 + e * R * spec.len * sp.reachMul * (1 + boomSurge * 2.8);
-        const dist = Math.min(want, maxFxAlongFrom(n0, dir, tail, 0.16), Math.max(0.2, fxCap));
-        sp.mesh.position.copy(n0).addScaledVector(dir, dist * 0.7);
-        clampFxAround(sp.mesh.position, n0, Math.max(0.4, fxCap), 0.16);
-        sp.chip.material.depthTest = false;
-        sp.head.material.depthTest = false;
-        sp.chip.renderOrder = 64;
-        sp.head.renderOrder = 65;
-        sp.mesh.renderOrder = 64;
-        sp.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
-        sp.mesh.rotateZ(SIGN_REST_RZ * 0.4 + spec.twist * 0.08);
-        const fade = k < 0.12 ? k / 0.12 : k > 0.62 ? Math.max(0, 1 - (k - 0.62) / 0.45) : 1;
-        sp.chip.material.opacity = Math.min(1, fade * 0.95);
-        sp.chip.scale.set(0.7 + 0.25 * (1 - travel), 0.85 + 0.55 * (1 - travel * 0.3), 1);
-        sp.head.visible = sp.headAmt > 0.15;
-        sp.head.material.opacity = sp.head.visible ? fade * 0.7 : 0;
-        sp.head.scale.setScalar(0.5 + 0.35 * (1 - travel));
-        continue;
-      }
-      const b0 = sparkBursts[sp.burst % sparkBursts.length];
-      const b1 = sparkBursts[(sp.burst + 3) % sparkBursts.length];
-      const k = Math.max(
-        sparkFlightK(t, b0.t0, sp.delay, b0.flight),
-        sparkFlightK(t, b1.t0, sp.delay * 0.7, b1.flight * 0.85),
-      );
-      const flickRnd = seeded(((sp.seed * 97) | 0) + Math.floor(t * 48) * 13)();
-      if (k < 0 || boomFlash < 0.04 || flickRnd > 0.78 + 0.16 * boomSurge) {
-        sp.mesh.visible = false;
-        continue;
-      }
-      sp.mesh.visible = true;
-      const dir = sp.dir.clone().lerp(sp.side, 0.45 + 0.4 * boomSurge + 0.15 * Math.sin(t * 14 + sp.seed));
-      flattenSurgeDir(dir, boomSurge * 0.28);
-      const travel = Math.min(1, k);
-      const e = 1 - (1 - travel) * (1 - travel);
-      const tail = (sp.len || 1.6) * sp.breakMul * (0.55 + 0.4 * boomSurge);
-      const want = 0.12 + e * R * sp.reachMul * (1 + boomSurge * 2.8);
-      const dist = Math.min(want, maxFxAlongDir(dir, tail, 0.16), Math.max(0.2, fxCap));
-      sp.mesh.position.copy(sp.origin).multiplyScalar(0.4 + 0.75 * boomSurge).addScaledVector(dir, dist * 0.7);
-      clampFxPoint(sp.mesh.position, Math.max(0.4, fxCap), 0.16);
-      sp.chip.material.depthTest = true;
-      sp.head.material.depthTest = true;
-      sp.chip.renderOrder = 6;
-      sp.head.renderOrder = 7;
-      sp.mesh.renderOrder = 6;
-      sp.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
-      sp.mesh.rotateZ(sp.twist + t * sp.spin * 0.35);
-      const fade = k < 0.1 ? k / 0.1 : k > 0.62 ? Math.max(0, 1 - (k - 0.62) / 0.5) : 1;
-      const pop = 0.75 + 0.25 * Math.sin(t * 22 + sp.seed * 9);
-      sp.chip.material.opacity = Math.min(1, fade * pop);
-      sp.chip.scale.set(
-        (0.85 + 0.4 * (1 - travel)) * (0.7 + 0.5 * sp.breakMul),
-        sp.breakMul * (0.55 + 0.7 * (1 - travel * 0.45)) * (1 + boomSurge * 0.85),
-        1,
-      );
-      const showHead = sp.headAmt > 0.01 && flickRnd < 0.35;
-      sp.head.visible = showHead;
-      sp.head.material.opacity = showHead ? fade * pop * sp.headAmt : 0;
-      sp.head.scale.setScalar(0.55 + 0.5 * (1 - travel));
+      /* Keep boom frames clean — cartoon tongues + white bolts only. */
+      sp.mesh.visible = false;
     }
   } else if (!hero) {
     const burst = Math.max(blast, tear, fill);
@@ -3305,7 +3410,7 @@ function applyFrame(fr) {
 
   /* Elegant thin yellow/blue lightning + branches */
   const frameKey = Math.floor(t * (SIGN_ONLY ? 36 : 18));
-  const signBoltPal = [0xff5a08, 0xffcc33, 0x44c8ff, 0xffe8a0, 0xff3377, 0x88ff55, 0xffffff, 0xffaa22];
+  const signBoltPal = [0xff5a08, 0xffcc33, 0xfff4c8, 0xffe8a0, 0xff3377, 0xffaa44, 0xffffff, 0xffaa22];
   const boltOrigins = [
     [new THREE.Vector3(0.55, -0.4, 1), new THREE.Vector3(6.8, 4.2, 2.4)],
     [new THREE.Vector3(-0.8, 0.35, 1), new THREE.Vector3(-6.1, -1.8, 2.1)],
@@ -3320,8 +3425,8 @@ function applyFrame(fr) {
   for (let bi = 0; bi < bolts.length; bi++) {
     const bolt = bolts[bi];
     if (SIGN_ONLY) {
-      const on = boomFlash * (0.88 + 0.12 * ((bolt.seed % 9) / 9));
-      if (on < 0.06) {
+      const on = boomFlash * (0.9 + 0.1 * ((bolt.seed % 9) / 9));
+      if (on < 0.08) {
         bolt.glowMat.opacity = 0;
         bolt.coreMat.opacity = 0;
         bolt.glow.visible = false;
@@ -3329,50 +3434,65 @@ function applyFrame(fr) {
         continue;
       }
       const rnd = seeded((bolt.seed | 0) + frameKey * 11 + bi);
-      if (!frontBoomOn && rnd() > 0.82 + 0.12 * boomSurge) {
+      const inBoom = frontBoomOn || coreFlash > 0.04;
+      if (!inBoom) {
         bolt.glow.visible = false;
         bolt.core.visible = false;
         continue;
       }
-      const R = signSphereR || 12.5;
+      /* One strike at a time — long jagged whip, not a spider net. */
+      const activeSlot = (Math.floor(t * 11) + (frontBoomOn ? 1 : 0)) % SIGN_BOLT_STRIKES.length;
+      if (bi !== activeSlot) {
+        bolt.glow.visible = false;
+        bolt.core.visible = false;
+        continue;
+      }
+      if (Math.sin(t * 95 + bolt.seed) < -0.72) {
+        bolt.glow.visible = false;
+        bolt.core.visible = false;
+        continue;
+      }
       const cap = root.userData.fxCap || (root.userData.burstLocalMax || 8) * 0.72;
-      if (frontBoomOn) {
-        const spec = FRONT_BOOM[bi % FRONT_BOOM.length];
-        const dir = frontBoomDir(spec.ang, spec.elev);
-        const n0 = boomN0;
-        const reach = R * spec.len * (0.22 + 0.42) * (1 + boomSurge * 3.6);
-        _tmpA.copy(n0).addScaledVector(dir, 0.08 * R);
-        _tmpB.copy(_tmpA).addScaledVector(dir, reach * 0.7);
-        clampFxAround(_tmpA, n0, cap, 0.16);
-        clampFxAround(_tmpB, n0, cap, 0.16);
-      } else {
-        const reach = R * (0.22 + rnd() * 0.42) * (1 + boomSurge * 3.6);
-        _tmpA.copy(randUnit3(rnd)).multiplyScalar(0.55 + rnd() * R * 0.55);
-        _tmpC.copy(randUnit3(rnd));
-        flattenSurgeDir(_tmpC, boomSurge * 0.22);
-        _tmpB.copy(_tmpA).addScaledVector(_tmpC, reach * (0.4 + rnd() * 0.85));
-        clampFxPoint(_tmpA, cap, 0.16);
-        clampFxPoint(_tmpB, cap, 0.16);
+      const strike = SIGN_BOLT_STRIKES[activeSlot];
+      {
+        const boltAng = strike.ang + (rnd() - 0.5) * 0.18;
+        const boltElev = Math.min(0.18, strike.elev + (rnd() - 0.5) * 0.06);
+        _tmpC.set(
+          Math.cos(boltElev) * Math.cos(boltAng),
+          Math.cos(boltElev) * Math.sin(boltAng),
+          Math.sin(boltElev) * 0.25,
+        ).normalize();
+        const startR = strike.start * (0.35 + rnd() * 0.2);
+        const reach = strike.reach * (0.95 + rnd() * 0.25) * (1.05 + 0.25 * boomSurge);
+        if (frontBoomOn && boomN0) _tmpA.copy(boomN0).addScaledVector(_tmpC, startR);
+        else _tmpA.copy(_tmpC).multiplyScalar(startR);
+        _tmpB.copy(_tmpA).addScaledVector(_tmpC, reach);
+        const side = new THREE.Vector3(-_tmpC.y, _tmpC.x, 0);
+        if (side.lengthSq() < 1e-8) side.set(1, 0, 0);
+        side.normalize();
+        _tmpB.addScaledVector(side, strike.kink * reach * (0.55 + rnd() * 0.35));
+        _tmpA.addScaledVector(side, strike.kink * reach * -0.18 * (0.5 + rnd()));
+        /* Soft XY keep-in only — clampFxPoint crumples long strikes into a stub web. */
+        clampLocalXY(_tmpA, cap * 1.2);
+        clampLocalXY(_tmpB, cap * 1.45);
       }
       if (bolt.lastKey !== frameKey) {
-        setBoltGeom(bolt, _tmpA, _tmpB, frameKey + bi * 3 + (bolt.seed | 0), 1.15 + rnd() * 0.7 + (frontBoomOn ? 0.35 : boomSurge * 0.45), frontBoomOn);
+        setBoltGeom(bolt, _tmpA, _tmpB, frameKey + bi * 7 + (bolt.seed | 0), 0.9 + rnd() * 0.3, true);
         bolt.lastKey = frameKey;
       }
-      const flick = frontBoomOn
-        ? (Math.sin(t * 42 + bolt.seed) > -0.45 ? 1 : 0.35)
-        : (Math.sin(t * 90 + bolt.seed) > -0.28 ? 1 : 0.18);
+      const flick = Math.sin(t * 210 + bolt.seed) > -0.55 ? 1 : 0.12;
       bolt.glow.visible = true;
       bolt.core.visible = true;
-      bolt.glowMat.depthTest = !frontBoomOn;
-      bolt.coreMat.depthTest = !frontBoomOn;
-      bolt.glow.renderOrder = frontBoomOn ? 72 : 40;
-      bolt.core.renderOrder = frontBoomOn ? 73 : 41;
+      bolt.glowMat.depthTest = false;
+      bolt.coreMat.depthTest = false;
+      bolt.glow.renderOrder = 74;
+      bolt.core.renderOrder = 75;
       bolt.glowMat.blending = THREE.AdditiveBlending;
       bolt.coreMat.blending = THREE.AdditiveBlending;
-      bolt.glowMat.color.setHex(frontBoomOn ? 0xfff4c0 : 0xa8fff4);
+      bolt.glowMat.color.setHex(0xffffff);
       bolt.coreMat.color.setHex(0xffffff);
-      bolt.glowMat.opacity = Math.min(1, on * 1.5) * flick;
-      bolt.coreMat.opacity = Math.min(1, on * 1.7) * flick;
+      bolt.glowMat.opacity = Math.min(1, on * 2.1) * flick;
+      bolt.coreMat.opacity = Math.min(1, on * 2.4) * flick;
       continue;
     }
     const pulse = trap(t, 0.16 + (bolt.seed % 7) * 0.018, 0.22, 0.46, 0.78);
@@ -3403,7 +3523,7 @@ function applyFrame(fr) {
       bolt.lastKey = frameKey;
     }
     const flick = Math.sin(t * 88 + bolt.seed) > -0.22 ? 1 : 0.12;
-    const pal = [0xff6a18, 0x44aaff, 0xffdd55, 0xff3377, 0x88ffcc, 0xffaa33];
+    const pal = [0xff6a18, 0xfff0c0, 0xffdd55, 0xff3377, 0xffe8a0, 0xffaa33];
     bolt.glow.visible = true;
     bolt.core.visible = true;
     bolt.glowMat.color.setHex(pal[(bi * 3 + frameKey) % pal.length]);
@@ -3422,6 +3542,12 @@ function applyFrame(fr) {
         continue;
       }
       const rnd = seeded((bolt.seed | 0) + frameKey * 7 + bi + 20);
+      /* Branches stay off during booms — main white bolts carry the lightning read. */
+      if (frontBoomOn || coreFlash > 0.04) {
+        bolt.glow.visible = false;
+        bolt.core.visible = false;
+        continue;
+      }
       if (rnd() > 0.45 + 0.3 * boomSurge) {
         bolt.glow.visible = false;
         bolt.core.visible = false;
@@ -3431,15 +3557,7 @@ function applyFrame(fr) {
       const cap = root.userData.fxCap || (root.userData.burstLocalMax || 8) * 0.72;
       let mid;
       let tip;
-      if (frontBoomOn) {
-        const spec = FRONT_BOOM[(bi + 2) % FRONT_BOOM.length];
-        const dir = frontBoomDir(spec.ang + 0.35, spec.elev * 0.7);
-        const n0 = boomN0;
-        mid = n0.clone().addScaledVector(dir, 0.12 * R);
-        tip = mid.clone().addScaledVector(dir, R * spec.len * (0.18 + 0.38) * (1 + boomSurge * 3.4) * 0.45);
-        clampFxAround(mid, n0, cap, 0.16);
-        clampFxAround(tip, n0, cap, 0.16);
-      } else {
+      {
         mid = randUnit3(rnd).multiplyScalar(0.7 + rnd() * R * 0.5);
         _tmpC.copy(randUnit3(rnd));
         flattenSurgeDir(_tmpC, boomSurge * 0.22);
@@ -3448,22 +3566,23 @@ function applyFrame(fr) {
         clampFxPoint(tip, cap, 0.16);
       }
       if (bolt.lastKey !== frameKey) {
-        setBoltGeom(bolt, mid, tip, frameKey + bi + 9, 1.05 + rnd() * 0.35 + (frontBoomOn ? 0.25 : boomSurge * 0.55), true);
+        setBoltGeom(
+          bolt, mid, tip, frameKey + bi + 9,
+          (1.05 + rnd() * 0.35 + boomSurge * 0.55),
+          true,
+        );
         bolt.lastKey = frameKey;
       }
-      const flick = frontBoomOn
-        ? (Math.sin(t * 36 + bolt.seed) > -0.35 ? 1 : 0.28)
-        : (Math.sin(t * 118 + bolt.seed) > -0.15 ? 1 : 0.14);
+      const flick = (Math.sin(t * 118 + bolt.seed) > -0.15 ? 1 : 0.14);
       bolt.glow.visible = true;
       bolt.core.visible = true;
-      bolt.glowMat.depthTest = !frontBoomOn;
-      bolt.coreMat.depthTest = !frontBoomOn;
-      bolt.glow.renderOrder = frontBoomOn ? 74 : 40;
-      bolt.core.renderOrder = frontBoomOn ? 75 : 41;
+      bolt.glowMat.depthTest = true;
+      bolt.coreMat.depthTest = true;
+      bolt.glow.renderOrder = 40;
+      bolt.core.renderOrder = 41;
       bolt.glowMat.blending = THREE.AdditiveBlending;
       bolt.coreMat.blending = THREE.AdditiveBlending;
-      const col = signBoltPal[(rnd() * signBoltPal.length) | 0];
-      bolt.glowMat.color.setHex(col);
+      bolt.glowMat.color.setHex(signBoltPal[(rnd() * signBoltPal.length) | 0]);
       bolt.coreMat.color.setHex(0xfffce8);
       bolt.glowMat.opacity = Math.min(1, on * 1.25) * flick;
       bolt.coreMat.opacity = Math.min(1, on * 1.45) * flick;
@@ -3495,7 +3614,7 @@ function applyFrame(fr) {
     bolt.glow.visible = true;
     bolt.core.visible = true;
     if (SIGN_ONLY) {
-      const pal = [0xffee33, 0x44eeff, 0xff66cc, 0xffffff, 0x88ff44, 0xff9933, 0xaa77ff, 0x66ffff];
+      const pal = [0xffee33, 0xfff8e0, 0xff66cc, 0xffffff, 0xffaa44, 0xff9933, 0xffdd88, 0xfff0c8];
       bolt.glowMat.blending = THREE.NormalBlending;
       bolt.coreMat.blending = THREE.NormalBlending;
       bolt.glowMat.color.setHex(pal[(frameKey * 5 + bi * 11) % pal.length]);
@@ -3504,8 +3623,8 @@ function applyFrame(fr) {
     bolt.glowMat.opacity = on * (SIGN_ONLY ? 1.0 : 0.55) * flick;
     bolt.coreMat.opacity = on * (SIGN_ONLY ? 1.2 : 0.85) * flick;
   }
-  boltLight.intensity = SIGN_ONLY ? 18 * boomFlash : (hero ? 0 : 2.5 * blast + 3 * tear + 3.5 * fill);
-  boltLight.color.setHex(SIGN_ONLY ? (Math.sin(t * 28) > 0 ? 0xff6a10 : 0x2a8cff) : (Math.sin(t * 28) > 0 ? 0xffee66 : 0x66eeff));
+  boltLight.intensity = SIGN_ONLY ? (28 * boomFlash) : (hero ? 0 : 2.5 * blast + 3 * tear + 3.5 * fill);
+  boltLight.color.setHex(SIGN_ONLY ? 0xffffff : (Math.sin(t * 28) > 0 ? 0xffee66 : 0x66eeff));
   boltLight.position.set(
     SIGN_ONLY ? 0 : (Math.sin(t * 11.4) * 2.4),
     SIGN_ONLY ? 0 : (Math.cos(t * 9.1) * 1.8),
@@ -3521,6 +3640,7 @@ function applyFrame(fr) {
   }
 
   for (const cb of camBolts) {
+    /* Cam bolts stack into a spider net with world strikes — keep off for sign avatar. */
     cb.glowMat.opacity = 0;
     cb.coreMat.opacity = 0;
     cb.glow.visible = false;
