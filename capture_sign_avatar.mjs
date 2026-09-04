@@ -17,7 +17,7 @@ const SIZE = 800;
 const OUT_MP4 = 'hyperlinks-space-avatar-sign.mp4';
 const OUT_PREV = 'preview_sign_avatar.gif';
 const FFMPEG = process.env.FFMPEG ||
-  String.raw`C:\Users\ASUS\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0-full_build\bin\ffmpeg.exe`;
+  String.raw`C:\Users\ASUS\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.1-full_build\bin\ffmpeg.exe`;
 
 const MIME = {
   '.html': 'text/html',
