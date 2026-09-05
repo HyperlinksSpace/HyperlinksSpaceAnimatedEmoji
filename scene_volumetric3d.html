@@ -49,11 +49,11 @@ const FRONT_BOOM = [
   { ang: 2.15, elev: 0.03, len: 1.3, wide: 1.08, delay: 0.000, bend: 0.55, twist: 0.2, role: 'side' },
   { ang: 2.75, elev: 0.04, len: 1.05, wide: 0.95, delay: 0.000, bend: 0.45, twist: -0.3, role: 'down' },
 ];
-/* Sparse long strikes — one direction at a time, not a clock web. */
+/* Sparse long strikes — spread around the circle, not a right-side broom. */
 const SIGN_BOLT_STRIKES = [
-  { ang: 0.65, elev: 0.08, start: 0.6, reach: 7.2, kink: 0.85 },
-  { ang: 2.95, elev: 0.12, start: 0.7, reach: 6.4, kink: -1.05 },
-  { ang: 4.55, elev: 0.06, start: 0.55, reach: 7.0, kink: 0.7 },
+  { ang: 0.55, elev: 0.08, start: 0.6, reach: 7.2, kink: 0.85 },
+  { ang: 2.45, elev: 0.12, start: 0.7, reach: 6.4, kink: -1.05 },
+  { ang: 4.15, elev: 0.06, start: 0.55, reach: 7.0, kink: 0.7 },
 ];
 const _frontBoomEuler = new THREE.Euler(SIGN_REST_RX, SIGN_REST_RY, SIGN_REST_RZ, 'XYZ');
 const _logoBoomBox = new THREE.Box3();
@@ -276,6 +276,8 @@ if (SIGN_ONLY) {
 }
 const camera = new THREE.PerspectiveCamera(28, 1, 0.05, 200);
 camera.position.set(0, 0, 42);
+/* Camera must be in the scene or camFx children (boom/flash) never draw. */
+scene.add(camera);
 
 const root = new THREE.Group();
 scene.add(root);
@@ -412,33 +414,239 @@ function makeCurvedFlameGeo(bend, seed) {
 
 function makeSignFlameTex(seed) {
   const rnd = seeded(seed * 91 + 5);
-  const w = 256, h = 480;
+  const w = 256, h = 512;
   const c = document.createElement('canvas');
   c.width = w;
   c.height = h;
   const ctx = c.getContext('2d');
-  const lean = (rnd() > 0.5 ? 1 : -1) * (22 + rnd() * 36);
-  const cx = w * 0.5 - lean * 0.12;
-  const top = 12 + rnd() * 18;
-  const bot = 462;
-  const hw = 52 + rnd() * 28;
-  /* Broken cel tongue — jagged silhouette + flat bands (not soft balls/capsules). */
-  const paint = (dx, dyTop, dyBot, hwMul, fill) => {
-    jaggedFlamePath(ctx, cx + dx, top + dyTop, bot - dyBot, hw * hwMul, rnd, lean * hwMul);
-    ctx.fillStyle = fill;
-    ctx.fill();
-  };
-  jaggedFlamePath(ctx, cx, top, bot, hw, rnd, lean);
-  ctx.lineJoin = 'round';
-  ctx.strokeStyle = '#1a0200';
-  ctx.lineWidth = 11;
-  ctx.stroke();
-  ctx.fillStyle = '#ff1200';
+  const cx = w * (0.38 + rnd() * 0.24);
+  const top = 8 + rnd() * 36;
+  const bot = 508;
+  const hw = 70 + rnd() * 70;
+  const lean = (rnd() - 0.5) * 46;
+  const pathSeed = seed * 17 + 4;
+  jaggedFlamePath(ctx, cx, top, bot, hw, seeded(pathSeed), lean);
+  ctx.fillStyle = '#1a0000';
   ctx.fill();
-  paint(lean * 0.03, 12, 6, 0.78, '#ff5500');
-  paint(lean * 0.06, 26, 16, 0.55, '#ffae08');
-  paint(lean * 0.08, 48, 42, 0.28, '#fff4b0');
-  paint(lean * 0.1, 78, 78, 0.12, '#ffffff');
+  jaggedFlamePath(ctx, cx, top + 14, bot - 4, hw * 0.82, seeded(pathSeed), lean * 0.85);
+  ctx.fillStyle = '#8a0000';
+  ctx.fill();
+  jaggedFlamePath(ctx, cx, top + 22, bot - 10, hw * 0.66, seeded(pathSeed), lean * 0.7);
+  const body = ctx.createLinearGradient(cx, bot, cx + lean * 0.4, top);
+  body.addColorStop(0.00, '#ff0a00');
+  body.addColorStop(0.28, '#ff3a00');
+  body.addColorStop(0.55, '#ff7a00');
+  body.addColorStop(0.78, '#ffc020');
+  body.addColorStop(1.00, '#fffce8');
+  ctx.fillStyle = body;
+  ctx.fill();
+  jaggedFlamePath(ctx, cx + (rnd() - 0.5) * 10, top + 90, bot - 70, hw * 0.28, seeded(pathSeed + 1), lean * 0.4);
+  const core = ctx.createLinearGradient(cx, bot - 70, cx, top + 24);
+  core.addColorStop(0.00, '#ffb000');
+  core.addColorStop(0.5, '#fff4c8');
+  core.addColorStop(1.00, '#ffffff');
+  ctx.fillStyle = core;
+  ctx.fill();
+  const shreds = 2 + ((rnd() * 3) | 0);
+  for (let s = 0; s < shreds; s++) {
+    const sx = cx + (rnd() - 0.5) * hw * 1.35;
+    const sy0 = bot - 40 - rnd() * 220;
+    const sy1 = sy0 - 40 - rnd() * 90;
+    const sw = 8 + rnd() * 18;
+    ctx.fillStyle = s === 0 ? '#1a0000' : (rnd() > 0.5 ? '#ff4a00' : '#ffcc44');
+    ctx.beginPath();
+    ctx.moveTo(sx, sy0);
+    ctx.lineTo(sx + sw * (0.4 + rnd()), sy0 - (sy0 - sy1) * 0.45);
+    ctx.lineTo(sx + (rnd() - 0.5) * 10, sy1);
+    ctx.lineTo(sx - sw * (0.3 + rnd() * 0.5), sy0 - (sy0 - sy1) * 0.55);
+    ctx.closePath();
+    ctx.fill();
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.generateMipmaps = false;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+/** Tiny value-noise helpers for turbulent fire (deterministic per seed). */
+function _fireHash(ix, iy, seed) {
+  let n = (ix * 374761393 + iy * 668265263 + seed * 1274126177) | 0;
+  n = (n ^ (n >>> 13)) * 1274126177;
+  n = n ^ (n >>> 16);
+  return (n & 0x7fffffff) / 0x7fffffff;
+}
+function _fireNoise2(x, y, seed) {
+  const x0 = Math.floor(x), y0 = Math.floor(y);
+  const fx = x - x0, fy = y - y0;
+  const ux = fx * fx * (3 - 2 * fx), uy = fy * fy * (3 - 2 * fy);
+  const a = _fireHash(x0, y0, seed);
+  const b = _fireHash(x0 + 1, y0, seed);
+  const c = _fireHash(x0, y0 + 1, seed);
+  const d = _fireHash(x0 + 1, y0 + 1, seed);
+  return a + (b - a) * ux + (c - a) * uy + (a - b - c + d) * ux * uy;
+}
+function _fireFbm(x, y, seed, oct = 4) {
+  let amp = 0.5, f = 1, sum = 0, norm = 0;
+  for (let i = 0; i < oct; i++) {
+    sum += amp * _fireNoise2(x * f, y * f, seed + i * 97);
+    norm += amp;
+    amp *= 0.5;
+    f *= 2.03;
+  }
+  return sum / norm;
+}
+
+/** Fire color ramp: heat 0..1 → rgba (deep red → orange → yellow → small white core). */
+function _fireRamp(h, aMul) {
+  h = Math.max(0, Math.min(1, h));
+  let r, g, b, a;
+  if (h < 0.22) {
+    const t = h / 0.22;
+    r = 90 + 140 * t; g = 8 + 35 * t; b = 0; a = 0.45 + 0.5 * t;
+  } else if (h < 0.5) {
+    const t = (h - 0.22) / 0.28;
+    r = 230 + 25 * t; g = 45 + 95 * t; b = 0 + 10 * t; a = 0.9 + 0.08 * t;
+  } else if (h < 0.82) {
+    const t = (h - 0.5) / 0.32;
+    r = 255; g = 140 + 85 * t; b = 10 + 45 * t; a = 0.98;
+  } else {
+    const t = (h - 0.82) / 0.18;
+    r = 255; g = 225 + 30 * t; b = 60 + 130 * t; a = 1;
+  }
+  return [(r | 0), (g | 0), (b | 0), Math.min(255, (a * aMul * 255) | 0)];
+}
+
+/**
+ * Dense turbulent fireball — domain-warped FBM (no ribbon columns / manga spikes).
+ */
+function makeSignBoomTex(seed, layer) {
+  const S = 448;
+  const c = document.createElement('canvas');
+  c.width = c.height = S;
+  const ctx = c.getContext('2d');
+  const img = ctx.createImageData(S, S);
+  const d = img.data;
+  const cx = S * 0.5;
+  const cy = S * 0.55;
+  const invX = 1 / (S * 0.38);
+  const invY = 1 / (S * 0.42);
+  const nSeed = (seed * 7919 + layer * 104729) | 0;
+  const heatBias = layer === 2 ? 0.18 : layer === 1 ? 0.08 : 0.02;
+  const aMul = layer === 0 ? 1.0 : layer === 1 ? 0.92 : 0.8;
+  const rCut = layer === 2 ? 0.55 : layer === 1 ? 0.85 : 1.12;
+
+  for (let y = 0; y < S; y++) {
+    for (let x = 0; x < S; x++) {
+      const dx = (x - cx) * invX;
+      const dy = (y - cy) * invY;
+      const r = Math.hypot(dx, dy * 0.92);
+      if (r > rCut + 0.2) {
+        const i = (y * S + x) * 4;
+        d[i + 3] = 0;
+        continue;
+      }
+      /* Domain warp — billowing cloud, not columns. */
+      const w1 = _fireFbm(dx * 1.8 + 2, dy * 1.8 - 1, nSeed + 2, 4);
+      const w2 = _fireFbm(dx * 1.8 - 4, dy * 1.8 + 3, nSeed + 5, 4);
+      const wx = dx * 2.6 + (w1 - 0.5) * 1.35;
+      const wy = dy * 2.6 + (w2 - 0.5) * 1.55;
+      const turb = _fireFbm(wx + 5, wy + 2, nSeed, 5);
+      const turb2 = _fireFbm(wx * 2.3 + 11, wy * 2.3 - 6, nSeed + 11, 4);
+      /* Soft rising bias without vertical ribbon stems. */
+      const rise = 1.0 + 0.25 * Math.max(0, -dy);
+      let dens = (1.12 - r * (0.95 + 0.25 * turb)) * rise
+        + (turb - 0.5) * 0.85
+        + (turb2 - 0.5) * 0.4
+        + heatBias;
+      dens -= Math.max(0, turb2 - 0.68) * 0.95;
+      dens = Math.max(0, dens);
+      dens = dens * dens * (3 - 2 * Math.min(1, dens));
+      if (dens < 0.03) {
+        const i = (y * S + x) * 4;
+        d[i + 3] = 0;
+        continue;
+      }
+      const heat = Math.min(1, dens * 0.9 + Math.max(0, 0.4 - r) * 0.45 + (layer === 2 ? 0.18 : 0));
+      const [cr, cg, cb, ca] = _fireRamp(heat, aMul * Math.min(1, dens * 1.4));
+      const i = (y * S + x) * 4;
+      d[i] = cr; d[i + 1] = cg; d[i + 2] = cb; d[i + 3] = ca;
+    }
+  }
+
+  /* Embers — scattered, not stem lines. */
+  if (layer < 2) {
+    const rnd = seeded(seed * 113 + layer * 31 + 7);
+    for (let i = 0; i < 36; i++) {
+      const a = rnd() * Math.PI * 2;
+      const dist = (0.12 + rnd() * 0.55) * S * 0.4;
+      const er = 1.2 + rnd() * 3.0;
+      const ex = (cx + Math.cos(a) * dist) | 0;
+      const ey = (cy + Math.sin(a) * dist * 0.85 - rnd() * 20) | 0;
+      for (let dy = -er | 0; dy <= er; dy++) {
+        for (let dx = -er | 0; dx <= er; dx++) {
+          if (dx * dx + dy * dy > er * er) continue;
+          const x = ex + dx, y = ey + dy;
+          if (x < 0 || y < 0 || x >= S || y >= S) continue;
+          const t = 1 - Math.hypot(dx, dy) / (er + 0.01);
+          const i4 = (y * S + x) * 4;
+          d[i4] = Math.min(255, d[i4] + (255 * t) | 0);
+          d[i4 + 1] = Math.min(255, d[i4 + 1] + (190 * t) | 0);
+          d[i4 + 2] = Math.min(255, d[i4 + 2] + (35 * t) | 0);
+          d[i4 + 3] = Math.min(255, d[i4 + 3] + (220 * t) | 0);
+        }
+      }
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.generateMipmaps = false;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+/** Upward real-fire tongue — bright core, dark-red fringe, noisy silhouette. */
+function makeRealFlameTex(seed) {
+  const W = 160, H = 320;
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const ctx = c.getContext('2d');
+  const img = ctx.createImageData(W, H);
+  const d = img.data;
+  const nSeed = (seed * 6151) | 0;
+  for (let y = 0; y < H; y++) {
+    const v = 1 - y / (H - 1);
+    const bulge = 0.55 + 0.45 * Math.sin(Math.PI * Math.min(1, v * 1.15));
+    const baseW = 0.82 * bulge * (1.08 - v * 0.75);
+    for (let x = 0; x < W; x++) {
+      const u = (x / (W - 1) - 0.5) * 2;
+      const nx = u * 3.5 + v * 0.8;
+      const ny = v * 6.5;
+      const n = _fireFbm(nx + 2, ny + 1, nSeed, 5);
+      const n2 = _fireFbm(nx * 2.4 + 7, ny * 2.4, nSeed + 17, 4);
+      const warp = (n - 0.5) * 0.55 * (0.35 + 0.65 * v);
+      const edge = baseW * (0.7 + 0.7 * n);
+      const inside = edge - Math.abs(u + warp + (n2 - 0.5) * 0.2 * (1 - v));
+      if (inside <= 0.0) continue;
+      let dens = inside / Math.max(0.05, edge);
+      dens = Math.max(0, Math.min(1, dens));
+      dens = dens * dens * (3 - 2 * dens);
+      const axial = 1 - Math.min(1, Math.abs(u + warp) / Math.max(0.08, edge));
+      let heat = (1 - v) * 0.35 + dens * 0.45 + axial * 0.35 + n * 0.08;
+      heat = Math.max(0, Math.min(1, heat));
+      const aMul = 0.75 + 0.35 * dens * (0.4 + 0.6 * (1 - v * 0.4));
+      const [cr, cg, cb, ca] = _fireRamp(heat, aMul);
+      const i = (y * W + x) * 4;
+      d[i] = cr; d[i + 1] = cg; d[i + 2] = cb; d[i + 3] = Math.min(255, ca + 20);
+    }
+  }
+  ctx.putImageData(img, 0, 0);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.minFilter = THREE.LinearFilter;
@@ -767,6 +975,7 @@ let signEmber = null;
 let crackGroup = null;
 const crackOverlays = [];
 let screenBurst = null;
+const signBoomSprites = [];
 const camFx = new THREE.Group();
 camera.add(camFx);
 const _tmpA = new THREE.Vector3();
@@ -1151,6 +1360,8 @@ function updateTongueRibbon(tongue, origin, dir, len, wide, bend, twist, phase, 
 }
 
 async function buildFireBomb() {
+  /* Skip cartoon flame_ref tongues on sign — real-fire sprites carry the boom. */
+  if (!SIGN_ONLY) {
   const refTex = await loadTex('./fx/flame_ref_alpha.png');
   refTex.premultiplyAlpha = false;
   const texes = [
@@ -1228,26 +1439,21 @@ async function buildFireBomb() {
       phase0: i * 0.7,
     });
   }
+  }
 
   const burstC = document.createElement('canvas');
   burstC.width = burstC.height = 256;
   const bg = burstC.getContext('2d');
-  const grd = bg.createRadialGradient(128, 128, 4, 128, 128, 128);
-  if (SIGN_ONLY) {
-    grd.addColorStop(0, 'rgba(230,255,240,1)');
-    grd.addColorStop(0.12, 'rgba(80,255,140,0.9)');
-    grd.addColorStop(0.35, 'rgba(0,200,90,0.55)');
-    grd.addColorStop(0.6, 'rgba(0,120,50,0.2)');
+  {
+    const grd = bg.createRadialGradient(128, 128, 4, 128, 128, 128);
+    grd.addColorStop(0, 'rgba(255,255,255,1)');
+    grd.addColorStop(0.18, 'rgba(255,240,180,0.9)');
+    grd.addColorStop(0.4, 'rgba(255,120,30,0.55)');
+    grd.addColorStop(0.7, 'rgba(255,40,0,0.18)');
     grd.addColorStop(1, 'rgba(0,0,0,0)');
-  } else {
-    grd.addColorStop(0, 'rgba(255,250,220,1)');
-    grd.addColorStop(0.12, 'rgba(255,200,80,0.85)');
-    grd.addColorStop(0.35, 'rgba(255,100,25,0.55)');
-    grd.addColorStop(0.6, 'rgba(255,40,5,0.22)');
-    grd.addColorStop(1, 'rgba(0,0,0,0)');
+    bg.fillStyle = grd;
+    bg.fillRect(0, 0, 256, 256);
   }
-  bg.fillStyle = grd;
-  bg.fillRect(0, 0, 256, 256);
   const burstTex = new THREE.CanvasTexture(burstC);
   burstTex.colorSpace = THREE.SRGBColorSpace;
   screenBurst = new THREE.Sprite(new THREE.SpriteMaterial({
@@ -1256,115 +1462,47 @@ async function buildFireBomb() {
     opacity: 0,
     depthWrite: false,
     depthTest: false,
+    toneMapped: false,
     blending: THREE.AdditiveBlending,
-    color: SIGN_ONLY ? 0xffffff : 0xffaa44,
+    color: SIGN_ONLY ? 0xa8ffcc : 0xffaa44,
   }));
   screenBurst.position.set(0, 0, -6);
   screenBurst.renderOrder = 8;
   camFx.add(screenBurst);
 
-  /* Teardrop fires — previous N look. Full scene: more, longer, fill the canvas. */
+  /* Sep-3 style jagged flame cards — second boom lifts them in front. */
   {
     const fr = seeded(8801);
-    const nFlame = SIGN_ONLY ? 4 : 6;
-    /* First boom: left/bottom blast pocket — open upper-right. */
-    const sidePockets = [
-      { x: -2.35, y: 1.15, z: 0.6 },
-      { x: -1.85, y: -1.75, z: 0.55 },
-      { x: 0.95, y: -2.15, z: 0.5 },
-    ];
-    const pocketAssign = [0, 1, 2, 0];
+    const nFlame = SIGN_ONLY ? 6 : 6;
     for (let i = 0; i < nFlame; i++) {
       const seed = 3 + i * 17 + ((fr() * 40) | 0);
       const rnd = seeded(seed * 9 + 2);
-      const bend = (rnd() > 0.5 ? 1 : -1) * (0.7 + rnd() * 0.85);
-      const geo = SIGN_ONLY
-        ? (() => {
-          /* Short fat card — silhouette comes from tex, not a stretched ribbon. */
-          const g = new THREE.PlaneGeometry(1, 1, 4, 10);
-          g.translate(0, 0.42, 0);
-          const p = g.attributes.position;
-          const lean = bend * 0.22;
-          for (let vi = 0; vi < p.count; vi++) {
-            const y = p.getY(vi);
-            const u = Math.max(0, Math.min(1, y + 0.08));
-            p.setX(vi, p.getX(vi) * (0.95 - 0.35 * u) + lean * u * u);
-            p.setY(vi, p.getY(vi) + (rnd() - 0.5) * 0.03);
-          }
-          p.needsUpdate = true;
-          return g;
-        })()
-        : (() => {
-          const g = new THREE.PlaneGeometry(1, 1, 6, 18);
-          g.translate(0, 0.5, 0);
-          const p = g.attributes.position;
-          for (let vi = 0; vi < p.count; vi++) {
-            const y = p.getY(vi);
-            p.setX(vi, p.getX(vi) + (rnd() - 0.5) * 0.22 * (1.05 - y));
-            p.setY(vi, p.getY(vi) + (rnd() - 0.5) * 0.06);
-          }
-          p.needsUpdate = true;
-          return g;
-        })();
-      const mesh = SIGN_ONLY
-        ? new THREE.Sprite(
-          new THREE.SpriteMaterial({
-            map: makeSignFlameTex(seed),
-            transparent: true,
-            alphaTest: 0.15,
-            depthWrite: false,
-            depthTest: false,
-            toneMapped: false,
-            sizeAttenuation: true,
-            blending: THREE.NormalBlending,
-          }),
-        )
-        : new THREE.Mesh(
-          geo,
-          new THREE.MeshBasicMaterial({
-            map: makeSignFlameTex(seed),
-            transparent: true,
-            alphaTest: 0.12,
-            depthWrite: false,
-            depthTest: true,
-            toneMapped: false,
-            side: THREE.DoubleSide,
-          }),
-        );
+      const geo = new THREE.PlaneGeometry(1, 1, 6, 18);
+      geo.translate(0, 0.5, 0);
+      const pos = geo.attributes.position;
+      for (let vi = 0; vi < pos.count; vi++) {
+        const y = pos.getY(vi);
+        pos.setX(vi, pos.getX(vi) + (rnd() - 0.5) * 0.28 * (1.05 - y));
+        pos.setY(vi, pos.getY(vi) + (rnd() - 0.5) * 0.08);
+      }
+      pos.needsUpdate = true;
+      const mesh = new THREE.Mesh(
+        geo,
+        new THREE.MeshBasicMaterial({
+          map: makeSignFlameTex(seed),
+          transparent: true,
+          alphaTest: 0.12,
+          depthWrite: false,
+          depthTest: true,
+          toneMapped: false,
+          side: THREE.DoubleSide,
+        }),
+      );
       mesh.renderOrder = 3;
       fx.add(mesh);
       const dir = randUnit3(rnd);
       const origin = randUnit3(rnd).multiplyScalar(0.55 + rnd() * 2.2);
       const aim = randUnit3(rnd);
-      const base = FRONT_BOOM[i % FRONT_BOOM.length];
-      const isHero = base.role === 'hero' || i === 0;
-      const boomLayout = {
-        ang: base.ang + (rnd() - 0.5) * 0.06,
-        elev: base.elev + (rnd() - 0.5) * 0.02,
-        len: base.len * (isHero ? (1.1 + rnd() * 0.15) : (0.9 + rnd() * 0.2)),
-        wide: base.wide * (isHero ? (1.1 + rnd() * 0.12) : (0.95 + rnd() * 0.18)),
-        delay: 0,
-        twist: base.twist + (rnd() - 0.5) * 0.2,
-        originJitter: 0.75 + rnd() * 0.35,
-        role: base.role || 'side',
-        lean: bend * (0.18 + rnd() * 0.2),
-      };
-      const pocket = sidePockets[pocketAssign[i % pocketAssign.length]];
-      const sideMul = (i === 0 ? 1.3 : 1.05) + rnd() * 0.2;
-      const firstLayout = {
-        ox: pocket.x * sideMul + (rnd() - 0.5) * 0.3,
-        oy: pocket.y * sideMul + (rnd() - 0.5) * 0.3,
-        oz: pocket.z * sideMul + (rnd() - 0.5) * 0.12,
-        ang: Math.atan2(pocket.y, pocket.x) + (rnd() - 0.5) * 0.45,
-        elev: 0.02 + rnd() * 0.12,
-        delay: (i === 0 ? 0 : 0.01 + i * 0.018) + rnd() * 0.02,
-        skipChance: 0,
-        lenBias: i === 0 ? (1.4 + rnd() * 0.2) : i === 1 ? (1.05 + rnd() * 0.2) : (0.9 + rnd() * 0.2),
-        wideBias: i === 0 ? (1.35 + rnd() * 0.15) : (1.05 + rnd() * 0.25),
-        curl: bend * (0.25 + rnd() * 0.2),
-        tipSweep: bend * (0.12 + rnd() * 0.18),
-        lean: bend * (0.2 + rnd() * 0.2),
-      };
       signFlames.push({
         mesh,
         geo,
@@ -1373,16 +1511,15 @@ async function buildFireBomb() {
         aim,
         ang: Math.atan2(dir.y, dir.x),
         elev: Math.asin(THREE.MathUtils.clamp(dir.z, -1, 1)),
-        lenMul: SIGN_ONLY ? (isHero ? (0.85 + rnd() * 0.2) : (0.55 + rnd() * 0.25)) : (0.85 + rnd() * 0.7),
-        wide: SIGN_ONLY ? (isHero ? (3.2 + rnd() * 0.8) : (2.4 + rnd() * 0.8)) : (2.1 + rnd() * 1.8),
+        lenMul: SIGN_ONLY ? (0.35 + rnd() * 0.55) : (0.85 + rnd() * 0.7),
+        wide: SIGN_ONLY ? (2.0 + rnd() * 1.8) : (2.1 + rnd() * 1.8),
         seed,
         delay: rnd() * 0.14,
-        spin: (rnd() - 0.5) * 1.4,
+        spin: (rnd() - 0.5) * 1.8,
         phase0: rnd() * 6.2,
-        twist: (rnd() - 0.5) * 1.4,
-        breakMul: SIGN_ONLY ? (0.85 + rnd() * 0.35) : (0.7 + rnd() * 0.7),
-        boomLayout,
-        firstLayout,
+        twist: (rnd() - 0.5) * 2.2,
+        breakMul: SIGN_ONLY ? (0.45 + rnd() * 1.0) : (0.7 + rnd() * 0.7),
+        realFire: false,
       });
     }
   }
@@ -1390,9 +1527,13 @@ async function buildFireBomb() {
   /* Epic white flash sprites — boom punches + spark streaks. */
   if (SIGN_ONLY) {
     const flashTex = makeWhiteFlashTex();
-    for (let i = 0; i < 20; i++) {
+    const nFlash = 20;
+    const nStar = 6;
+    for (let i = 0; i < nFlash; i++) {
       const rnd = seeded(4400 + i * 17);
-      const isStreak = i >= 6;
+      const isStreak = i >= nStar;
+      const streakI = i - nStar;
+      const nStreak = nFlash - nStar;
       const spr = new THREE.Sprite(new THREE.SpriteMaterial({
         map: isStreak ? makeWhiteStreakTex(i + 9) : flashTex,
         transparent: true,
@@ -1407,13 +1548,19 @@ async function buildFireBomb() {
       spr.visible = false;
       spr.renderOrder = 80;
       fx.add(spr);
+      /* Even radial spokes — LCG first-call angles collapsed to ~13° (all right). */
+      const ang = isStreak
+        ? (streakI / nStreak) * Math.PI * 2 + 0.18
+        : (i / nStar) * Math.PI * 2 + 0.4;
       signFlashes.push({
         mesh: spr,
         streak: isStreak,
-        ang: rnd() * Math.PI * 2,
+        ang,
         delay: rnd() * 0.04,
         seed: i * 13 + 2,
-        reach: 1.6 + rnd() * 4.2,
+        reach: isStreak
+          ? (2.8 + (streakI % 4) * 0.55 + rnd() * 0.35)
+          : (1.4 + (i % 3) * 0.45 + rnd() * 0.3),
         size: isStreak ? (3.4 + rnd() * 2.6) : (1.8 + rnd() * 2.2),
       });
     }
@@ -2926,7 +3073,7 @@ function applyFrame(fr) {
   const fxSurge = SIGN_ONLY ? trap(t, 0.36, 0.42, 0.47, 0.55) : 0;
   const rebuild = SIGN_ONLY ? trap(t, 0.50, 0.60, 0.70, 0.78) : 0;
   /* Snap boom once pieces lock — same overall beat as before, then settle to freeze */
-  const reassembleBoom = SIGN_ONLY ? trap(t, 0.76, 0.80, 0.88, 0.935) : 0;
+  const reassembleBoom = SIGN_ONLY ? trap(t, 0.78, 0.81, 0.90, 0.96) : 0;
   const boomFlash = Math.max(coreFlash, reassembleBoom) * damp;
   const boomSurge = Math.max(fxSurge, reassembleBoom * 1.25) * damp;
   const sphereAmt = SIGN_ONLY ? trap(t, 0.18, 0.28, 0.46, 0.60) : 0;
@@ -3193,7 +3340,7 @@ function applyFrame(fr) {
   }
   if (SIGN_ONLY) {
     /* Keep FX just in front of the N — avoid camera punch that stretches tongues. */
-    fx.position.set(0, 0, reassembleBoom > 0.02 ? (0.35 + 0.9 * reassembleBoom) : 0);
+    fx.position.set(0, 0, reassembleBoom > 0.02 ? (3.2 + 7.5 * reassembleBoom) : 0);
     fx.rotation.set(0, 0, 0);
   }
 
@@ -3283,7 +3430,7 @@ function applyFrame(fr) {
     root.userData.fxCap = signFxCap(boomSurge);
   }
 
-  /* ——— Sign second boom: same cartoon jagged flames as first boom (no winding tongues). ——— */
+  /* ——— Sign boom: screen-space fire blast + world lightnings. ——— */
   const frontBoomOn = SIGN_ONLY && reassembleBoom > 0.02;
   const boomN0 = frontBoomOn ? logoBoomFxOrigin().clone() : null;
   for (const tongue of tongues) {
@@ -3292,117 +3439,12 @@ function applyFrame(fr) {
   }
 
   for (const f of signFlames) {
-    if (SIGN_ONLY && frontBoomOn) {
-      /* Screen-plane blast — low elev + big XY push (high elev = flower). */
-      const L = f.boomLayout || FRONT_BOOM[Math.abs(f.seed | 0) % FRONT_BOOM.length];
-      const e = reassembleBoom * trap(t, 0.76 + (L.delay || 0), 0.79 + (L.delay || 0), 0.865, 0.925);
-      if (e < 0.05) {
-        f.mesh.visible = false;
-        continue;
-      }
-      f.mesh.visible = true;
-      const flutter = 0.88 + 0.12 * Math.abs(Math.sin(t * (14 + (f.seed % 7)) + f.phase0));
-      const lean = (L.lean || 0) * e;
-      /* One blast cone — all tongues nearly parallel (no flower/X). */
-      const blastAng = 2.35 + (L.ang - 2.35) * 0.35 + Math.sin(t * 5 + f.phase0) * 0.04;
-      const ang = blastAng + lean * 0.08 + (L.twist || 0) * 0.04;
-      const elev = Math.min(0.1, (L.elev ?? 0.04) + lean * 0.02);
-      const dir = frontBoomDir(ang, elev);
-      dir.z *= 0.22;
-      dir.normalize();
-      const n0 = boomN0;
-      const hero = L.role === 'hero';
-      const push = ((L.originJitter || 0.75) + (hero ? 3.4 : 2.6) * e) * (1.5 + 0.55 * boomSurge);
-      const wide = f.wide * (L.wide ?? 1) * (hero ? (1.35 + 0.55 * e) : (1.05 + 0.4 * e)) * flutter;
-      const tall = f.wide * (L.len ?? 1) * f.lenMul * (hero ? (1.7 + 0.85 * e) : (1.25 + 0.55 * e)) * flutter;
-      f.mesh.position.copy(n0).addScaledVector(dir, push);
-      /* Lateral offset so tongues sit side-by-side, not crossed. */
-      const side = new THREE.Vector3(-dir.y, dir.x, 0).normalize();
-      f.mesh.position.addScaledVector(side, ((f.seed % 7) - 3) * 0.95 * (0.55 + e));
-      f.mesh.position.z += 0.55 + e * 0.9;
-      f.mesh.scale.set(
-        Math.max(hero ? 5.4 : 3.8, wide * (hero ? 0.75 : 0.58)),
-        Math.max(hero ? 15.5 : 11.0, tall * (hero ? 2.05 : 1.6)),
-        1,
-      );
-      f.mesh.material.rotation = Math.atan2(dir.y, dir.x) - Math.PI * 0.5
-        + lean * 0.25
-        + (L.twist || 0) * 0.12
-        + Math.sin(t * 8 + f.phase0) * 0.1;
-      f.mesh.material.depthTest = false;
-      f.mesh.renderOrder = hero ? 64 : 63;
-      f.mesh.material.opacity = Math.min(1, (hero ? 0.98 : 0.9) + e * 0.08);
-      continue;
-    }
     const e = SIGN_ONLY
-      ? boomFlash * (0.82 + 0.18 * trap(t, 0.42 + f.delay, 0.50 + f.delay, 0.62, 0.74))
+      ? boomFlash * (0.82 + 0.18 * Math.max(
+        trap(t, 0.42 + f.delay, 0.50 + f.delay, 0.62, 0.74),
+        trap(t, 0.78 + f.delay * 0.3, 0.81 + f.delay * 0.2, 0.90, 0.96),
+      ))
       : (hero ? 0 : Math.max(blast, tear, fill) * (0.75 + 0.25 * trap(t, 0.12 + f.delay, 0.22 + f.delay, 0.58, 0.86)));
-    if (SIGN_ONLY && !frontBoomOn) {
-      /* First boom: side-pocket origins, staggered, plump cartoon — not a centered X. */
-      const L = f.firstLayout;
-      if (L && L.skipChance > 0.7) {
-        f.mesh.visible = false;
-        continue;
-      }
-      const e1 = coreFlash * trap(
-        t,
-        0.28 + (L ? L.delay : f.delay),
-        0.34 + (L ? L.delay * 0.5 : f.delay * 0.5),
-        0.48,
-        0.58,
-      );
-      if (e1 < 0.05) {
-        f.mesh.visible = false;
-        continue;
-      }
-      f.mesh.visible = true;
-      const flutter = 0.78 + 0.22 * Math.abs(Math.sin(t * (16 + (f.seed % 8)) + f.phase0));
-      const live = seeded(((f.seed | 0) * 41) + Math.floor(t * 20) * 13);
-      const lean = (L ? L.lean : 0) * e1;
-      /* Shared blast heading — pocket only offsets origin (radial ang = flower). */
-      const blastAng = -2.55 + (live() - 0.5) * 0.1 + (L ? (L.ang + 2.55) * 0.05 : 0);
-      const ang = blastAng
-        + lean * 0.12
-        + Math.sin(t * 6.8 + f.phase0) * 0.05;
-      const elev = Math.min(0.12, 0.03 + Math.cos(t * 5.2 + f.seed) * 0.025);
-      const dir = new THREE.Vector3(
-        Math.cos(elev) * Math.cos(ang),
-        Math.cos(elev) * Math.sin(ang),
-        Math.sin(elev) * 0.35,
-      ).normalize();
-      const lenBias = L ? L.lenBias : 1;
-      const wideBias = L ? L.wideBias : 1;
-      const hero = lenBias > 1.05;
-      const wide = f.wide * wideBias * (hero ? (1.4 + 0.5 * e1) : (1.1 + 0.35 * e1)) * flutter;
-      const tall = f.wide * f.lenMul * lenBias * (hero ? (1.6 + 0.65 * e1) : (1.15 + 0.45 * e1)) * flutter;
-      if (L) {
-        f.mesh.position.set(
-          L.ox * (1.2 + 0.55 * boomSurge) + (live() - 0.5) * 0.35 * e1,
-          L.oy * (1.2 + 0.55 * boomSurge) + (live() - 0.5) * 0.35 * e1,
-          L.oz * (0.85 + 0.45 * boomSurge) + 0.4,
-        );
-        f.mesh.position.addScaledVector(dir, (hero ? 1.4 : 0.9) * e1);
-      } else {
-        f.mesh.position.copy(f.origin).multiplyScalar(1.1 + 0.6 * boomSurge);
-      }
-      f.mesh.material.depthTest = false;
-      f.mesh.renderOrder = hero ? 63 : 62;
-      const tipSweep = (L ? L.tipSweep : 0) * e1;
-      const curl = (L ? L.curl : 0);
-      f.mesh.scale.set(
-        Math.max(hero ? 3.4 : 2.5, wide * (hero ? 0.52 : 0.4)),
-        Math.max(hero ? 9.0 : 6.5, tall * (hero ? 1.5 : 1.2)),
-        1,
-      );
-      f.mesh.material.rotation = Math.atan2(dir.y, dir.x) - Math.PI * 0.5
-        + lean * 0.3
-        + (f.twist || 0) * 0.15
-        + curl * e1 * 0.25
-        + tipSweep * 0.2
-        + Math.sin(t * 8.5 + f.phase0) * 0.08;
-      f.mesh.material.opacity = Math.min(1, (hero ? 0.95 : 0.82) + e1 * 0.15);
-      continue;
-    }
     if (e < 0.05) {
       f.mesh.visible = false;
       continue;
@@ -3419,91 +3461,55 @@ function applyFrame(fr) {
     else dir.normalize();
     const R = signSphereR || 12.5;
     const cap = SIGN_ONLY ? (root.userData.fxCap || 8) : (root.userData.canvasCap || 8);
+    /* Second boom: bigger reach + wider cards in front of the mark. */
+    const epic = SIGN_ONLY && reassembleBoom > 0.02 ? (1.55 + 1.35 * reassembleBoom) : 1;
     const want = SIGN_ONLY
-      ? R * f.lenMul * f.breakMul * (0.4 + 0.6 * e) * flutter * (1 + boomSurge * 3.8)
+      ? R * f.lenMul * f.breakMul * (0.45 + 0.7 * e) * flutter * (1 + boomSurge * 4.2) * epic
       : (4.4 + 5.8 * e) * f.lenMul * f.breakMul * flutter;
     if (SIGN_ONLY && f.origin) {
-      f.mesh.position.copy(f.origin).multiplyScalar(0.5 + 0.7 * boomSurge);
-      clampFxPoint(f.mesh.position, cap * (0.2 + 0.22 * boomSurge), 0.16);
+      f.mesh.position.copy(f.origin).multiplyScalar(0.5 + 0.85 * boomSurge);
+      clampFxPoint(f.mesh.position, cap * (0.22 + 0.28 * boomSurge), 0.16);
     } else if (SIGN_ONLY) {
-      f.mesh.position.copy(dir).multiplyScalar(0.15 + 0.35 * e);
-      clampLocalXY(f.mesh.position, cap * 0.35);
+      f.mesh.position.copy(dir).multiplyScalar(0.15 + 0.4 * e);
+      clampLocalXY(f.mesh.position, cap * 0.38);
     } else {
       f.mesh.position.copy(f.origin).multiplyScalar(0.55 + 0.9 * e).addScaledVector(dir, 0.2);
       clampLocalBox(f.mesh.position, cap * 0.55);
     }
-    if (SIGN_ONLY) {
+    if (SIGN_ONLY && reassembleBoom > 0.02) {
+      f.mesh.position.z = Math.max(2.2, Math.abs(f.mesh.position.z)) + 3.6 * reassembleBoom;
+      f.mesh.material.depthTest = false;
+      f.mesh.renderOrder = 70;
+    } else if (SIGN_ONLY) {
       f.mesh.material.depthTest = true;
       f.mesh.renderOrder = 3;
     }
     const len = SIGN_ONLY
-      ? Math.min(want, maxFxAlongDir(dir, 0.45, 0.16), cap * 0.9)
+      ? Math.min(want, maxFxAlongDir(dir, 0.5, 0.18), cap * (0.95 + 0.25 * reassembleBoom))
       : Math.min(want, remainingInBox(f.mesh.position, dir, cap * 0.94));
     f.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
     f.mesh.rotateZ((f.twist || 0) + Math.sin(t * 9 + f.phase0) * 0.45);
     f.mesh.rotateX((f.spin || 0) * e * 0.4);
     f.mesh.scale.set(
-      f.wide * (0.7 + 0.45 * e) * (1 + boomSurge * 0.4) * (0.75 + 0.35 * flutter),
+      f.wide * (0.75 + 0.55 * e) * (1 + boomSurge * 0.55) * (0.75 + 0.35 * flutter) * epic,
       len,
       1,
     );
-    f.mesh.material.opacity = Math.min(1, 0.7 + e * 0.4);
+    f.mesh.material.opacity = Math.min(1, 0.75 + e * 0.35);
+  }
+
+  /* Soft FBM boom sheets off — Sep-3 jagged tongues carry the fire. */
+  for (const b of signBoomSprites) {
+    b.mesh.visible = false;
+    b.mesh.material.opacity = 0;
   }
 
   if (SIGN_ONLY) {
     for (const sp of signSparks) sp.mesh.visible = false;
-    const flashOn = Math.max(coreFlash, reassembleBoom);
-    const origin = frontBoomOn && boomN0 ? boomN0 : new THREE.Vector3(0, 0, 0.4);
-    /* First boom = universe birth (radial cracks); second = hard blast. */
-    const birth = coreFlash > reassembleBoom;
-    let streakI = 0;
-    for (let i = 0; i < signFlashes.length; i++) {
-      const fl = signFlashes[i];
-      const e = flashOn * trap(
-        t,
-        (frontBoomOn ? 0.76 : 0.28) + fl.delay,
-        (frontBoomOn ? 0.79 : 0.32) + fl.delay * 0.4,
-        frontBoomOn ? 0.90 : 0.52,
-        frontBoomOn ? 0.94 : 0.60,
-      );
-      if (e < 0.05) {
-        fl.mesh.visible = false;
-        continue;
-      }
-      if (fl.streak) {
-        streakI++;
-        /* Keep most sharp streaks on — dense crack lines, not soft balls. */
-        if (Math.sin(t * 40 + fl.seed) < (birth ? -0.88 : -0.92)) {
-          fl.mesh.visible = false;
-          continue;
-        }
-      } else {
-        /* Hard star sparks, flick hard on/off. */
-        if (Math.sin(t * 90 + fl.seed) < (birth ? 0.1 : -0.05)) {
-          fl.mesh.visible = false;
-          continue;
-        }
-      }
-      fl.mesh.visible = true;
-      const ang = fl.ang + (birth ? 0 : Math.sin(t * 5 + fl.seed) * 0.08);
-      const push = fl.streak
-        ? fl.reach * (birth ? (0.55 + 1.35 * e) : (0.55 + 1.55 * e))
-        : fl.reach * (0.15 + 0.7 * e);
-      fl.mesh.position.set(
-        origin.x + Math.cos(ang) * push,
-        origin.y + Math.sin(ang) * push,
-        origin.z + 0.7 + e,
-      );
-      if (fl.streak) {
-        const pop = (birth ? 5.2 : 7.2) + e * 4.8;
-        fl.mesh.scale.set(pop * 0.26, pop * 2.7, 1);
-        fl.mesh.material.rotation = ang - Math.PI * 0.5;
-        fl.mesh.material.opacity = Math.min(1, 0.9 + e * 0.15);
-      } else {
-        const pop = (birth ? 1.8 : 3.2) * fl.size * (0.75 + e);
-        fl.mesh.scale.setScalar(pop);
-        fl.mesh.material.opacity = Math.min(1, 0.95 + e * 0.1);
-      }
+    /* No radial white spokes/stars from center — lightning bolts carry the white FX. */
+    for (const fl of signFlashes) {
+      fl.mesh.visible = false;
+      fl.mesh.material.opacity = 0;
     }
   } else if (!hero) {
     const burst = Math.max(blast, tear, fill);
@@ -3584,7 +3590,7 @@ function applyFrame(fr) {
       const activeSlot = (Math.floor(t * 8) + (frontBoomOn ? 1 : 0)) % SIGN_BOLT_STRIKES.length;
       const secondary = (activeSlot + 1) % SIGN_BOLT_STRIKES.length;
       const isPrimary = bi === activeSlot;
-      const isSecondary = bi === secondary && boomFlash > 0.35;
+      const isSecondary = bi === secondary && boomFlash > 0.22;
       if (!isPrimary && !isSecondary) {
         bolt.glow.visible = false;
         bolt.core.visible = false;
@@ -3776,20 +3782,26 @@ function applyFrame(fr) {
     SIGN_ONLY ? (2.2 + reassembleBoom * 7) : (2.4 + fill),
   );
 
-  /* Hot white punch flash on boom peaks. */
+  /* Epic front flash — mainly second boom, additive white/cyan punch. */
   if (screenBurst) {
-    const punch = Math.max(
-      trap(t, 0.32, 0.36, 0.40, 0.48),
-      trap(t, 0.78, 0.81, 0.86, 0.92),
-    ) * (SIGN_ONLY ? 1 : 0);
+    const punch = SIGN_ONLY
+      ? Math.max(
+        coreFlash * trap(t, 0.32, 0.38, 0.48, 0.56) * 0.35,
+        reassembleBoom * trap(t, 0.78, 0.81, 0.90, 0.96),
+      )
+      : 0;
     if (punch > 0.05) {
       screenBurst.visible = true;
-      screenBurst.material.opacity = Math.min(0.22, punch * 0.28);
-      screenBurst.material.color.setHex(0xffffff);
-      const s = 5 + punch * 8;
+      const second = reassembleBoom > coreFlash;
+      screenBurst.material.opacity = Math.min(0.95, (second ? 0.55 : 0.25) + punch * 0.55);
+      screenBurst.material.blending = THREE.AdditiveBlending;
+      screenBurst.material.color.setHex(second ? 0xffffff : 0xffcc88);
+      screenBurst.material.rotation = punch * 0.35;
+      const s = (second ? 2.4 : 1.2) + punch * (second ? 2.8 : 1.1);
       screenBurst.scale.set(s, s, 1);
     } else {
       screenBurst.visible = false;
+      screenBurst.material.opacity = 0;
     }
   }
 
@@ -3814,7 +3826,7 @@ function applyFrame(fr) {
       cb.core.visible = false;
       continue;
     }
-    if (rnd() > 0.82) {
+    if (rnd() > 0.55) {
       cb.glow.visible = false;
       cb.core.visible = false;
       continue;
