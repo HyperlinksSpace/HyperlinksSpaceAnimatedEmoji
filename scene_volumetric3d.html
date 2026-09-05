@@ -348,27 +348,37 @@ function flamePath(ctx, cx, top, bot, halfW) {
 
 /** Broken, asymmetric fire tongue — crescent spine, not a straight spike. */
 function jaggedFlamePath(ctx, cx, top, bot, halfW, rnd, lean) {
-  const steps = 8 + ((rnd() * 4) | 0);
-  const curve = lean * (0.85 + rnd() * 0.4);
-  const hook = lean * (0.18 + rnd() * 0.25);
+  /* Crescent / hook ribbon — one smooth spine + ragged outer edge (no pine tiers). */
+  const steps = 12 + ((rnd() * 5) | 0);
+  const side = lean >= 0 ? 1 : -1;
+  const bend = Math.abs(lean) * (1.2 + rnd() * 0.8);
+  const thick0 = halfW * (0.55 + rnd() * 0.55); /* base thickness */
+  const thick1 = halfW * (0.15 + rnd() * 0.35); /* tip thinner but not pointed tree */
   ctx.beginPath();
-  ctx.moveTo(cx + lean * 0.06, bot);
-  for (let i = 1; i <= steps; i++) {
+  /* Outer ragged edge */
+  for (let i = 0; i <= steps; i++) {
     const u = i / steps;
-    /* Softer height curve — stubby lick, not a spear tip. */
-    const y = bot + (top - bot) * (u * 0.55 + u * u * 0.45);
-    const taper = Math.pow(1 - u, 0.28) * (0.55 + 0.45 * Math.sin(Math.max(0.05, u) * Math.PI));
-    const arc = curve * (u * u) + hook * Math.sin(u * Math.PI);
-    const jag = (rnd() - 0.4) * halfW * (0.18 + rnd() * 0.28);
-    ctx.lineTo(cx + lean * (1 - u) * 0.25 + arc + halfW * taper + jag, y);
+    const y = bot + (top - bot) * u;
+    const spine = side * bend * (u * u);
+    const thick = thick0 * (1 - u * 0.55) + thick1 * u;
+    const wave = Math.sin(u * Math.PI * (1.2 + rnd() * 1.4) + rnd()) * thick * (0.35 + rnd() * 0.45);
+    const bite = (rnd() > 0.62 ? (rnd() * thick * 0.55) : 0);
+    const x = cx + spine + side * (thick + wave + bite);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
   }
+  /* Hook tip across */
+  const tipY = top + (bot - top) * 0.02;
+  ctx.lineTo(cx + side * bend * 0.85 - side * thick1 * 0.4, tipY - 8 - rnd() * 18);
+  /* Inner smoother edge (closer to spine) */
   for (let i = steps; i >= 0; i--) {
     const u = i / steps;
-    const y = bot + (top - bot) * (u * 0.55 + u * u * 0.45);
-    const taper = Math.pow(1 - u, 0.3) * (0.55 + 0.45 * Math.sin(Math.max(0.05, u) * Math.PI));
-    const arc = curve * (u * u) + hook * Math.sin(u * Math.PI);
-    const jag = (rnd() - 0.6) * halfW * (0.16 + rnd() * 0.26);
-    ctx.lineTo(cx + lean * (1 - u) * 0.25 + arc - halfW * 0.9 * taper + jag, y);
+    const y = bot + (top - bot) * u;
+    const spine = side * bend * (u * u);
+    const thick = thick0 * (1 - u * 0.55) + thick1 * u;
+    const soft = Math.sin(u * Math.PI * 1.6) * thick * 0.12;
+    const x = cx + spine - side * (thick * (0.15 + rnd() * 0.12) + soft);
+    ctx.lineTo(x, y);
   }
   ctx.closePath();
 }
@@ -419,49 +429,78 @@ function makeSignFlameTex(seed) {
   c.width = w;
   c.height = h;
   const ctx = c.getContext('2d');
-  const cx = w * (0.38 + rnd() * 0.24);
-  const top = 8 + rnd() * 36;
-  const bot = 508;
-  const hw = 70 + rnd() * 70;
-  const lean = (rnd() - 0.5) * 46;
+  const lean = (rnd() > 0.5 ? 1 : -1) * (42 + rnd() * 78);
+  const cx = w * (0.26 + rnd() * 0.48) - lean * 0.1;
+  const top = 24 + rnd() * 90;
+  const bot = 498 - rnd() * 40;
+  const hw = 42 + rnd() * 100;
   const pathSeed = seed * 17 + 4;
+
+  /* ONE outer silhouette — nested shrinks read as Christmas trees. */
   jaggedFlamePath(ctx, cx, top, bot, hw, seeded(pathSeed), lean);
-  ctx.fillStyle = '#1a0000';
+  ctx.fillStyle = '#140000';
   ctx.fill();
-  jaggedFlamePath(ctx, cx, top + 14, bot - 4, hw * 0.82, seeded(pathSeed), lean * 0.85);
-  ctx.fillStyle = '#8a0000';
-  ctx.fill();
-  jaggedFlamePath(ctx, cx, top + 22, bot - 10, hw * 0.66, seeded(pathSeed), lean * 0.7);
-  const body = ctx.createLinearGradient(cx, bot, cx + lean * 0.4, top);
+
+  /* Sideways-shifted interior (clip), not concentric tiers. */
+  ctx.save();
+  jaggedFlamePath(ctx, cx, top, bot, hw, seeded(pathSeed), lean);
+  ctx.clip();
+  const body = ctx.createLinearGradient(cx - lean * 0.25, bot, cx + lean * 0.6, top);
   body.addColorStop(0.00, '#ff0a00');
   body.addColorStop(0.28, '#ff3a00');
-  body.addColorStop(0.55, '#ff7a00');
-  body.addColorStop(0.78, '#ffc020');
-  body.addColorStop(1.00, '#fffce8');
+  body.addColorStop(0.55, '#ff8200');
+  body.addColorStop(0.8, '#ffd040');
+  body.addColorStop(1.00, '#fff8e0');
   ctx.fillStyle = body;
-  ctx.fill();
-  jaggedFlamePath(ctx, cx + (rnd() - 0.5) * 10, top + 90, bot - 70, hw * 0.28, seeded(pathSeed + 1), lean * 0.4);
-  const core = ctx.createLinearGradient(cx, bot - 70, cx, top + 24);
-  core.addColorStop(0.00, '#ffb000');
-  core.addColorStop(0.5, '#fff4c8');
-  core.addColorStop(1.00, '#ffffff');
-  ctx.fillStyle = core;
-  ctx.fill();
+  ctx.fillRect(0, 0, w, h);
+  for (let i = 0; i < 5; i++) {
+    const px = cx + lean * (0.1 + rnd() * 0.4) + (rnd() - 0.5) * hw * 0.9;
+    const py = bot - 40 - rnd() * (bot - top - 60);
+    const pr = 18 + rnd() * 48;
+    const g = ctx.createRadialGradient(px, py, 0, px, py, pr);
+    g.addColorStop(0, i % 2 ? 'rgba(255,250,220,0.95)' : 'rgba(255,180,40,0.85)');
+    g.addColorStop(1, 'rgba(255,40,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.ellipse(px, py, pr * (0.55 + rnd() * 0.5), pr * (1.1 + rnd() * 0.8), lean * 0.01, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalCompositeOperation = 'destination-out';
+  for (let i = 0; i < 4; i++) {
+    const side = lean > 0 ? -1 : 1;
+    const bx = cx + side * hw * (0.35 + rnd() * 0.55) + lean * 0.2;
+    const by = bot - 50 - rnd() * (bot - top - 80);
+    ctx.beginPath();
+    ctx.ellipse(bx, by, 10 + rnd() * 22, 16 + rnd() * 36, rnd() * 1.2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.restore();
+
+  if (rnd() > 0.2) {
+    const sx = cx + lean * (0.55 + rnd() * 0.35);
+    const shy = top + 90 + rnd() * 100;
+    jaggedFlamePath(ctx, sx, shy, bot - 70 - rnd() * 50, hw * (0.2 + rnd() * 0.28), seeded(pathSeed + 11), lean * (0.25 + rnd() * 0.55));
+    ctx.fillStyle = rnd() > 0.45 ? '#ff5500' : '#ffcc33';
+    ctx.fill();
+  }
+
   const shreds = 2 + ((rnd() * 3) | 0);
   for (let s = 0; s < shreds; s++) {
-    const sx = cx + (rnd() - 0.5) * hw * 1.35;
-    const sy0 = bot - 40 - rnd() * 220;
-    const sy1 = sy0 - 40 - rnd() * 90;
-    const sw = 8 + rnd() * 18;
-    ctx.fillStyle = s === 0 ? '#1a0000' : (rnd() > 0.5 ? '#ff4a00' : '#ffcc44');
+    const sx = cx + lean * 0.5 + (rnd() - 0.5) * hw;
+    const sy0 = top + 40 + rnd() * 120;
+    const sy1 = sy0 - 25 - rnd() * 70;
+    const sw = 5 + rnd() * 16;
+    ctx.fillStyle = s % 2 ? '#ffaa22' : '#1a0000';
     ctx.beginPath();
     ctx.moveTo(sx, sy0);
-    ctx.lineTo(sx + sw * (0.4 + rnd()), sy0 - (sy0 - sy1) * 0.45);
-    ctx.lineTo(sx + (rnd() - 0.5) * 10, sy1);
-    ctx.lineTo(sx - sw * (0.3 + rnd() * 0.5), sy0 - (sy0 - sy1) * 0.55);
+    ctx.lineTo(sx + sw * (0.3 + rnd()), sy0 - (sy0 - sy1) * 0.4);
+    ctx.lineTo(sx + lean * 0.05 + (rnd() - 0.5) * 8, sy1);
+    ctx.lineTo(sx - sw * (0.4 + rnd() * 0.4), sy0 - (sy0 - sy1) * 0.5);
     ctx.closePath();
     ctx.fill();
   }
+
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.minFilter = THREE.LinearFilter;
@@ -1470,22 +1509,38 @@ async function buildFireBomb() {
   screenBurst.renderOrder = 8;
   camFx.add(screenBurst);
 
-  /* Sep-3 style jagged flame cards — second boom lifts them in front. */
+  /* Asymmetric flame cards — uneven pockets, no radial Christmas star. */
   {
     const fr = seeded(8801);
-    const nFlame = SIGN_ONLY ? 6 : 6;
+    /* Hand-placed headings: clustered + open quarter, mismatched sizes. */
+    const pockets = SIGN_ONLY ? [
+      /* Dense left/bottom cluster — open upper-right (no even star). */
+      { ang: 2.15, elev: 0.05, len: 1.7, wide: 2.6, delay: 0.00, spin: 1.1, twist: 0.85, break: 1.2 },
+      { ang: 2.45, elev: -0.06, len: 0.75, wide: 1.35, delay: 0.05, spin: -1.4, twist: -1.1, break: 0.55 },
+      { ang: 1.85, elev: 0.14, len: 1.15, wide: 3.2, delay: 0.02, spin: 0.35, twist: 1.5, break: 0.8 },
+      { ang: 2.85, elev: 0.02, len: 0.95, wide: 1.8, delay: 0.08, spin: -0.7, twist: 0.25, break: 0.95 },
+      { ang: 3.55, elev: -0.1, len: 0.55, wide: 2.9, delay: 0.11, spin: 0.9, twist: -0.6, break: 0.5 },
+      { ang: 0.55, elev: 0.2, len: 0.65, wide: 1.45, delay: 0.06, spin: -0.4, twist: 0.9, break: 0.7 },
+    ] : null;
+    const nFlame = SIGN_ONLY ? pockets.length : 6;
     for (let i = 0; i < nFlame; i++) {
       const seed = 3 + i * 17 + ((fr() * 40) | 0);
       const rnd = seeded(seed * 9 + 2);
-      const geo = new THREE.PlaneGeometry(1, 1, 6, 18);
-      geo.translate(0, 0.5, 0);
-      const pos = geo.attributes.position;
-      for (let vi = 0; vi < pos.count; vi++) {
-        const y = pos.getY(vi);
-        pos.setX(vi, pos.getX(vi) + (rnd() - 0.5) * 0.28 * (1.05 - y));
-        pos.setY(vi, pos.getY(vi) + (rnd() - 0.5) * 0.08);
-      }
-      pos.needsUpdate = true;
+      const P = SIGN_ONLY ? pockets[i] : null;
+      const geo = SIGN_ONLY
+        ? makeCurvedFlameGeo((rnd() > 0.5 ? 1 : -1) * (0.55 + rnd() * 0.95), seed)
+        : (() => {
+          const g = new THREE.PlaneGeometry(1, 1, 6, 18);
+          g.translate(0, 0.5, 0);
+          const pos = g.attributes.position;
+          for (let vi = 0; vi < pos.count; vi++) {
+            const y = pos.getY(vi);
+            pos.setX(vi, pos.getX(vi) + (rnd() - 0.5) * 0.28 * (1.05 - y));
+            pos.setY(vi, pos.getY(vi) + (rnd() - 0.5) * 0.08);
+          }
+          pos.needsUpdate = true;
+          return g;
+        })();
       const mesh = new THREE.Mesh(
         geo,
         new THREE.MeshBasicMaterial({
@@ -1500,26 +1555,37 @@ async function buildFireBomb() {
       );
       mesh.renderOrder = 3;
       fx.add(mesh);
-      const dir = randUnit3(rnd);
-      const origin = randUnit3(rnd).multiplyScalar(0.55 + rnd() * 2.2);
-      const aim = randUnit3(rnd);
+      const ang = P ? (P.ang + (rnd() - 0.5) * 0.22) : Math.atan2(randUnit3(rnd).y, randUnit3(rnd).x);
+      const elev = P ? (P.elev + (rnd() - 0.5) * 0.06) : 0;
+      const dir = new THREE.Vector3(
+        Math.cos(elev) * Math.cos(ang),
+        Math.cos(elev) * Math.sin(ang),
+        Math.sin(elev) * 0.45,
+      ).normalize();
+      const aim = dir.clone().add(new THREE.Vector3((rnd() - 0.5) * 0.35, (rnd() - 0.5) * 0.35, (rnd() - 0.5) * 0.15)).normalize();
+      const origin = dir.clone().multiplyScalar(0.35 + rnd() * 1.4).add(new THREE.Vector3(
+        (rnd() - 0.5) * 0.8,
+        (rnd() - 0.5) * 0.8,
+        0.2 + rnd() * 0.5,
+      ));
       signFlames.push({
         mesh,
         geo,
         dir,
         origin,
         aim,
-        ang: Math.atan2(dir.y, dir.x),
-        elev: Math.asin(THREE.MathUtils.clamp(dir.z, -1, 1)),
-        lenMul: SIGN_ONLY ? (0.35 + rnd() * 0.55) : (0.85 + rnd() * 0.7),
-        wide: SIGN_ONLY ? (2.0 + rnd() * 1.8) : (2.1 + rnd() * 1.8),
+        ang,
+        elev,
+        lenMul: SIGN_ONLY ? P.len * (0.9 + rnd() * 0.25) : (0.85 + rnd() * 0.7),
+        wide: SIGN_ONLY ? P.wide * (0.85 + rnd() * 0.3) : (2.1 + rnd() * 1.8),
         seed,
-        delay: rnd() * 0.14,
-        spin: (rnd() - 0.5) * 1.8,
+        delay: SIGN_ONLY ? P.delay + rnd() * 0.03 : rnd() * 0.14,
+        spin: SIGN_ONLY ? P.spin : (rnd() - 0.5) * 1.8,
         phase0: rnd() * 6.2,
-        twist: (rnd() - 0.5) * 2.2,
-        breakMul: SIGN_ONLY ? (0.45 + rnd() * 1.0) : (0.7 + rnd() * 0.7),
+        twist: SIGN_ONLY ? P.twist + (rnd() - 0.5) * 0.35 : (rnd() - 0.5) * 2.2,
+        breakMul: SIGN_ONLY ? P.break * (0.85 + rnd() * 0.3) : (0.7 + rnd() * 0.7),
         realFire: false,
+        pocket: !!P,
       });
     }
   }
@@ -3441,8 +3507,8 @@ function applyFrame(fr) {
   for (const f of signFlames) {
     const e = SIGN_ONLY
       ? boomFlash * (0.82 + 0.18 * Math.max(
-        trap(t, 0.42 + f.delay, 0.50 + f.delay, 0.62, 0.74),
-        trap(t, 0.78 + f.delay * 0.3, 0.81 + f.delay * 0.2, 0.90, 0.96),
+        trap(t, 0.40 + f.delay, 0.48 + f.delay, 0.60, 0.72),
+        trap(t, 0.78 + f.delay * 0.45, 0.81 + f.delay * 0.3, 0.90, 0.96),
       ))
       : (hero ? 0 : Math.max(blast, tear, fill) * (0.75 + 0.25 * trap(t, 0.12 + f.delay, 0.22 + f.delay, 0.58, 0.86)));
     if (e < 0.05) {
@@ -3450,28 +3516,41 @@ function applyFrame(fr) {
       continue;
     }
     f.mesh.visible = true;
-    const flutter = 0.65 + 0.4 * Math.abs(Math.sin(t * 21 + f.phase0));
-    const dir = (f.aim || f.dir).clone();
-    dir.add(new THREE.Vector3(
-      Math.sin(t * 9.4 + f.phase0) * 0.35,
-      Math.cos(t * 8.1 + f.seed) * 0.32,
-      Math.sin(t * 6.2 + f.phase0 * 0.7) * 0.18,
-    ));
-    if (SIGN_ONLY) flattenSurgeDir(dir, boomSurge * 0.25);
-    else dir.normalize();
+    /* Irregular flutter — avoid synced sine that reads as mirrored trees. */
+    const flutter = 0.55 + 0.55 * Math.abs(Math.sin(t * (14 + (f.seed % 9)) + f.phase0))
+      * (0.6 + 0.4 * Math.abs(Math.sin(t * 7.3 + f.seed)));
+    const ang = (f.ang || 0) + Math.sin(t * (6.5 + (f.seed % 5) * 0.7) + f.phase0) * 0.22
+      + Math.cos(t * 3.1 + f.phase0 * 0.5) * 0.12;
+    const elev = (f.elev || 0) + Math.sin(t * 5.2 + f.seed) * 0.08;
+    const dir = new THREE.Vector3(
+      Math.cos(elev) * Math.cos(ang),
+      Math.cos(elev) * Math.sin(ang),
+      Math.sin(elev) * 0.4,
+    );
+    if (SIGN_ONLY) flattenSurgeDir(dir, boomSurge * 0.18);
+    else {
+      dir.copy(f.aim || f.dir);
+      dir.add(new THREE.Vector3(
+        Math.sin(t * 9.4 + f.phase0) * 0.35,
+        Math.cos(t * 8.1 + f.seed) * 0.32,
+        Math.sin(t * 6.2 + f.phase0 * 0.7) * 0.18,
+      ));
+      dir.normalize();
+    }
     const R = signSphereR || 12.5;
     const cap = SIGN_ONLY ? (root.userData.fxCap || 8) : (root.userData.canvasCap || 8);
-    /* Second boom: bigger reach + wider cards in front of the mark. */
-    const epic = SIGN_ONLY && reassembleBoom > 0.02 ? (1.55 + 1.35 * reassembleBoom) : 1;
+    const epic = SIGN_ONLY && reassembleBoom > 0.02 ? (1.45 + 1.2 * reassembleBoom) : 1;
     const want = SIGN_ONLY
-      ? R * f.lenMul * f.breakMul * (0.45 + 0.7 * e) * flutter * (1 + boomSurge * 4.2) * epic
+      ? R * f.lenMul * f.breakMul * (0.4 + 0.75 * e) * flutter * (1 + boomSurge * 3.6) * epic
       : (4.4 + 5.8 * e) * f.lenMul * f.breakMul * flutter;
     if (SIGN_ONLY && f.origin) {
-      f.mesh.position.copy(f.origin).multiplyScalar(0.5 + 0.85 * boomSurge);
-      clampFxPoint(f.mesh.position, cap * (0.22 + 0.28 * boomSurge), 0.16);
+      /* Offset origins unevenly so cards don't share a hub. */
+      f.mesh.position.copy(f.origin).multiplyScalar(0.35 + 0.95 * boomSurge + 0.15 * e);
+      f.mesh.position.addScaledVector(dir, 0.08 + 0.25 * e);
+      clampFxPoint(f.mesh.position, cap * (0.2 + 0.3 * boomSurge), 0.16);
     } else if (SIGN_ONLY) {
-      f.mesh.position.copy(dir).multiplyScalar(0.15 + 0.4 * e);
-      clampLocalXY(f.mesh.position, cap * 0.38);
+      f.mesh.position.copy(dir).multiplyScalar(0.12 + 0.45 * e);
+      clampLocalXY(f.mesh.position, cap * 0.4);
     } else {
       f.mesh.position.copy(f.origin).multiplyScalar(0.55 + 0.9 * e).addScaledVector(dir, 0.2);
       clampLocalBox(f.mesh.position, cap * 0.55);
@@ -3479,23 +3558,21 @@ function applyFrame(fr) {
     if (SIGN_ONLY && reassembleBoom > 0.02) {
       f.mesh.position.z = Math.max(2.2, Math.abs(f.mesh.position.z)) + 3.6 * reassembleBoom;
       f.mesh.material.depthTest = false;
-      f.mesh.renderOrder = 70;
+      f.mesh.renderOrder = 70 + (f.seed % 5);
     } else if (SIGN_ONLY) {
       f.mesh.material.depthTest = true;
-      f.mesh.renderOrder = 3;
+      f.mesh.renderOrder = 3 + (f.seed % 4);
     }
     const len = SIGN_ONLY
-      ? Math.min(want, maxFxAlongDir(dir, 0.5, 0.18), cap * (0.95 + 0.25 * reassembleBoom))
+      ? Math.min(want, maxFxAlongDir(dir, 0.45, 0.16), cap * (0.92 + 0.28 * reassembleBoom))
       : Math.min(want, remainingInBox(f.mesh.position, dir, cap * 0.94));
     f.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
-    f.mesh.rotateZ((f.twist || 0) + Math.sin(t * 9 + f.phase0) * 0.45);
-    f.mesh.rotateX((f.spin || 0) * e * 0.4);
-    f.mesh.scale.set(
-      f.wide * (0.75 + 0.55 * e) * (1 + boomSurge * 0.55) * (0.75 + 0.35 * flutter) * epic,
-      len,
-      1,
-    );
-    f.mesh.material.opacity = Math.min(1, 0.75 + e * 0.35);
+    f.mesh.rotateZ((f.twist || 0) + Math.sin(t * (8 + (f.seed % 7)) + f.phase0) * 0.55);
+    f.mesh.rotateX((f.spin || 0) * e * 0.55);
+    /* Non-uniform scale: some fat-short, some long-thin (stored in wide/lenMul). */
+    const wMul = f.wide * (0.65 + 0.6 * e) * (1 + boomSurge * 0.45) * flutter * epic;
+    f.mesh.scale.set(wMul, len, 1);
+    f.mesh.material.opacity = Math.min(1, 0.72 + e * 0.38);
   }
 
   /* Soft FBM boom sheets off — Sep-3 jagged tongues carry the fire. */
