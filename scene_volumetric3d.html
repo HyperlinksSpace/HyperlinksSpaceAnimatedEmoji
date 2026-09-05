@@ -3143,7 +3143,9 @@ function applyFrame(fr) {
   const boomFlash = Math.max(coreFlash, reassembleBoom) * damp;
   const boomSurge = Math.max(fxSurge, reassembleBoom * 1.25) * damp;
   const sphereAmt = SIGN_ONLY ? trap(t, 0.18, 0.28, 0.46, 0.60) : 0;
-  const showWhole = SIGN_ONLY ? (t < 0.18 || t > 0.76) : (destroy < 0.28);
+  /* Exclusive handoff: never show intact mark and shards together (ghost duplicate). */
+  const shatterLive = SIGN_ONLY && t >= 0.16 && t < 0.78;
+  const showWhole = SIGN_ONLY ? !shatterLive : (destroy < 0.28);
   for (const w of brand.nWholes) w.visible = showWhole;
   for (const w of brand.tWholes) w.visible = showWhole;
 
@@ -3158,29 +3160,25 @@ function applyFrame(fr) {
       n.position.set(rp.x, rp.y + 0.04, rp.z + 0.08);
       n.rotation.set(0.05, 0.07, 0);
       n.scale.setScalar(brand.nScale * 1.02);
-    } else if (AVATAR_BG && frozen) {
-      /* Exact reference still — single 3D N, no micro-wobble. */
+    } else if (AVATAR_BG || SIGN_ONLY) {
+      /* Stable rest — any micro-wobble desyncs from shards and reads as a ghost duplicate. */
       n.position.set(rp.x, rp.y, rp.z);
       n.rotation.set(SIGN_REST_RX, SIGN_REST_RY, SIGN_REST_RZ);
-      n.scale.setScalar(brand.nScale);
+      const shinePulse = 1 + reassembleBoom * 0.14 * damp;
+      n.scale.setScalar(brand.nScale * shinePulse);
     } else {
       /* Shine phase: gentle turn so green facets catch light */
-      const k = SIGN_ONLY ? damp : 1;
       n.position.set(
-        rp.x + Math.sin(ph * 2.1) * (SIGN_ONLY ? 0.015 : 0.1) * life * k,
-        rp.y + (SIGN_ONLY ? 0 : 0.12 * zoomN) + Math.cos(ph * 1.8) * (SIGN_ONLY ? 0.012 : 0.08) * life * k,
-        rp.z + (SIGN_ONLY ? 0 : 0.55 * zoomN + 0.2 * boomAmt) + Math.sin(ph * 2.4) * (SIGN_ONLY ? 0.03 : 0.14) * life * k,
+        rp.x + Math.sin(ph * 2.1) * 0.1 * life,
+        rp.y + 0.12 * zoomN + Math.cos(ph * 1.8) * 0.08 * life,
+        rp.z + 0.55 * zoomN + 0.2 * boomAmt + Math.sin(ph * 2.4) * 0.14 * life,
       );
-      const restRx = SIGN_ONLY ? SIGN_REST_RX : 0;
-      const restRy = SIGN_ONLY ? SIGN_REST_RY : 0;
-      const restRz = SIGN_ONLY ? SIGN_REST_RZ : 0;
       n.rotation.set(
-        restRx - (SIGN_ONLY ? 0 : 0.1 * zoomN) + Math.sin(ph * 2.6) * pitch * life * k + Math.sin(ph * 5.2) * (SIGN_ONLY ? 0.012 : 0.05) * life * k,
-        restRy + (SIGN_ONLY ? 0 : 0.12 * boomAmt) + Math.cos(ph * 1.7) * yaw * life * k + Math.sin(ph * 4.0) * (SIGN_ONLY ? 0.018 : 0.07) * life * k,
-        restRz + (SIGN_ONLY ? 0 : 0.05 * zoomN) + Math.sin(ph * 2.5) * (SIGN_ONLY ? 0.016 : 0.16) * life * k,
+        -0.1 * zoomN + Math.sin(ph * 2.6) * pitch * life + Math.sin(ph * 5.2) * 0.05 * life,
+        0.12 * boomAmt + Math.cos(ph * 1.7) * yaw * life + Math.sin(ph * 4.0) * 0.07 * life,
+        0.05 * zoomN + Math.sin(ph * 2.5) * 0.16 * life,
       );
-      const shinePulse = 1 + reassembleBoom * 0.14 * k;
-      n.scale.setScalar(brand.nScale * (SIGN_ONLY ? 1 : (1 + 0.04 * zoomN) * (1 + Math.sin(ph * 3.6) * 0.015 * life)) * shinePulse);
+      n.scale.setScalar(brand.nScale * (1 + 0.04 * zoomN) * (1 + Math.sin(ph * 3.6) * 0.015 * life));
     }
   }
   if (brand.text && showWhole) {
@@ -3225,13 +3223,12 @@ function applyFrame(fr) {
         continue;
       }
       if (o.userData.onWhole) {
-        const on = crack > 0.02 && t < 0.22;
+        const on = crack > 0.02 && t < 0.16;
         o.visible = on;
         o.material.opacity = on ? Math.min(1, crack * 1.5) : 0;
       } else {
-        const live = t >= 0.16 && t <= 0.78;
-        o.visible = live;
-        o.material.opacity = live ? 0.95 : 0;
+        o.visible = shatterLive;
+        o.material.opacity = shatterLive ? 0.95 : 0;
       }
     }
   }
@@ -3239,18 +3236,18 @@ function applyFrame(fr) {
   for (const p of pieces) {
     const isChunk = p.kind === 'nChunk' || p.kind === 'tChunk';
     if (SIGN_ONLY && isChunk) {
-      const live = t >= 0.16 && t <= 0.78;
-      if (!live) {
+      if (!shatterLive) {
         p.mesh.visible = false;
         continue;
       }
       p.mesh.visible = true;
-      const split = trap(t, 0.16, 0.22, 0.28, 0.40);
+      const split = trap(t, 0.16, 0.20, 0.28, 0.40);
       const nCenter = brand.nRest || new THREE.Vector3();
       const away = p.rest.clone().sub(nCenter);
       if (away.lengthSq() < 1e-4) away.set(Math.cos(p.ang), Math.sin(p.ang), 0);
       away.normalize();
-      const restPos = p.rest.clone().addScaledVector(away, split * 0.18);
+      /* Floor separation so the first shard frame never reads as a second intact mark. */
+      const restPos = p.rest.clone().addScaledVector(away, 0.10 + split * 0.20);
       const spinY = t * Math.PI * 2.8;
       const cs = Math.cos(spinY);
       const sn = Math.sin(spinY);
