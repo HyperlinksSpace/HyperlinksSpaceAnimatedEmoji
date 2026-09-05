@@ -65,7 +65,7 @@ async function encode(size, name, crf, br, maxBytes) {
     '-start_number', '1',
     '-i', join(FRAMES, 'frame_%04d.png'),
     '-frames:v', String(TOTAL),
-    '-vf', `scale=${size}:${size}:flags=lanczos${size <= 100 ? ',unsharp=5:5:1.0:3:3:0.0' : ''},format=yuva420p`,
+    '-vf', `scale=${size}:${size}:flags=lanczos${size <= 100 ? ',unsharp=5:5:1.4:3:3:0.5' : ''},format=yuva420p`,
     '-c:v', 'libvpx-vp9', '-pix_fmt', 'yuva420p', '-auto-alt-ref', '0',
     '-metadata:s:v:0', 'alpha_mode=1',
     '-b:v', br, '-crf', String(crf), '-an', '-r', '30', '-row-mt', '1',

@@ -1480,34 +1480,55 @@ async function buildFireBomb() {
   }
   }
 
-  const burstC = document.createElement('canvas');
-  burstC.width = burstC.height = 256;
-  const bg = burstC.getContext('2d');
+  /* Yellow boom shine — full punch, hard edge so soft fringe never leaves the canvas. */
   {
-    const grd = bg.createRadialGradient(128, 128, 4, 128, 128, 128);
-    grd.addColorStop(0, 'rgba(255,255,255,1)');
-    grd.addColorStop(0.18, 'rgba(255,240,180,0.9)');
-    grd.addColorStop(0.4, 'rgba(255,120,30,0.55)');
-    grd.addColorStop(0.7, 'rgba(255,40,0,0.18)');
-    grd.addColorStop(1, 'rgba(0,0,0,0)');
-    bg.fillStyle = grd;
-    bg.fillRect(0, 0, 256, 256);
+    const stickBurst = SIGN_ONLY && !AVATAR_BG;
+    const burstC = document.createElement('canvas');
+    burstC.width = burstC.height = 256;
+    const bg = burstC.getContext('2d');
+    {
+      const grd = bg.createRadialGradient(128, 128, 2, 128, 128, stickBurst ? 118 : 128);
+      if (stickBurst) {
+        grd.addColorStop(0.00, 'rgba(255,255,230,1)');
+        grd.addColorStop(0.12, 'rgba(255,236,90,1)');
+        grd.addColorStop(0.32, 'rgba(255,200,40,0.95)');
+        grd.addColorStop(0.55, 'rgba(255,140,20,0.75)');
+        grd.addColorStop(0.78, 'rgba(255,80,0,0.28)');
+        grd.addColorStop(0.92, 'rgba(255,50,0,0.06)');
+        grd.addColorStop(1.00, 'rgba(0,0,0,0)');
+      } else {
+        grd.addColorStop(0, 'rgba(255,255,255,1)');
+        grd.addColorStop(0.18, 'rgba(255,240,180,0.9)');
+        grd.addColorStop(0.4, 'rgba(255,120,30,0.55)');
+        grd.addColorStop(0.7, 'rgba(255,40,0,0.18)');
+        grd.addColorStop(1, 'rgba(0,0,0,0)');
+      }
+      bg.fillStyle = grd;
+      bg.fillRect(0, 0, 256, 256);
+    }
+    const burstTex = new THREE.CanvasTexture(burstC);
+    burstTex.colorSpace = THREE.SRGBColorSpace;
+    screenBurst = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: burstTex,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      depthTest: false,
+      toneMapped: false,
+      blending: THREE.AdditiveBlending,
+      alphaTest: stickBurst ? 0.14 : 0,
+      color: stickBurst ? 0xffe14a : (SIGN_ONLY ? 0xa8ffcc : 0xffaa44),
+    }));
+    if (stickBurst) {
+      screenBurst.position.set(0, 0, 2.4);
+      screenBurst.renderOrder = 72;
+      fx.add(screenBurst);
+    } else {
+      screenBurst.position.set(0, 0, -6);
+      screenBurst.renderOrder = 8;
+      camFx.add(screenBurst);
+    }
   }
-  const burstTex = new THREE.CanvasTexture(burstC);
-  burstTex.colorSpace = THREE.SRGBColorSpace;
-  screenBurst = new THREE.Sprite(new THREE.SpriteMaterial({
-    map: burstTex,
-    transparent: true,
-    opacity: 0,
-    depthWrite: false,
-    depthTest: false,
-    toneMapped: false,
-    blending: THREE.AdditiveBlending,
-    color: SIGN_ONLY ? 0xa8ffcc : 0xffaa44,
-  }));
-  screenBurst.position.set(0, 0, -6);
-  screenBurst.renderOrder = 8;
-  camFx.add(screenBurst);
 
   /* Asymmetric flame cards — uneven pockets, no radial Christmas star. */
   {
@@ -1694,11 +1715,16 @@ function setBoltGeom(bolt, from, to, frameKey, thickScale, skipBoxClamp) {
   const curve = new THREE.CatmullRomCurve3(pts);
   curve.curveType = 'centripetal';
   const thick = SIGN_ONLY
-    ? (0.07 + rnd() * 0.045) * thickScale
+    ? ((SIGN_ONLY && !AVATAR_BG)
+      /* Fat cores so bolts survive 100² emoji downscale. */
+      ? (0.16 + rnd() * 0.08) * thickScale
+      : (0.07 + rnd() * 0.045) * thickScale)
     : (0.16 + rnd() * 0.18) * thickScale;
+  /* Glow halo around fat core — still hard enough not to milk the canvas. */
+  const glowMul = (SIGN_ONLY && !AVATAR_BG) ? 2.35 : 2.4;
   bolt.glow.geometry.dispose();
   bolt.core.geometry.dispose();
-  bolt.glow.geometry = new THREE.TubeGeometry(curve, SIGN_ONLY ? 18 : 16, thick * (SIGN_ONLY ? 2.4 : 2.4), SIGN_ONLY ? 5 : 4, false);
+  bolt.glow.geometry = new THREE.TubeGeometry(curve, SIGN_ONLY ? 18 : 16, thick * glowMul, SIGN_ONLY ? 5 : 4, false);
   bolt.core.geometry = new THREE.TubeGeometry(curve, SIGN_ONLY ? 18 : 16, thick, SIGN_ONLY ? 4 : 3, false);
 }
 
@@ -3760,10 +3786,17 @@ function applyFrame(fr) {
         }
       }
       if (bolt.lastKey !== frameKey) {
-        setBoltGeom(bolt, _tmpA, _tmpB, frameKey + bi * 7 + (bolt.seed | 0), (isPrimary ? 1.9 : 1.45) + rnd() * 0.4, true);
+        /* Stick/emoji: fatter thickScale so white bolts read after 100² scale. */
+        const thickMul = stickFit
+          ? ((isPrimary ? 2.85 : 2.25) + rnd() * 0.45)
+          : ((isPrimary ? 1.9 : 1.45) + rnd() * 0.4);
+        setBoltGeom(bolt, _tmpA, _tmpB, frameKey + bi * 7 + (bolt.seed | 0), thickMul, true);
         bolt.lastKey = frameKey;
       }
-      const flick = Math.sin(t * 140 + bolt.seed) > -0.8 ? 1 : 0.3;
+      /* Less dropout flicker — thin bolts vanish at emoji size when dimmed. */
+      const flick = stickFit
+        ? (Math.sin(t * 140 + bolt.seed) > -0.55 ? 1 : 0.72)
+        : (Math.sin(t * 140 + bolt.seed) > -0.8 ? 1 : 0.3);
       bolt.glow.visible = true;
       bolt.core.visible = true;
       bolt.glowMat.depthTest = false;
@@ -3775,7 +3808,7 @@ function applyFrame(fr) {
       bolt.glowMat.color.setHex(0xffffff);
       bolt.coreMat.color.setHex(0xffffff);
       bolt.glowMat.opacity = Math.min(1, on * (isPrimary ? 3.0 : 2.4)) * flick;
-      bolt.coreMat.opacity = Math.min(1, on * (isPrimary ? 3.4 : 2.7)) * flick;
+      bolt.coreMat.opacity = Math.min(1, on * (isPrimary ? 3.4 : 2.8)) * flick;
       continue;
     }
     const pulse = trap(t, 0.16 + (bolt.seed % 7) * 0.018, 0.22, 0.46, 0.78);
@@ -3920,27 +3953,40 @@ function applyFrame(fr) {
     SIGN_ONLY ? (2.2 + reassembleBoom * 7) : (2.4 + fill),
   );
 
-  /* Epic front flash — mainly second boom, additive white/cyan punch. */
+  /* Yellow explosion shine — big, but hard-capped to FX/canvas safe radius. */
   if (screenBurst) {
+    const stickFit = SIGN_ONLY && !AVATAR_BG;
     const punch = SIGN_ONLY
       ? Math.max(
-        coreFlash * trap(t, 0.32, 0.38, 0.48, 0.56) * 0.35,
+        coreFlash * trap(t, 0.32, 0.38, 0.48, 0.56) * (stickFit ? 0.75 : 0.35),
         reassembleBoom * trap(t, 0.78, 0.81, 0.90, 0.96),
       )
       : 0;
     if (punch > 0.05) {
       screenBurst.visible = true;
       const second = reassembleBoom > coreFlash;
-      const stickFit = !AVATAR_BG;
-      screenBurst.material.opacity = Math.min(
-        stickFit ? 0.85 : 0.95,
-        (second ? (stickFit ? 0.48 : 0.55) : (stickFit ? 0.22 : 0.25)) + punch * (stickFit ? 0.48 : 0.55),
-      );
+      if (stickFit) {
+        const lift = secondBoomLift || 0;
+        const cap = root.userData.fxCap || 8;
+        screenBurst.position.set(0, lift * 0.45, 2.0 + reassembleBoom * 1.2);
+        clampFxPoint(screenBurst.position, cap * 0.35, 0.18);
+        screenBurst.material.opacity = Math.min(1, 0.55 + punch * 0.55);
+        screenBurst.material.color.setHex(second ? 0xfff066 : 0xffcc33);
+        /* Diameter stays inside canvas: scale ≤ ~1.7× FX cap. */
+        const want = (second ? 1.55 : 0.85) + punch * (second ? 1.45 : 0.75);
+        const s = Math.min(want, cap * 1.70);
+        screenBurst.scale.set(s, s, 1);
+      } else {
+        screenBurst.material.opacity = Math.min(
+          0.95,
+          (second ? 0.55 : 0.25) + punch * 0.55,
+        );
+        screenBurst.material.color.setHex(second ? 0xffffff : 0xffcc88);
+        const s = (second ? 2.4 : 1.2) + punch * (second ? 2.8 : 1.1);
+        screenBurst.scale.set(s, s, 1);
+      }
       screenBurst.material.blending = THREE.AdditiveBlending;
-      screenBurst.material.color.setHex(second ? 0xffffff : 0xffcc88);
       screenBurst.material.rotation = punch * 0.35;
-      const s = ((second ? 2.4 : 1.2) + punch * (second ? 2.8 : 1.1)) * (stickFit ? 0.72 : 1);
-      screenBurst.scale.set(s, s, 1);
     } else {
       screenBurst.visible = false;
       screenBurst.material.opacity = 0;
