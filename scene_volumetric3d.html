@@ -2359,16 +2359,16 @@ function makeSvgSignFaceMat(x0 = 0) {
         vec2 uv = vec2(dot(x, normal), dot(y, normal)) * 0.495 + 0.5;
         vec3 col = texture2D(matcap, uv).rgb;
         float chrome = max(col.r, max(col.g, col.b));
-        vec3 tint = ${AVATAR_BG ? 'vec3(0.26, 1.08, 0.50)' : 'vec3(0.22, 1.06, 0.48)'};
+        vec3 tint = ${SIGN_ONLY ? 'vec3(0.26, 1.08, 0.50)' : 'vec3(0.22, 1.06, 0.48)'};
         col *= mix(tint, vec3(1.0), smoothstep(0.50, 0.92, chrome));
-        col = min(vec3(1.0), col * (${AVATAR_BG ? '1.30' : '1.22'} + uPunch * 0.18) + ${AVATAR_BG ? '0.10' : '0.08'});
+        col = min(vec3(1.0), col * (${SIGN_ONLY ? '1.30' : '1.22'} + uPunch * 0.18) + ${SIGN_ONLY ? '0.10' : '0.08'});
         /* Floor: recesses stay emerald, never drop to black. */
-        col = max(col, ${AVATAR_BG ? 'vec3(0.14, 0.58, 0.34)' : 'vec3(0.12, 0.50, 0.32)'});
+        col = max(col, ${SIGN_ONLY ? 'vec3(0.14, 0.58, 0.34)' : 'vec3(0.12, 0.50, 0.32)'});
         float d = abs(vX - uShift) / max(uWidth, 0.001);
         float core = 1.0 - smoothstep(0.08, 0.28, d);
         float halo = 1.0 - smoothstep(0.28, 0.68, d);
         float a = max(core, halo * 0.48) * uGain;
-        col = mix(col, vec3(1.0), clamp(a, 0.0, ${AVATAR_BG ? '0.58' : '0.70'}));
+        col = mix(col, vec3(1.0), clamp(a, 0.0, ${SIGN_ONLY ? '0.58' : '0.70'}));
         gl_FragColor = vec4(col, 1.0);
       }
     `,
@@ -2482,10 +2482,10 @@ function buildSvgSign() {
     const geo = new THREE.ExtrudeGeometry(shape, {
       depth: SVG_N_DEPTH,
       bevelEnabled: true,
-      bevelThickness: AVATAR_BG ? 0.38 : 0.34,
-      bevelSize: AVATAR_BG ? 0.30 : 0.26,
-      bevelSegments: AVATAR_BG ? 8 : 5,
-      curveSegments: AVATAR_BG ? 28 : 20,
+      bevelThickness: SIGN_ONLY ? 0.38 : 0.34,
+      bevelSize: SIGN_ONLY ? 0.30 : 0.26,
+      bevelSegments: SIGN_ONLY ? 8 : 5,
+      curveSegments: SIGN_ONLY ? 28 : 20,
       steps: 1,
     });
     geo.computeVertexNormals();
@@ -2495,8 +2495,8 @@ function buildSvgSign() {
     group.add(mesh);
     pieceMeshes.push(mesh);
 
-    /* Ghost rim reads as a second sign — skip on avatar. */
-    if (!AVATAR_BG) {
+    /* Ghost rim reads as a second sign — skip on sign sticker/emoji/avatar. */
+    if (!SIGN_ONLY) {
       const rimGeo = new THREE.ExtrudeGeometry(shape, {
         depth: SVG_N_DEPTH * 0.45,
         bevelEnabled: false,
@@ -3005,24 +3005,28 @@ function clampFxPoint(p, cap, pad) {
 function signFxCap(surge) {
   const viewHalf = Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) * camera.position.z;
   const s = Math.max(1e-6, root.scale.x);
-  const pieceMax = (root.userData.burstLocalMax || 8) * 0.72;
-  const canvasMax = (viewHalf * 0.88) / s;
+  /* Sticker: FX fills ~canvas, hard-capped just inside Android corners. */
+  const pieceMul = AVATAR_BG ? 0.72 : 0.68;
+  const canvasMul = AVATAR_BG ? 0.88 : 0.90;
+  const pieceMax = (root.userData.burstLocalMax || 8) * pieceMul;
+  const canvasMax = (viewHalf * canvasMul) / s;
   const k = Math.max(0, Math.min(1, surge || 0));
   const punch = k * k * (2 - k);
-  return pieceMax + (canvasMax - pieceMax) * punch;
+  return pieceMax + (canvasMax - pieceMax) * punch * (AVATAR_BG ? 1 : 0.88);
 }
 
 function compactSignBurst() {
   if (!SIGN_ONLY) return;
   const viewHalf = Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) * camera.position.z;
-  const worldMax = viewHalf * 0.68;
+  /* Sticker: shard sphere ~canvas-sized, still inside rounded square. */
+  const worldMax = viewHalf * (AVATAR_BG ? 0.68 : 0.78);
   const s = Math.max(1e-6, root.scale.x);
   const localMax = worldMax / s;
   root.userData.burstLocalMax = localMax;
   const chunks = pieces.filter((p) => p.kind === 'nChunk' && p.sphere);
   let maxR = signSphereR;
   for (const p of chunks) maxR = Math.max(maxR, p.sphere.length());
-  const k = maxR > 1e-6 ? Math.min(1, (localMax * 0.78) / maxR) : 1;
+  const k = maxR > 1e-6 ? Math.min(1, (localMax * (AVATAR_BG ? 0.78 : 0.70)) / maxR) : 1;
   for (const p of chunks) p.sphere.multiplyScalar(k);
   signSphereR *= k;
 }
@@ -3054,10 +3058,10 @@ function containRoot() {
     brand.n.rotation.set(SIGN_REST_RX, SIGN_REST_RY, SIGN_REST_RZ);
     brand.n.updateMatrixWorld(true);
     const viewHalf = viewSpan * 0.5;
-    /* Emoji: rounded square. Avatar frozen: true circle with modest pad (no tip clip). */
-    const edgeIndent = 0.10;
+    /* Sticker/emoji: Android 12+ ~22% rounded square. Avatar: true circle crop. */
+    const edgeIndent = AVATAR_BG ? 0.10 : 0.12;
     const A = viewHalf * (1 - edgeIndent);
-    const CR = viewHalf * 2 * 0.18;
+    const CR = viewHalf * 2 * (AVATAR_BG ? 0.18 : 0.22);
     /* Voice-call stack: neighbor sits under our LEFT edge — keep jade pad there.
      * Slightly smaller + optical right bias so the bright N doesn’t invade. */
     const circleR = viewHalf * (AVATAR_BG ? 0.58 : 0.70);
@@ -3164,7 +3168,7 @@ function applyFrame(fr) {
       /* Stable rest — any micro-wobble desyncs from shards and reads as a ghost duplicate. */
       n.position.set(rp.x, rp.y, rp.z);
       n.rotation.set(SIGN_REST_RX, SIGN_REST_RY, SIGN_REST_RZ);
-      const shinePulse = 1 + reassembleBoom * 0.14 * damp;
+      const shinePulse = 1 + reassembleBoom * (AVATAR_BG ? 0.14 : 0.08) * damp;
       n.scale.setScalar(brand.nScale * shinePulse);
     } else {
       /* Shine phase: gentle turn so green facets catch light */
@@ -3216,20 +3220,10 @@ function applyFrame(fr) {
   }
 
   if (SIGN_ONLY && crackOverlays.length) {
+    /* Same as avatar: crack overlays read as dirt/ghost at emoji scale — hide. */
     for (const o of crackOverlays) {
-      if (AVATAR_BG) {
-        o.visible = false;
-        o.material.opacity = 0;
-        continue;
-      }
-      if (o.userData.onWhole) {
-        const on = crack > 0.02 && t < 0.16;
-        o.visible = on;
-        o.material.opacity = on ? Math.min(1, crack * 1.5) : 0;
-      } else {
-        o.visible = shatterLive;
-        o.material.opacity = shatterLive ? 0.95 : 0;
-      }
+      o.visible = false;
+      o.material.opacity = 0;
     }
   }
 
@@ -3272,7 +3266,7 @@ function applyFrame(fr) {
         p.restRot.z + tumble * 0.35,
       );
       p.mesh.scale.setScalar(p.restScale * (0.97 + 0.03 * rebuild));
-      if (SIGN_ONLY) clampLocalXY(p.mesh.position, (root.userData.burstLocalMax || 8) * 0.88);
+      if (SIGN_ONLY) clampLocalXY(p.mesh.position, (root.userData.burstLocalMax || 8) * (AVATAR_BG ? 0.88 : 0.86));
       continue;
     }
     const e = trap(t, p.delay, 0.16 + p.delay, 0.52, 0.9);
@@ -3344,7 +3338,7 @@ function applyFrame(fr) {
       continue;
     }
     if (SIGN_ONLY) {
-      clampLocalXY(p.mesh.position, (root.userData.burstLocalMax || 8) * 0.82);
+      clampLocalXY(p.mesh.position, (root.userData.burstLocalMax || 8) * (AVATAR_BG ? 0.82 : 0.82));
     } else if (!hero) {
       clampLocalBox(p.mesh.position, (root.userData.canvasCap || 8) * 0.9);
     }
@@ -3360,7 +3354,10 @@ function applyFrame(fr) {
       - 0.04 * Math.max(0, (t - 0.55) / 0.35))
     : (1 - 0.14 * Math.max(boomAmt, destroy) - 0.04 * fill);
   const containSafe = SIGN_ONLY
-    ? (1 - 0.08 * sphereAmt - 0.03 * boomFlash + 0.06 * reassembleBoom)
+    ? (AVATAR_BG
+      ? (1 - 0.08 * sphereAmt - 0.03 * boomFlash + 0.06 * reassembleBoom)
+      /* Sticker: tiny tuck during boom — explosion still fills canvas via FX caps. */
+      : (1 - 0.06 * sphereAmt - 0.03 * boomFlash - 0.02 * reassembleBoom))
     : contain;
 
   /* Whole sign: yaw/pitch so the stack’s side volume reads */
@@ -3402,8 +3399,11 @@ function applyFrame(fr) {
     }
   }
   if (SIGN_ONLY) {
-    /* Keep FX just in front of the N — avoid camera punch that stretches tongues. */
-    fx.position.set(0, 0, reassembleBoom > 0.02 ? (3.2 + 7.5 * reassembleBoom) : 0);
+    /* Keep FX just in front of the N — sticker: milder Z punch so boom stays on-canvas. */
+    const zPunch = !AVATAR_BG
+      ? (reassembleBoom > 0.02 ? (1.2 + 2.2 * reassembleBoom) : 0)
+      : (reassembleBoom > 0.02 ? (3.2 + 7.5 * reassembleBoom) : 0);
+    fx.position.set(0, 0, zPunch);
     fx.rotation.set(0, 0, 0);
   }
 
@@ -3473,8 +3473,9 @@ function applyFrame(fr) {
   fireLight2.color.setHex(SIGN_ONLY ? (reassembleBoom > coreFlash ? 0xffffff : 0xffd060) : 0xffcc44);
   if (SIGN_ONLY && reassembleBoom > 0.02) {
     const lc = logoBoomRootOrigin();
-    fireLight.position.set(lc.x, lc.y, lc.z + 1.5 + reassembleBoom * 7);
-    fireLight2.position.set(lc.x + 0.55, lc.y + 0.45, lc.z + 2.5 + reassembleBoom * 6);
+    const lift = (AVATAR_BG ? 1.05 : 1.45) * reassembleBoom;
+    fireLight.position.set(lc.x, lc.y + lift, lc.z + 1.5 + reassembleBoom * 7);
+    fireLight2.position.set(lc.x + 0.55, lc.y + 0.45 + lift, lc.z + 2.5 + reassembleBoom * 6);
   } else {
     fireLight.position.set(
       SIGN_ONLY ? 0 : (1.35 + Math.sin(t * 6.1) * 0.7),
@@ -3495,7 +3496,12 @@ function applyFrame(fr) {
 
   /* ——— Sign boom: screen-space fire blast + world lightnings. ——— */
   const frontBoomOn = SIGN_ONLY && reassembleBoom > 0.02;
+  /* Lift second boom slightly so it reads above the mark center. */
+  const secondBoomLift = frontBoomOn
+    ? (AVATAR_BG ? 1.05 : 1.45) * reassembleBoom
+    : 0;
   const boomN0 = frontBoomOn ? logoBoomFxOrigin().clone() : null;
+  if (boomN0 && secondBoomLift > 0) boomN0.y += secondBoomLift;
   for (const tongue of tongues) {
     for (const L of tongue.layers) L.mat.opacity = 0;
     tongue.group.visible = false;
@@ -3534,26 +3540,40 @@ function applyFrame(fr) {
       ));
       dir.normalize();
     }
+    if (SIGN_ONLY && reassembleBoom > 0.02) {
+      dir.y += 0.28 * reassembleBoom;
+      dir.normalize();
+    }
     const R = signSphereR || 12.5;
     const cap = SIGN_ONLY ? (root.userData.fxCap || 8) : (root.userData.canvasCap || 8);
-    const epic = SIGN_ONLY && reassembleBoom > 0.02 ? (1.45 + 1.2 * reassembleBoom) : 1;
+    const stickFit = SIGN_ONLY && !AVATAR_BG;
+    const epic = SIGN_ONLY && reassembleBoom > 0.02
+      ? (stickFit ? (1.15 + 0.7 * reassembleBoom) : (1.45 + 1.2 * reassembleBoom))
+      : 1;
+    const surgeMul = stickFit ? (1 + boomSurge * 2.4) : (1 + boomSurge * 3.6);
     const want = SIGN_ONLY
-      ? R * f.lenMul * f.breakMul * (0.4 + 0.75 * e) * flutter * (1 + boomSurge * 3.6) * epic
+      ? R * f.lenMul * f.breakMul * (0.4 + 0.75 * e) * flutter * surgeMul * epic * (stickFit ? 0.88 : 1)
       : (4.4 + 5.8 * e) * f.lenMul * f.breakMul * flutter;
     if (SIGN_ONLY && f.origin) {
       /* Offset origins unevenly so cards don't share a hub. */
-      f.mesh.position.copy(f.origin).multiplyScalar(0.35 + 0.95 * boomSurge + 0.15 * e);
+      f.mesh.position.copy(f.origin).multiplyScalar((stickFit ? 0.28 : 0.35) + (stickFit ? 0.75 : 0.95) * boomSurge + 0.15 * e);
       f.mesh.position.addScaledVector(dir, 0.08 + 0.25 * e);
-      clampFxPoint(f.mesh.position, cap * (0.2 + 0.3 * boomSurge), 0.16);
+      if (secondBoomLift > 0) f.mesh.position.y += secondBoomLift;
+      clampFxPoint(f.mesh.position, cap * (stickFit ? (0.16 + 0.24 * boomSurge) : (0.2 + 0.3 * boomSurge)), 0.16);
     } else if (SIGN_ONLY) {
       f.mesh.position.copy(dir).multiplyScalar(0.12 + 0.45 * e);
-      clampLocalXY(f.mesh.position, cap * 0.4);
+      if (secondBoomLift > 0) f.mesh.position.y += secondBoomLift;
+      clampLocalXY(f.mesh.position, cap * (stickFit ? 0.36 : 0.4));
+      if (stickFit) clampFxPoint(f.mesh.position, cap * 0.42, 0.16);
     } else {
       f.mesh.position.copy(f.origin).multiplyScalar(0.55 + 0.9 * e).addScaledVector(dir, 0.2);
       clampLocalBox(f.mesh.position, cap * 0.55);
     }
     if (SIGN_ONLY && reassembleBoom > 0.02) {
-      f.mesh.position.z = Math.max(2.2, Math.abs(f.mesh.position.z)) + 3.6 * reassembleBoom;
+      /* Sticker: avoid stacking FX-group Z + mesh Z (that blows past the canvas). */
+      f.mesh.position.z = !AVATAR_BG
+        ? Math.max(1.2, Math.abs(f.mesh.position.z)) + 1.1 * reassembleBoom
+        : Math.max(2.2, Math.abs(f.mesh.position.z)) + 3.6 * reassembleBoom;
       f.mesh.material.depthTest = false;
       f.mesh.renderOrder = 70 + (f.seed % 5);
     } else if (SIGN_ONLY) {
@@ -3561,14 +3581,25 @@ function applyFrame(fr) {
       f.mesh.renderOrder = 3 + (f.seed % 4);
     }
     const len = SIGN_ONLY
-      ? Math.min(want, maxFxAlongDir(dir, 0.45, 0.16), cap * (0.92 + 0.28 * reassembleBoom))
+      ? Math.min(
+        want,
+        stickFit
+          ? maxFxAlongFrom(f.mesh.position, dir, 0.12, 0.20)
+          : maxFxAlongDir(dir, 0.45, 0.16),
+        cap * (stickFit ? 0.78 : (0.92 + 0.28 * reassembleBoom)),
+      )
       : Math.min(want, remainingInBox(f.mesh.position, dir, cap * 0.94));
     f.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
     f.mesh.rotateZ((f.twist || 0) + Math.sin(t * (8 + (f.seed % 7)) + f.phase0) * 0.55);
     f.mesh.rotateX((f.spin || 0) * e * 0.55);
     /* Non-uniform scale: some fat-short, some long-thin (stored in wide/lenMul). */
-    const wMul = f.wide * (0.65 + 0.6 * e) * (1 + boomSurge * 0.45) * flutter * epic;
+    const wMul = f.wide * (0.65 + 0.6 * e) * (1 + boomSurge * (stickFit ? 0.30 : 0.45)) * flutter * epic
+      * (stickFit ? 0.82 : 1);
     f.mesh.scale.set(wMul, len, 1);
+    if (stickFit) {
+      f.mesh.scale.y = Math.min(f.mesh.scale.y, maxFxAlongFrom(f.mesh.position, dir, 0.18, 0.24));
+      f.mesh.scale.x = Math.min(f.mesh.scale.x, Math.max(0.35, f.mesh.scale.y) * 1.25);
+    }
     f.mesh.material.opacity = Math.min(1, 0.72 + e * 0.38);
   }
 
@@ -3675,7 +3706,8 @@ function applyFrame(fr) {
         bolt.core.visible = false;
         continue;
       }
-      const cap = root.userData.fxCap || (root.userData.burstLocalMax || 8) * 0.72;
+      const stickFit = !AVATAR_BG;
+      const cap = root.userData.fxCap || (root.userData.burstLocalMax || 8) * (stickFit ? 0.70 : 0.72);
       const strike = SIGN_BOLT_STRIKES[isPrimary ? activeSlot : secondary];
       {
         const boltAng = strike.ang + (rnd() - 0.5) * 0.18;
@@ -3685,8 +3717,8 @@ function applyFrame(fr) {
           Math.cos(boltElev) * Math.sin(boltAng),
           Math.sin(boltElev) * 0.25,
         ).normalize();
-        const startR = strike.start * (0.35 + rnd() * 0.2);
-        const reach = strike.reach * (0.95 + rnd() * 0.25) * (1.05 + 0.25 * boomSurge);
+        const startR = strike.start * (0.35 + rnd() * 0.2) * (stickFit ? 0.88 : 1);
+        const reach = strike.reach * (0.95 + rnd() * 0.25) * (1.05 + 0.25 * boomSurge) * (stickFit ? 0.82 : 1);
         if (frontBoomOn && boomN0) _tmpA.copy(boomN0).addScaledVector(_tmpC, startR);
         else _tmpA.copy(_tmpC).multiplyScalar(startR);
         _tmpB.copy(_tmpA).addScaledVector(_tmpC, reach);
@@ -3695,9 +3727,14 @@ function applyFrame(fr) {
         side.normalize();
         _tmpB.addScaledVector(side, strike.kink * reach * (0.55 + rnd() * 0.35));
         _tmpA.addScaledVector(side, strike.kink * reach * -0.18 * (0.5 + rnd()));
-        /* Soft XY keep-in only — clampFxPoint crumples long strikes into a stub web. */
-        clampLocalXY(_tmpA, cap * 1.2);
-        clampLocalXY(_tmpB, cap * 1.45);
+        /* Never allow bolt tips past the FX cap on sticker/emoji. */
+        if (stickFit) {
+          clampFxPoint(_tmpA, cap * 0.88, 0.18);
+          clampFxPoint(_tmpB, cap * 0.92, 0.18);
+        } else {
+          clampLocalXY(_tmpA, cap * 1.2);
+          clampLocalXY(_tmpB, cap * 1.45);
+        }
       }
       if (bolt.lastKey !== frameKey) {
         setBoltGeom(bolt, _tmpA, _tmpB, frameKey + bi * 7 + (bolt.seed | 0), (isPrimary ? 1.9 : 1.45) + rnd() * 0.4, true);
@@ -3777,14 +3814,18 @@ function applyFrame(fr) {
         continue;
       }
       const R = signSphereR || 12.5;
-      const cap = root.userData.fxCap || (root.userData.burstLocalMax || 8) * 0.72;
+      const stickFit = !AVATAR_BG;
+      const cap = root.userData.fxCap || (root.userData.burstLocalMax || 8) * (stickFit ? 0.70 : 0.72);
       let mid;
       let tip;
       {
         mid = randUnit3(rnd).multiplyScalar(0.7 + rnd() * R * 0.5);
         _tmpC.copy(randUnit3(rnd));
         flattenSurgeDir(_tmpC, boomSurge * 0.22);
-        tip = mid.clone().addScaledVector(_tmpC, R * (0.18 + rnd() * 0.38) * (1 + boomSurge * 3.4));
+        tip = mid.clone().addScaledVector(
+          _tmpC,
+          R * (0.18 + rnd() * 0.38) * (1 + boomSurge * (stickFit ? 2.6 : 3.4)) * (stickFit ? 0.90 : 1),
+        );
         clampFxPoint(mid, cap, 0.16);
         clampFxPoint(tip, cap, 0.16);
       }
@@ -3867,11 +3908,15 @@ function applyFrame(fr) {
     if (punch > 0.05) {
       screenBurst.visible = true;
       const second = reassembleBoom > coreFlash;
-      screenBurst.material.opacity = Math.min(0.95, (second ? 0.55 : 0.25) + punch * 0.55);
+      const stickFit = !AVATAR_BG;
+      screenBurst.material.opacity = Math.min(
+        stickFit ? 0.85 : 0.95,
+        (second ? (stickFit ? 0.48 : 0.55) : (stickFit ? 0.22 : 0.25)) + punch * (stickFit ? 0.48 : 0.55),
+      );
       screenBurst.material.blending = THREE.AdditiveBlending;
       screenBurst.material.color.setHex(second ? 0xffffff : 0xffcc88);
       screenBurst.material.rotation = punch * 0.35;
-      const s = (second ? 2.4 : 1.2) + punch * (second ? 2.8 : 1.1);
+      const s = ((second ? 2.4 : 1.2) + punch * (second ? 2.8 : 1.1)) * (stickFit ? 0.72 : 1);
       screenBurst.scale.set(s, s, 1);
     } else {
       screenBurst.visible = false;
@@ -3885,7 +3930,8 @@ function applyFrame(fr) {
   }
 
   for (const cb of camBolts) {
-    if (!SIGN_ONLY || boomFlash < 0.25) {
+    /* Camera bolts clip the sticker canvas bottom — avatar keeps them. */
+    if (!SIGN_ONLY || boomFlash < 0.25 || !AVATAR_BG) {
       cb.glowMat.opacity = 0;
       cb.coreMat.opacity = 0;
       cb.glow.visible = false;
@@ -3906,14 +3952,23 @@ function applyFrame(fr) {
       continue;
     }
     const strike = SIGN_BOLT_STRIKES[(cb.slot | 0) % SIGN_BOLT_STRIKES.length];
+    const stickFit = !AVATAR_BG;
     const ang = strike.ang + (rnd() - 0.5) * 0.45;
-    const start = 0.35 + rnd() * 0.45;
+    const start = (0.35 + rnd() * 0.45) * (stickFit ? 0.85 : 1);
+    const span = (4.8 + rnd() * 2.4) * (stickFit ? 0.72 : 1);
     _tmpA.set(Math.cos(ang) * start, Math.sin(ang) * start, -0.12);
     _tmpB.set(
-      Math.cos(ang) * (start + 4.8 + rnd() * 2.4) + strike.kink * 1.5,
-      Math.sin(ang) * (start + 4.8 + rnd() * 2.4) - strike.kink * 0.85,
+      Math.cos(ang) * (start + span) + strike.kink * (stickFit ? 1.0 : 1.5),
+      Math.sin(ang) * (start + span) - strike.kink * (stickFit ? 0.55 : 0.85),
       0.4,
     );
+    if (stickFit) {
+      const lim = 3.6;
+      _tmpA.x = Math.max(-lim, Math.min(lim, _tmpA.x));
+      _tmpA.y = Math.max(-lim, Math.min(lim, _tmpA.y));
+      _tmpB.x = Math.max(-lim, Math.min(lim, _tmpB.x));
+      _tmpB.y = Math.max(-lim, Math.min(lim, _tmpB.y));
+    }
     if (cb.lastKey !== frameKey) {
       setBoltGeom(cb, _tmpA, _tmpB, frameKey + cb.seed, 2.0 + rnd() * 0.55, true);
       cb.lastKey = frameKey;

@@ -1,6 +1,7 @@
 /**
- * Sign-only variant: letter N centered & enlarged, no HYPERLINKS.SPACE text.
- * Keeps existing main / firebomb / shatter / layered deliverables untouched.
+ * Sign-only sticker + emoji: same shatter/boom animation as the avatar,
+ * transparent canvas fitted inside Android ~22% rounded-square safe area.
+ * Does not touch the avatar MP4 pipeline.
  */
 import { chromium } from 'playwright';
 import { spawn } from 'child_process';
@@ -14,7 +15,7 @@ const FRAMES = join(ROOT, 'render_frames_sign');
 const VARIANT = join(ROOT, 'variant_signonly');
 const TOTAL = Number(process.env.HL_FRAMES || 90);
 const FFMPEG = process.env.FFMPEG ||
-  String.raw`C:\Users\ASUS\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0-full_build\bin\ffmpeg.exe`;
+  String.raw`C:\Users\ASUS\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.1-full_build\bin\ffmpeg.exe`;
 
 const MIME = {
   '.html': 'text/html',
@@ -98,9 +99,9 @@ async function main() {
   await page.goto(`http://127.0.0.1:${port}/scene_volumetric3d.html?signOnly=1&v=${Date.now()}`, {
     waitUntil: 'networkidle',
   });
-  await page.waitForFunction(() => window.ready === true, null, { timeout: 60000 });
+  await page.waitForFunction(() => window.ready === true, null, { timeout: 90000 });
 
-  console.log(`Capturing sign-only ${TOTAL} frames...`);
+  console.log(`Capturing sign-only ${TOTAL} frames @ 512² (transparent)...`);
   for (let fr = 1; fr <= TOTAL; fr++) {
     await page.evaluate((f) => { window.setFrame(f); }, fr);
     await page.waitForTimeout(20);
@@ -111,16 +112,38 @@ async function main() {
     writeFileSync(join(FRAMES, `frame_${String(fr).padStart(4, '0')}.png`), Buffer.from(b64, 'base64'));
     if (fr % 15 === 0) console.log(`  frame ${fr}/${TOTAL}`);
   }
+  /* Bit-exact loop join: last frame matches frozen first pose. */
+  copyFileSync(
+    join(FRAMES, 'frame_0001.png'),
+    join(FRAMES, `frame_${String(TOTAL).padStart(4, '0')}.png`),
+  );
 
   await browser.close();
   server.close();
 
-  await encode(512, 'hyperlinks-space-sticker-sign.webm', 60, '160k', 256 * 1024);
-  await encode(100, 'hyperlinks-space-emoji-sign.webm', 36, '90k', 64 * 1024);
+  /* Sticker ≤256KB; custom video emoji ≤64KB */
+  await encode(512, 'hyperlinks-space-sticker-sign.webm', 58, '150k', 256 * 1024);
+  await encode(100, 'hyperlinks-space-emoji-sign.webm', 42, '55k', 64 * 1024);
 
   copyFileSync(join(ROOT, 'hyperlinks-space-sticker-sign.webm'), join(VARIANT, 'hyperlinks-space-sticker-sign.webm'));
   copyFileSync(join(ROOT, 'hyperlinks-space-emoji-sign.webm'), join(VARIANT, 'hyperlinks-space-emoji-sign.webm'));
-  console.log('Done (sign-only)');
+  writeFileSync(join(VARIANT, 'README.md'), `# Sign-only sticker + emoji
+
+Same shatter / sphere / second-boom animation as the video avatar, on a **transparent** canvas.
+
+Fitted inside an Android-style rounded square (~14% edge inset, ~22% corner radius) so corners survive Telegram’s emoji rounding.
+
+\`\`\`bash
+HL_FRAMES=90 node capture_signonly.mjs
+\`\`\`
+
+## Outputs
+- \`hyperlinks-space-sticker-sign.webm\` — 512² VP9+alpha, ≤256 KB
+- \`hyperlinks-space-emoji-sign.webm\` — 100² VP9+alpha, ≤64 KB
+
+Preview: \`../preview_sign.html\`
+`);
+  console.log('Done (sign-only sticker + emoji)');
 }
 
 main().catch((e) => {
