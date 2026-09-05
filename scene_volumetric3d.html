@@ -1953,11 +1953,12 @@ function updateSignShineGlance(t, life, frozen) {
       nGlanceU.uWidth.value = frozen ? 18 : 16;
       nGlanceU.uPunch.value = frozen ? 0.22 : 0.08;
     } else {
+      /* Sticker/emoji: clear white core on saturated green (reads on white + dark). */
       nGlanceU.uGain.value = frozen
-        ? 2.05
-        : (1.2 + 0.28 * Math.max(0, Math.cos(ph))) * Math.max(0.45, life);
-      nGlanceU.uWidth.value = frozen ? 22 : 18;
-      nGlanceU.uPunch.value = frozen ? 0.35 : 0;
+        ? 2.15
+        : (1.55 + 0.35 * Math.max(0, Math.cos(ph))) * Math.max(0.55, life);
+      nGlanceU.uWidth.value = frozen ? 26 : 22;
+      nGlanceU.uPunch.value = frozen ? 0.28 : (0.14 + 0.10 * Math.max(0, Math.cos(ph)));
     }
     if (brand.n && brand.n.userData.glanceBar) {
       brand.n.userData.glanceBar.visible = false;
@@ -2319,6 +2320,25 @@ function makeGreenChromeMatcapTex() {
 const greenChromeMatcap = makeGreenChromeMatcapTex();
 
 function makeSvgSignFaceMat(x0 = 0) {
+  /* Sticker/emoji: saturated emerald body + hot glance band so chrome reads on white + dark. */
+  const stick = SIGN_ONLY && !AVATAR_BG;
+  const tint = stick
+    ? 'vec3(0.06, 0.72, 0.28)'
+    : (SIGN_ONLY ? 'vec3(0.26, 1.08, 0.50)' : 'vec3(0.22, 1.06, 0.48)');
+  const boost = stick ? '1.08' : (SIGN_ONLY ? '1.30' : '1.22');
+  const lift = stick ? '0.02' : (SIGN_ONLY ? '0.10' : '0.08');
+  const floor = stick
+    ? 'vec3(0.04, 0.40, 0.18)'
+    : (SIGN_ONLY ? 'vec3(0.14, 0.58, 0.34)' : 'vec3(0.12, 0.50, 0.32)');
+  const glanceCap = stick ? '0.78' : (SIGN_ONLY ? '0.58' : '0.70');
+  const chromeLo = stick ? '0.55' : '0.50';
+  const chromeHi = stick ? '0.94' : '0.92';
+  const punchMul = stick ? '0.22' : '0.18';
+  const chromeHiCol = stick ? 'vec3(0.92, 1.0, 0.94)' : 'vec3(1.0)';
+  const glanceMix = stick
+    ? `vec3 glanceCol = mix(vec3(0.55, 0.95, 0.70), vec3(1.0), core);
+        col = mix(col, glanceCol, clamp(a, 0.0, ${glanceCap}));`
+    : `col = mix(col, vec3(1.0), clamp(a, 0.0, ${glanceCap}));`;
   return new THREE.ShaderMaterial({
     uniforms: {
       matcap: { value: greenChromeMatcap },
@@ -2359,16 +2379,18 @@ function makeSvgSignFaceMat(x0 = 0) {
         vec2 uv = vec2(dot(x, normal), dot(y, normal)) * 0.495 + 0.5;
         vec3 col = texture2D(matcap, uv).rgb;
         float chrome = max(col.r, max(col.g, col.b));
-        vec3 tint = ${SIGN_ONLY ? 'vec3(0.26, 1.08, 0.50)' : 'vec3(0.22, 1.06, 0.48)'};
-        col *= mix(tint, vec3(1.0), smoothstep(0.50, 0.92, chrome));
-        col = min(vec3(1.0), col * (${SIGN_ONLY ? '1.30' : '1.22'} + uPunch * 0.18) + ${SIGN_ONLY ? '0.10' : '0.08'});
-        /* Floor: recesses stay emerald, never drop to black. */
-        col = max(col, ${SIGN_ONLY ? 'vec3(0.14, 0.58, 0.34)' : 'vec3(0.12, 0.50, 0.32)'});
+        vec3 tint = ${tint};
+        /* Keep body green; only true matcap peaks go silver. */
+        col *= mix(tint, ${chromeHiCol}, smoothstep(${chromeLo}, ${chromeHi}, chrome));
+        col = min(vec3(1.0), col * (${boost} + uPunch * ${punchMul}) + ${lift});
+        col = max(col, ${floor});
+        /* Extra midtone contrast on sticker so the glance stripe sits on green. */
+        col = mix(col, col * col * (3.0 - 2.0 * col), ${stick ? '0.28' : '0.0'});
         float d = abs(vX - uShift) / max(uWidth, 0.001);
-        float core = 1.0 - smoothstep(0.08, 0.28, d);
-        float halo = 1.0 - smoothstep(0.28, 0.68, d);
-        float a = max(core, halo * 0.48) * uGain;
-        col = mix(col, vec3(1.0), clamp(a, 0.0, ${SIGN_ONLY ? '0.58' : '0.70'}));
+        float core = 1.0 - smoothstep(0.05, 0.22, d);
+        float halo = 1.0 - smoothstep(0.18, 0.62, d);
+        float a = max(core * 1.15, halo * 0.42) * uGain;
+        ${glanceMix}
         gl_FragColor = vec4(col, 1.0);
       }
     `,
@@ -2380,7 +2402,7 @@ function makeSvgSignFaceMat(x0 = 0) {
 function makeSvgSignSideMat() {
   return new THREE.MeshMatcapMaterial({
     matcap: greenChromeMatcap,
-    color: 0x3a8c34,
+    color: (SIGN_ONLY && !AVATAR_BG) ? 0x1a6a28 : 0x3a8c34,
     toneMapped: false,
   });
 }
@@ -3415,11 +3437,12 @@ function applyFrame(fr) {
       ambLight.intensity = frozen ? 0.72 : (0.68 + (0.72 - 0.68) * settle);
       scene.environmentIntensity = frozen ? 1.9 : (1.75 + (1.9 - 1.75) * settle);
     } else {
-      keyLight.intensity = frozen ? 4.2 : (3.6 + (4.2 - 3.6) * settle);
-      fillLight.intensity = frozen ? 1.85 : (1.75 + (1.85 - 1.75) * settle);
-      rimLight.intensity = frozen ? 2.4 : (2.8 + (2.4 - 2.8) * settle);
-      ambLight.intensity = frozen ? 0.68 : (0.62 + (0.68 - 0.62) * settle);
-      scene.environmentIntensity = frozen ? 1.75 : (1.55 + (1.75 - 1.55) * settle);
+      /* Sticker: harder key/rim, low fill so faces stay emerald not mint-wash. */
+      keyLight.intensity = frozen ? 4.4 : (3.9 + (4.4 - 3.9) * settle);
+      fillLight.intensity = frozen ? 0.85 : (0.75 + (0.85 - 0.75) * settle);
+      rimLight.intensity = frozen ? 3.4 : (3.0 + (3.4 - 3.0) * settle);
+      ambLight.intensity = frozen ? 0.36 : (0.32 + (0.36 - 0.32) * settle);
+      scene.environmentIntensity = frozen ? 1.45 : (1.25 + (1.45 - 1.25) * settle);
     }
   } else if (hero) {
     /* Harder key/rim, cooler fill off the white wordmark, no orange fire wash. */
@@ -3438,14 +3461,14 @@ function applyFrame(fr) {
   if (SIGN_ONLY && shineSweep) {
     const ph = t * Math.PI * 2;
     shineSweep.position.set(7.2 + Math.sin(ph) * 1.4 * damp, 7.6, 13.5);
-    const shineFrz = AVATAR_BG ? 6.5 : 8.0;
-    const shineLive = AVATAR_BG ? 5.0 : 5.8;
+    const shineFrz = AVATAR_BG ? 6.5 : 7.8;
+    const shineLive = AVATAR_BG ? 5.0 : 6.2;
     shineSweep.intensity = (frozen ? shineFrz : (shineLive + (shineFrz - shineLive) * settle)) * (frozen ? 1 : (life * damp + settle));
   }
   if (SIGN_ONLY && shineKick) {
     const ph = t * Math.PI * 2;
     const kickFrz = AVATAR_BG ? 4.8 : 6.0;
-    const kickLive = AVATAR_BG ? 3.8 : 4.4;
+    const kickLive = AVATAR_BG ? 3.8 : 4.8;
     shineKick.intensity = (frozen ? kickFrz : (kickLive + (kickFrz - kickLive) * settle)) * (frozen ? 1 : (life * damp + settle));
     shineKick.position.set(-1.1 + Math.sin(ph) * 0.4 * damp, 2.3, 6.2);
   }
