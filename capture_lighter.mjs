@@ -5,9 +5,10 @@
 import { chromium } from 'playwright';
 import { spawn } from 'child_process';
 import { createServer } from 'http';
-import { readFileSync, existsSync, mkdirSync, rmSync, writeFileSync, statSync, copyFileSync } from 'fs';
+import { readFileSync, existsSync, mkdirSync, rmSync, writeFileSync, copyFileSync } from 'fs';
 import { extname, join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { encodeTelegramVp9 } from './vp9_telegram_encode.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const FRAMES = join(ROOT, 'render_frames_lighter');
@@ -15,7 +16,7 @@ const VARIANT = join(ROOT, 'variant_lighter');
 const TOTAL = Number(process.env.HL_FRAMES || 90);
 const PREVIEW = process.env.HL_PREVIEW === '1';
 const FFMPEG = process.env.FFMPEG ||
-  String.raw`C:\Users\ASUS\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0-full_build\bin\ffmpeg.exe`;
+  String.raw`C:\Users\ASUS\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.1-full_build\bin\ffmpeg.exe`;
 
 const MIME = {
   '.html': 'text/html',
@@ -55,30 +56,6 @@ function run(cmd, args) {
     const p = spawn(cmd, args, { stdio: 'inherit' });
     p.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`exit ${code}`))));
   });
-}
-
-async function encode(size, name, crf, br, maxBytes) {
-  const out = join(ROOT, name);
-  if (existsSync(out)) rmSync(out);
-  const common = [
-    '-framerate', '30',
-    '-start_number', '1',
-    '-i', join(FRAMES, 'frame_%04d.png'),
-    '-frames:v', String(TOTAL),
-    '-vf', `scale=${size}:${size}:flags=lanczos,format=yuva420p`,
-    '-c:v', 'libvpx-vp9', '-pix_fmt', 'yuva420p', '-auto-alt-ref', '0',
-    '-metadata:s:v:0', 'alpha_mode=1',
-    '-b:v', br, '-crf', String(crf), '-an', '-r', '30', '-row-mt', '1',
-    '-deadline', 'good', '-cpu-used', '2',
-    '-passlogfile', join(ROOT, 'lighter-vp9pass'),
-  ];
-  await run(FFMPEG, ['-y', ...common, '-pass', '1', '-f', 'null', process.platform === 'win32' ? 'NUL' : '/dev/null']);
-  await run(FFMPEG, ['-y', ...common, '-pass', '2', out]);
-  const bytes = statSync(out).size;
-  const kb = bytes / 1024;
-  const limit = maxBytes ?? 256 * 1024;
-  console.log(`${name}: ${kb.toFixed(1)} KB ${bytes <= limit ? 'OK' : 'OVER'} (limit ${(limit / 1024).toFixed(0)}KB)`);
-  if (bytes > limit) throw new Error(`${name} exceeds Telegram limit (${kb.toFixed(1)} KB > ${(limit / 1024).toFixed(0)} KB)`);
 }
 
 async function main() {
@@ -123,8 +100,8 @@ async function main() {
     return;
   }
 
-  await encode(512, 'hyperlinks-space-sticker-lighter.webm', 48, '200k', 256 * 1024);
-  await encode(100, 'hyperlinks-space-emoji-lighter.webm', 42, '52k', 64 * 1024);
+  await encodeTelegramVp9({ root: ROOT, framesDir: FRAMES, total: TOTAL, size: 512, name: 'hyperlinks-space-sticker-lighter.webm' });
+  await encodeTelegramVp9({ root: ROOT, framesDir: FRAMES, total: TOTAL, size: 100, name: 'hyperlinks-space-emoji-lighter.webm' });
 
   await run(FFMPEG, [
     '-y', '-framerate', '30',

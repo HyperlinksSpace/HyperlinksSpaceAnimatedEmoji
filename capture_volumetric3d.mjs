@@ -2,17 +2,15 @@
  * Capture true-3D Three.js scene frames via Playwright, then encode WEBM.
  */
 import { chromium } from 'playwright';
-import { spawn } from 'child_process';
 import { createServer } from 'http';
-import { readFileSync, existsSync, mkdirSync, rmSync, writeFileSync, statSync } from 'fs';
+import { readFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { extname, join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { encodeTelegramVp9 } from './vp9_telegram_encode.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const FRAMES = join(ROOT, 'render_frames');
 const TOTAL = Number(process.env.HL_FRAMES || 90);
-const FFMPEG = process.env.FFMPEG ||
-  String.raw`C:\Users\ASUS\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0-full_build\bin\ffmpeg.exe`;
 
 const MIME = {
   '.html': 'text/html',
@@ -45,43 +43,6 @@ function serve() {
       resolve({ server, port });
     });
   });
-}
-
-function run(cmd, args) {
-  return new Promise((resolve, reject) => {
-    const p = spawn(cmd, args, { stdio: 'inherit' });
-    p.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`exit ${code}`))));
-  });
-}
-
-async function encode(size, name, crf, br, maxBytes) {
-  const out = join(ROOT, name);
-  if (existsSync(out)) rmSync(out);
-  const frames = [...Array(TOTAL)].map((_, i) =>
-    join(FRAMES, `frame_${String(i + 1).padStart(4, '0')}.png`));
-  for (const f of frames) {
-    if (!existsSync(f)) throw new Error(`Missing frame ${f}`);
-  }
-  /* format=yuva420p in -vf is required — bare -pix_fmt often drops alpha to yuv420p */
-  const common = [
-    '-framerate', '30',
-    '-start_number', '1',
-    '-i', join(FRAMES, 'frame_%04d.png'),
-    '-frames:v', String(TOTAL),
-    '-vf', `scale=${size}:${size}:flags=lanczos,format=yuva420p`,
-    '-c:v', 'libvpx-vp9', '-pix_fmt', 'yuva420p', '-auto-alt-ref', '0',
-    '-metadata:s:v:0', 'alpha_mode=1',
-    '-b:v', br, '-crf', String(crf), '-an', '-r', '30', '-row-mt', '1',
-    '-deadline', 'good', '-cpu-used', '2',
-  ];
-  /* Two-pass helps keep VP9+alpha under Telegram caps (sticker 256KB / emoji 64KB) */
-  await run(FFMPEG, ['-y', ...common, '-pass', '1', '-f', 'null', process.platform === 'win32' ? 'NUL' : '/dev/null']);
-  await run(FFMPEG, ['-y', ...common, '-pass', '2', out]);
-  const bytes = statSync(out).size;
-  const kb = bytes / 1024;
-  const limit = maxBytes ?? 256 * 1024;
-  console.log(`${name}: ${kb.toFixed(1)} KB ${bytes <= limit ? 'OK' : 'OVER'} (limit ${(limit / 1024).toFixed(0)}KB)`);
-  if (bytes > limit) throw new Error(`${name} exceeds Telegram limit (${kb.toFixed(1)} KB > ${(limit / 1024).toFixed(0)} KB)`);
 }
 
 async function main() {
@@ -127,8 +88,8 @@ async function main() {
   server.close();
 
   /* Sticker ≤256KB; custom video emoji ≤64KB */
-  await encode(512, 'hyperlinks-space-sticker.webm', 60, '160k', 256 * 1024);
-  await encode(100, 'hyperlinks-space-emoji.webm', 58, '45k', 64 * 1024);
+  await encodeTelegramVp9({ root: ROOT, framesDir: FRAMES, total: TOTAL, size: 512, name: 'hyperlinks-space-sticker.webm' });
+  await encodeTelegramVp9({ root: ROOT, framesDir: FRAMES, total: TOTAL, size: 100, name: 'hyperlinks-space-emoji.webm' });
   console.log('Done');
 }
 

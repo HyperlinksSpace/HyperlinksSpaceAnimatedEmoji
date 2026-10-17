@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Sign metal video avatar preview</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      color: #d8e0e6;
+      background: #0a0c0e;
+    }
+    main {
+      max-width: 880px;
+      margin: 0 auto;
+      padding: 2.25rem 1.25rem 3.5rem;
+    }
+    h1 {
+      font-size: 1.3rem;
+      font-weight: 600;
+      margin: 0 0 0.35rem;
+    }
+    p.lead {
+      margin: 0 0 0.75rem;
+      color: #7a8a82;
+      font-size: 0.95rem;
+      line-height: 1.45;
+      max-width: 40rem;
+    }
+    code {
+      display: inline-block;
+      margin: 0.15rem 0 1.25rem;
+      padding: 0.2rem 0.45rem;
+      border-radius: 4px;
+      background: #14181c;
+      border: 1px solid #2a3238;
+      font-size: 0.82rem;
+      color: #c8d4c8;
+    }
+    .themes {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.25rem;
+    }
+    .roles {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+    @media (max-width: 700px) {
+      .themes { grid-template-columns: 1fr; }
+      .roles { grid-template-columns: 1fr; }
+    }
+    .theme {
+      border-radius: 16px;
+      padding: 1.15rem 1.15rem 1.35rem;
+    }
+    .theme.light {
+      background: #ffffff;
+      border: 1px solid #dde3df;
+      color: #1a2e24;
+    }
+    .theme.dark {
+      background: #0e1621;
+      border: 1px solid #1c2a38;
+      color: #e8f5ee;
+    }
+    .theme h2 {
+      margin: 0 0 1rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      opacity: 0.6;
+    }
+    .circle-wrap {
+      width: 220px;
+      height: 220px;
+      margin: 0 auto;
+      border-radius: 50%;
+      overflow: hidden;
+      background: #000;
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.16);
+    }
+    .theme.dark .circle-wrap {
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.5);
+    }
+    .circle-wrap video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .square {
+      margin-top: 1.75rem;
+      width: min(320px, 100%);
+      aspect-ratio: 1;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid #2a3238;
+      background: #000;
+    }
+    .square video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .label {
+      margin-top: 0.5rem;
+      font-size: 0.75rem;
+      color: #7a8a82;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Sign · metal Telegram video avatar</h1>
+    <p class="lead">
+      Stainless N (same chrome as lighter I/S), dark space with a dense green wash,
+      white supernova explosion. Original jade avatar is unchanged.
+    </p>
+    <code>hyperlinks-space-avatar-sign-metal.mp4</code>
+
+    <div class="themes">
+      <div class="theme light">
+        <h2>Light theme</h2>
+        <div class="circle-wrap">
+          <video src="hyperlinks-space-avatar-sign-metal.mp4?v=1" autoplay loop muted playsinline></video>
+        </div>
+      </div>
+      <div class="theme dark">
+        <h2>Dark theme</h2>
+        <div class="circle-wrap">
+          <video src="hyperlinks-space-avatar-sign-metal.mp4?v=1" autoplay loop muted playsinline></video>
+        </div>
+      </div>
+    </div>
+
+    <div class="square">
+      <video src="hyperlinks-space-avatar-sign-metal.mp4?v=2" autoplay loop muted playsinline></video>
+    </div>
+    <div class="label">Profile · polished stainless</div>
+
+    <h1 style="margin-top:2.5rem">Profile · worn stainless</h1>
+    <p class="lead">
+      Same green-space metal N, with mill scuffs and hairline cracks. Does not replace the polished file.
+    </p>
+    <code>hyperlinks-space-avatar-sign-metal-worn.mp4</code>
+    <div class="themes">
+      <div class="theme light">
+        <h2>Light theme</h2>
+        <div class="circle-wrap">
+          <video src="hyperlinks-space-avatar-sign-metal-worn.mp4?v=1" autoplay loop muted playsinline></video>
+        </div>
+      </div>
+      <div class="theme dark">
+        <h2>Dark theme</h2>
+        <div class="circle-wrap">
+          <video src="hyperlinks-space-avatar-sign-metal-worn.mp4?v=1" autoplay loop muted playsinline></video>
+        </div>
+      </div>
+    </div>
+    <div class="square">
+      <video src="hyperlinks-space-avatar-sign-metal-worn.mp4?v=1" autoplay loop muted playsinline></video>
+    </div>
+    <div class="label">Profile · worn stainless</div>
+
+    <h1 style="margin-top:2.5rem">Chat · bot · channel</h1>
+    <p class="lead">
+      Stainless N plus HYPERLINKS.SPACE only (no graffiti stack), white supernova.
+      Background stays near-black with the existing tints: magenta chat, cobalt bot, violet channel.
+    </p>
+    <div class="roles">
+      <div class="theme dark">
+        <h2>Chat</h2>
+        <div class="circle-wrap">
+          <video src="hyperlinks-space-avatar-sign-metal-chat.mp4?v=4" autoplay loop muted playsinline></video>
+        </div>
+        <div class="label">hyperlinks-space-avatar-sign-metal-chat.mp4</div>
+      </div>
+      <div class="theme dark">
+        <h2>Bot</h2>
+        <div class="circle-wrap">
+          <video src="hyperlinks-space-avatar-sign-metal-bot.mp4?v=4" autoplay loop muted playsinline></video>
+        </div>
+        <div class="label">hyperlinks-space-avatar-sign-metal-bot.mp4</div>
+      </div>
+      <div class="theme dark">
+        <h2>Channel</h2>
+        <div class="circle-wrap">
+          <video src="hyperlinks-space-avatar-sign-metal-channel.mp4?v=4" autoplay loop muted playsinline></video>
+        </div>
+        <div class="label">hyperlinks-space-avatar-sign-metal-channel.mp4</div>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

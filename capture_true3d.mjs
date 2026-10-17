@@ -2,17 +2,15 @@
  * Capture true-3D Three.js scene frames via Playwright, then encode WEBM.
  */
 import { chromium } from 'playwright';
-import { spawn } from 'child_process';
 import { createServer } from 'http';
-import { readFileSync, existsSync, mkdirSync, rmSync, writeFileSync, statSync } from 'fs';
+import { readFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import { extname, join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { encodeTelegramVp9 } from './vp9_telegram_encode.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const FRAMES = join(ROOT, 'render_frames');
 const TOTAL = Number(process.env.HL_FRAMES || 90);
-const FFMPEG = process.env.FFMPEG ||
-  String.raw`C:\Users\ASUS\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0-full_build\bin\ffmpeg.exe`;
 
 const MIME = {
   '.html': 'text/html',
@@ -41,35 +39,6 @@ function serve() {
       resolve({ server, port });
     });
   });
-}
-
-function run(cmd, args) {
-  return new Promise((resolve, reject) => {
-    const p = spawn(cmd, args, { stdio: 'inherit' });
-    p.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`exit ${code}`))));
-  });
-}
-
-async function encode(size, name, crf, br) {
-  const out = join(ROOT, name);
-  if (existsSync(out)) rmSync(out);
-  const frames = [...Array(TOTAL)].map((_, i) =>
-    join(FRAMES, `frame_${String(i + 1).padStart(4, '0')}.png`));
-  for (const f of frames) {
-    if (!existsSync(f)) throw new Error(`Missing frame ${f}`);
-  }
-  await run(FFMPEG, [
-    '-y', '-framerate', '30',
-    '-start_number', '1',
-    '-i', join(FRAMES, 'frame_%04d.png'),
-    '-frames:v', String(TOTAL),
-    '-vf', `scale=${size}:${size}:flags=lanczos`,
-    '-c:v', 'libvpx-vp9', '-pix_fmt', 'yuva420p', '-auto-alt-ref', '0',
-    '-b:v', br, '-crf', String(crf), '-an', '-r', '30', '-row-mt', '1',
-    out,
-  ]);
-  const kb = statSync(out).size / 1024;
-  console.log(`${name}: ${kb.toFixed(1)} KB ${statSync(out).size <= 256 * 1024 ? 'OK' : 'OVER'}`);
 }
 
 async function main() {
@@ -114,8 +83,8 @@ async function main() {
   await browser.close();
   server.close();
 
-  await encode(512, 'hyperlinks-space-sticker.webm', 54, '100k');
-  await encode(100, 'hyperlinks-space-emoji.webm', 42, '75k');
+  await encodeTelegramVp9({ root: ROOT, framesDir: FRAMES, total: TOTAL, size: 512, name: 'hyperlinks-space-sticker.webm' });
+  await encodeTelegramVp9({ root: ROOT, framesDir: FRAMES, total: TOTAL, size: 100, name: 'hyperlinks-space-emoji.webm' });
   console.log('Done');
 }
 

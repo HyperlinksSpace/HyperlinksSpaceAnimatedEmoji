@@ -27,20 +27,37 @@
 import * as THREE from 'three';
 
 const _qs = new URLSearchParams(location.search);
+const METAL_WORN = _qs.get('metalWorn') === '1' || /metalWorn=1/.test(location.hash)
+  || _qs.get('avatarMetalWorn') === '1' || /avatarMetalWorn=1/.test(location.hash);
+const AVATAR_METAL = METAL_WORN
+  || _qs.get('avatarMetal') === '1' || /avatarMetal=1/.test(location.hash);
+const AVATAR_FULL = _qs.get('avatarFull') === '1' || /avatarFull=1/.test(location.hash);
+const SIGN_METAL = AVATAR_METAL
+  || AVATAR_FULL
+  || _qs.get('signMetal') === '1'
+  || /signMetal=1/.test(location.hash);
+const AVATAR_KIND = String(_qs.get('avatarKind') || '').toLowerCase();
 const AVATAR_BG = _qs.get('avatarBg') === '1' || /avatarBg=1/.test(location.hash);
-const SIGN_ONLY = AVATAR_BG
+const AVATAR = AVATAR_BG || AVATAR_METAL || AVATAR_FULL;
+const SIGN_ONLY = !AVATAR_FULL && (
+  AVATAR_BG
+  || AVATAR_METAL
+  || _qs.get('signMetal') === '1'
+  || /signMetal=1/.test(location.hash)
   || _qs.get('signOnly') === '1'
-  || /signOnly=1/.test(location.hash);
+  || /signOnly=1/.test(location.hash)
+);
+const STICK = SIGN_ONLY && !AVATAR;
 /* Avatar: 800² native for Telegram video profile; else sticker/emoji 512. */
-const W = AVATAR_BG ? 800 : 512, H = W, TOTAL = 90;
+const W = AVATAR ? 800 : 512, H = W, TOTAL = 90;
 const WORLD = 20;
 const REST_SCALE = 0.92; /* match reference canvas fill */
 const DEPTH = 1.85;
 const CHUNK_DEPTH = 2.4; /* thick blocks so tumble reads as 3D */
 /* Avatar: frozen pose matched to blue-canvas reference (slight yaw, left edge nearer). */
-const SIGN_REST_RX = AVATAR_BG ? 0.04 : 0.05;
-const SIGN_REST_RY = AVATAR_BG ? -0.10 : -0.12;
-const SIGN_REST_RZ = AVATAR_BG ? 0.10 : 0.14;
+const SIGN_REST_RX = AVATAR ? 0.04 : 0.05;
+const SIGN_REST_RY = AVATAR ? -0.10 : -0.12;
+const SIGN_REST_RZ = AVATAR ? 0.10 : 0.14;
 /* Second boom: 3 screen-plane licks + open quarter (petal elev → flower). */
 const FRONT_BOOM = [
   /* Shared heading cluster — small ang deltas only (wide spread = flower/X). */
@@ -141,8 +158,8 @@ const renderer = new THREE.WebGLRenderer({
 renderer.setSize(W, H, false);
 renderer.domElement.style.width = `${W}px`;
 renderer.domElement.style.height = `${H}px`;
-renderer.setPixelRatio(AVATAR_BG ? 2 : (SIGN_ONLY ? 2 : 1));
-renderer.setClearColor(0x000000, AVATAR_BG ? 1 : 0);
+renderer.setPixelRatio(2);
+renderer.setClearColor(0x000000, AVATAR ? 1 : 0);
 renderer.autoClear = true;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.NoToneMapping;
@@ -153,7 +170,7 @@ let avatarBgTex = null;
 let avatarBgCtx = null;
 let avatarBgSize = 0;
 function initAvatarBackground() {
-  if (!AVATAR_BG) return;
+  if (!AVATAR) return;
   avatarBgSize = 1024;
   const c = document.createElement('canvas');
   c.width = avatarBgSize;
@@ -164,8 +181,127 @@ function initAvatarBackground() {
   avatarBgTex.needsUpdate = true;
   scene.background = avatarBgTex;
 }
+function paintMetalSpaceBackground(t, pulse, boom = 0) {
+  const S = avatarBgSize;
+  const ctx = avatarBgCtx;
+  const ph = t * Math.PI * 2;
+  const breathe = 0.55 + 0.45 * pulse;
+  const boomAmt = Math.max(0, Math.min(1, boom));
+
+  /* Kind tints stay near-black: chat magenta, bot cobalt, channel violet, else green space. */
+  const kind = AVATAR_KIND;
+  const pal = kind === 'chat'
+    ? {
+      stops: ['#090204', '#14020c', '#1c0810', '#080103'],
+      wash0: 'rgba(42, 8, 18, 0.55)',
+      wash1: 'rgba(18, 4, 10, 0.72)',
+      band: [140, 30, 70],
+    }
+    : kind === 'bot'
+    ? {
+      stops: ['#020508', '#021018', '#041828', '#010308'],
+      wash0: 'rgba(8, 28, 52, 0.55)',
+      wash1: 'rgba(4, 14, 28, 0.72)',
+      band: [30, 90, 160],
+    }
+    : kind === 'channel'
+    ? {
+      stops: ['#050218', '#070218', '#10063a', '#040110'],
+      wash0: 'rgba(28, 12, 62, 0.55)',
+      wash1: 'rgba(12, 6, 28, 0.72)',
+      band: [70, 40, 170],
+    }
+    : {
+      stops: ['#020304', '#04110a', '#06180e', '#010302'],
+      wash0: 'rgba(10, 36, 22, 0.55)',
+      wash1: 'rgba(4, 18, 12, 0.72)',
+      band: [40, 120, 70],
+    };
+
+  const base = ctx.createLinearGradient(0, 0, S * 0.2, S);
+  base.addColorStop(0.00, pal.stops[0]);
+  base.addColorStop(0.42, pal.stops[1]);
+  base.addColorStop(0.78, pal.stops[2]);
+  base.addColorStop(1.00, pal.stops[3]);
+  ctx.fillStyle = base;
+  ctx.fillRect(0, 0, S, S);
+
+  ctx.save();
+  ctx.globalAlpha = 0.88;
+  const wash = ctx.createRadialGradient(S * 0.48, S * 0.42, S * 0.08, S * 0.5, S * 0.5, S * 0.72);
+  wash.addColorStop(0.00, pal.wash0);
+  wash.addColorStop(0.45, pal.wash1);
+  wash.addColorStop(1.00, 'rgba(1, 2, 3, 1)');
+  ctx.fillStyle = wash;
+  ctx.fillRect(0, 0, S, S);
+  ctx.restore();
+
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 3; i++) {
+    const a = ph * (0.22 + i * 0.04) + i * 1.2;
+    const cx = S * (0.28 + 0.18 * i) + Math.cos(a) * S * 0.05;
+    const cy = S * (0.34 + 0.14 * i) + Math.sin(a * 1.05) * S * 0.04;
+    const band = ctx.createLinearGradient(cx - S * 0.5, cy, cx + S * 0.55, cy + S * 0.18);
+    const a0 = 0.035 + 0.025 * breathe;
+    band.addColorStop(0.00, 'rgba(0,0,0,0)');
+    band.addColorStop(0.5, `rgba(${pal.band[0]},${pal.band[1]},${pal.band[2]},${a0})`);
+    band.addColorStop(1.00, 'rgba(0,0,0,0)');
+    ctx.fillStyle = band;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, S * 0.52, S * 0.07, -0.4 + i * 0.08, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  for (let i = 0; i < 18; i++) {
+    const seed = i * 2.399;
+    const ang = ph * 0.12 + seed;
+    const rad = S * (0.08 + (i % 7) * 0.055);
+    const x = S * 0.5 + Math.cos(ang) * rad;
+    const y = S * 0.5 + Math.sin(ang * 0.85 + 0.4) * rad * 0.92;
+    const r = 0.7 + (i % 4) * 0.45;
+    const glow = ctx.createRadialGradient(x, y, 0, x, y, r * 4);
+    const alpha = 0.08 + 0.07 * ((Math.sin(ph * 0.9 + seed) + 1) * 0.5);
+    glow.addColorStop(0, `rgba(230,245,255,${alpha})`);
+    glow.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(x, y, r * 4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+
+  /* White supernova / big-bang flash — no orange. */
+  if (boomAmt > 0.02) {
+    const cx = S * 0.5;
+    const cy = S * 0.5;
+    const ring = 0.12 + boomAmt * 0.55;
+    const flash = ctx.createRadialGradient(cx, cy, S * 0.01, cx, cy, S * ring);
+    flash.addColorStop(0.00, `rgba(255,255,255,${0.92 * boomAmt})`);
+    flash.addColorStop(0.12, `rgba(245,250,255,${0.78 * boomAmt})`);
+    flash.addColorStop(0.32, `rgba(210,230,245,${0.42 * boomAmt})`);
+    flash.addColorStop(0.58, `rgba(120,160,180,${0.16 * boomAmt})`);
+    flash.addColorStop(1.00, 'rgba(2,4,6,0)');
+    ctx.fillStyle = flash;
+    ctx.beginPath();
+    ctx.arc(cx, cy, S * ring, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = `rgba(255,255,255,${0.45 * boomAmt})`;
+    ctx.lineWidth = Math.max(1.5, S * 0.006 * (0.5 + boomAmt));
+    ctx.beginPath();
+    ctx.arc(cx, cy, S * (0.16 + boomAmt * 0.32), 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  avatarBgTex.needsUpdate = true;
+}
+
 function paintAvatarBackground(t, pulse, boom = 0) {
   if (!avatarBgCtx || !avatarBgTex) return;
+  if (SIGN_METAL) {
+    paintMetalSpaceBackground(t, pulse, boom);
+    return;
+  }
   const S = avatarBgSize;
   const ctx = avatarBgCtx;
   const ph = t * Math.PI * 2;
@@ -264,38 +400,100 @@ function paintAvatarBackground(t, pulse, boom = 0) {
 const pmrem = new THREE.PMREMGenerator(renderer);
 const scene = new THREE.Scene();
 initAvatarBackground();
-if (SIGN_ONLY) {
-  const envC = document.createElement('canvas');
-  envC.width = 1024;
-  envC.height = 512;
-  const envG = envC.getContext('2d');
-  /* Saturated studio greens — punchier for avatar, classic for emoji. */
-  const amb = envG.createLinearGradient(0, 0, 0, 512);
-  if (AVATAR_BG) {
-    amb.addColorStop(0.00, '#ffffff');
-    amb.addColorStop(0.22, '#e8f2ea');
-    amb.addColorStop(0.50, '#6eb888');
-    amb.addColorStop(1.00, '#2f8a5c');
+function makeStudioChromeEnvTex() {
+  /* Same family as lighter I/S — dark metal + hard white windows. */
+  const c = document.createElement('canvas');
+  c.width = 1024;
+  c.height = 512;
+  const g = c.getContext('2d');
+  const ambient = g.createLinearGradient(0, 0, 0, 512);
+  ambient.addColorStop(0.00, '#d8dee6');
+  ambient.addColorStop(0.22, '#8a929c');
+  ambient.addColorStop(0.55, '#4a525c');
+  ambient.addColorStop(1.00, '#1c2228');
+  g.fillStyle = ambient;
+  g.fillRect(0, 0, 1024, 512);
+  const win = g.createLinearGradient(150, 0, 250, 0);
+  win.addColorStop(0.00, 'rgba(42,50,60,0)');
+  win.addColorStop(0.12, '#ffffff');
+  win.addColorStop(0.50, '#ffffff');
+  win.addColorStop(0.88, '#ffffff');
+  win.addColorStop(1.00, 'rgba(42,50,60,0)');
+  g.fillStyle = win;
+  g.fillRect(168, 0, 48, 512);
+  g.fillStyle = '#ffffff';
+  g.fillRect(188, 0, 7, 512);
+  const win2 = g.createLinearGradient(328, 0, 348, 0);
+  win2.addColorStop(0.00, 'rgba(42,50,60,0)');
+  win2.addColorStop(0.35, '#ffffff');
+  win2.addColorStop(0.65, '#ffffff');
+  win2.addColorStop(1.00, 'rgba(42,50,60,0)');
+  g.fillStyle = win2;
+  g.fillRect(328, 8, 20, 496);
+  g.fillStyle = '#ffffff';
+  g.fillRect(336, 16, 5, 480);
+  const win3 = g.createLinearGradient(450, 0, 574, 0);
+  win3.addColorStop(0.00, 'rgba(42,50,60,0)');
+  win3.addColorStop(0.12, '#e8eef4');
+  win3.addColorStop(0.38, '#ffffff');
+  win3.addColorStop(0.62, '#ffffff');
+  win3.addColorStop(0.88, '#e8eef4');
+  win3.addColorStop(1.00, 'rgba(42,50,60,0)');
+  g.fillStyle = win3;
+  g.fillRect(468, 0, 88, 512);
+  g.fillStyle = '#ffffff';
+  g.fillRect(504, 0, 10, 512);
+  g.fillStyle = '#d8dee6';
+  g.fillRect(680, 30, 72, 420);
+  g.fillStyle = '#4a5460';
+  g.fillRect(0, 430, 1024, 82);
+  const tex = new THREE.CanvasTexture(c);
+  tex.mapping = THREE.EquirectangularReflectionMapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.generateMipmaps = false;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+if (SIGN_ONLY || SIGN_METAL) {
+  if (SIGN_METAL) {
+    scene.environment = pmrem.fromEquirectangular(makeStudioChromeEnvTex()).texture;
+    scene.environmentIntensity = 1.55;
   } else {
-    amb.addColorStop(0.00, '#ffffff');
-    amb.addColorStop(0.28, '#8ec8aa');
-    amb.addColorStop(0.55, '#3d8a6e');
-    amb.addColorStop(1.00, '#2a6a58');
+    const envC = document.createElement('canvas');
+    envC.width = 1024;
+    envC.height = 512;
+    const envG = envC.getContext('2d');
+    /* Saturated studio greens — punchier for avatar, classic for emoji. */
+    const amb = envG.createLinearGradient(0, 0, 0, 512);
+    if (AVATAR_BG) {
+      amb.addColorStop(0.00, '#ffffff');
+      amb.addColorStop(0.22, '#e8f2ea');
+      amb.addColorStop(0.50, '#6eb888');
+      amb.addColorStop(1.00, '#2f8a5c');
+    } else {
+      amb.addColorStop(0.00, '#ffffff');
+      amb.addColorStop(0.28, '#8ec8aa');
+      amb.addColorStop(0.55, '#3d8a6e');
+      amb.addColorStop(1.00, '#2a6a58');
+    }
+    envG.fillStyle = amb;
+    envG.fillRect(0, 0, 1024, 512);
+    envG.fillStyle = '#ffffff';
+    envG.fillRect(188, 0, 10, 512);
+    envG.fillStyle = 'rgba(255,255,255,0.85)';
+    envG.fillRect(168, 0, 52, 512);
+    envG.fillStyle = '#ffffff';
+    envG.fillRect(504, 0, 8, 480);
+    const envTex = new THREE.CanvasTexture(envC);
+    envTex.mapping = THREE.EquirectangularReflectionMapping;
+    envTex.colorSpace = THREE.SRGBColorSpace;
+    envTex.needsUpdate = true;
+    scene.environment = pmrem.fromEquirectangular(envTex).texture;
+    scene.environmentIntensity = AVATAR_BG ? 1.85 : 1.55;
   }
-  envG.fillStyle = amb;
-  envG.fillRect(0, 0, 1024, 512);
-  envG.fillStyle = '#ffffff';
-  envG.fillRect(188, 0, 10, 512);
-  envG.fillStyle = 'rgba(255,255,255,0.85)';
-  envG.fillRect(168, 0, 52, 512);
-  envG.fillStyle = '#ffffff';
-  envG.fillRect(504, 0, 8, 480);
-  const envTex = new THREE.CanvasTexture(envC);
-  envTex.mapping = THREE.EquirectangularReflectionMapping;
-  envTex.colorSpace = THREE.SRGBColorSpace;
-  envTex.needsUpdate = true;
-  scene.environment = pmrem.fromEquirectangular(envTex).texture;
-  scene.environmentIntensity = AVATAR_BG ? 1.85 : 1.55;
 }
 const camera = new THREE.PerspectiveCamera(28, 1, 0.05, 200);
 camera.position.set(0, 0, 42);
@@ -309,20 +507,20 @@ if (SIGN_ONLY) root.add(fx);
 else scene.add(fx);
 
 /* Soft studio light — sign-only: crisp key for green specular shine */
-const keyLight = new THREE.DirectionalLight(SIGN_ONLY ? 0xffffff : 0xffffff, SIGN_ONLY ? (AVATAR_BG ? 4.2 : 3.6) : 2.2);
+const keyLight = new THREE.DirectionalLight(SIGN_ONLY ? 0xffffff : 0xffffff, SIGN_ONLY ? (AVATAR ? 4.2 : 3.6) : 2.2);
 keyLight.position.set(-6, 10, 16);
 scene.add(keyLight);
-const fillLight = new THREE.DirectionalLight(SIGN_ONLY ? 0xffffff : 0xa8c8ff, SIGN_ONLY ? (AVATAR_BG ? 2.1 : 1.75) : 0.9);
+const fillLight = new THREE.DirectionalLight(SIGN_ONLY ? 0xffffff : 0xa8c8ff, SIGN_ONLY ? (AVATAR ? 2.1 : 1.75) : 0.9);
 fillLight.position.set(8, -2, 10);
 scene.add(fillLight);
-const ambLight = new THREE.AmbientLight(0xffffff, SIGN_ONLY ? (AVATAR_BG ? 0.72 : 0.62) : 0.7);
+const ambLight = new THREE.AmbientLight(0xffffff, SIGN_ONLY ? (AVATAR ? 0.72 : 0.62) : 0.7);
 scene.add(ambLight);
 const rimLight = new THREE.DirectionalLight(SIGN_ONLY ? 0xffffff : 0xffffff, SIGN_ONLY ? 2.8 : 1.1);
 rimLight.position.set(2, 4, -12);
 scene.add(rimLight);
 let shineSweep = null;
 let shineKick = null;
-if (SIGN_ONLY) {
+if (SIGN_ONLY || AVATAR_FULL) {
   shineSweep = new THREE.DirectionalLight(0xffffff, 0);
   shineSweep.position.set(8, 6, 14);
   scene.add(shineSweep);
@@ -461,7 +659,7 @@ function makeSignFlameTex(seed) {
 
   /* ONE outer silhouette — nested shrinks read as Christmas trees. */
   jaggedFlamePath(ctx, cx, top, bot, hw, seeded(pathSeed), lean);
-  ctx.fillStyle = '#140000';
+  ctx.fillStyle = SIGN_METAL ? '#08090c' : '#140000';
   ctx.fill();
 
   /* Sideways-shifted interior (clip), not concentric tiers. */
@@ -469,11 +667,19 @@ function makeSignFlameTex(seed) {
   jaggedFlamePath(ctx, cx, top, bot, hw, seeded(pathSeed), lean);
   ctx.clip();
   const body = ctx.createLinearGradient(cx - lean * 0.25, bot, cx + lean * 0.6, top);
-  body.addColorStop(0.00, '#ff0a00');
-  body.addColorStop(0.28, '#ff3a00');
-  body.addColorStop(0.55, '#ff8200');
-  body.addColorStop(0.8, '#ffd040');
-  body.addColorStop(1.00, '#fff8e0');
+  if (SIGN_METAL) {
+    body.addColorStop(0.00, '#9aa8b8');
+    body.addColorStop(0.28, '#d0d8e4');
+    body.addColorStop(0.55, '#f2f6fb');
+    body.addColorStop(0.8, '#ffffff');
+    body.addColorStop(1.00, '#ffffff');
+  } else {
+    body.addColorStop(0.00, '#ff0a00');
+    body.addColorStop(0.28, '#ff3a00');
+    body.addColorStop(0.55, '#ff8200');
+    body.addColorStop(0.8, '#ffd040');
+    body.addColorStop(1.00, '#fff8e0');
+  }
   ctx.fillStyle = body;
   ctx.fillRect(0, 0, w, h);
   for (let i = 0; i < 5; i++) {
@@ -481,8 +687,13 @@ function makeSignFlameTex(seed) {
     const py = bot - 40 - rnd() * (bot - top - 60);
     const pr = 18 + rnd() * 48;
     const g = ctx.createRadialGradient(px, py, 0, px, py, pr);
-    g.addColorStop(0, i % 2 ? 'rgba(255,250,220,0.95)' : 'rgba(255,180,40,0.85)');
-    g.addColorStop(1, 'rgba(255,40,0,0)');
+    if (SIGN_METAL) {
+      g.addColorStop(0, i % 2 ? 'rgba(255,255,255,0.95)' : 'rgba(210,225,240,0.85)');
+      g.addColorStop(1, 'rgba(80,100,130,0)');
+    } else {
+      g.addColorStop(0, i % 2 ? 'rgba(255,250,220,0.95)' : 'rgba(255,180,40,0.85)');
+      g.addColorStop(1, 'rgba(255,40,0,0)');
+    }
     ctx.fillStyle = g;
     ctx.beginPath();
     ctx.ellipse(px, py, pr * (0.55 + rnd() * 0.5), pr * (1.1 + rnd() * 0.8), lean * 0.01, 0, Math.PI * 2);
@@ -504,7 +715,9 @@ function makeSignFlameTex(seed) {
     const sx = cx + lean * (0.55 + rnd() * 0.35);
     const shy = top + 90 + rnd() * 100;
     jaggedFlamePath(ctx, sx, shy, bot - 70 - rnd() * 50, hw * (0.2 + rnd() * 0.28), seeded(pathSeed + 11), lean * (0.25 + rnd() * 0.55));
-    ctx.fillStyle = rnd() > 0.45 ? '#ff5500' : '#ffcc33';
+    ctx.fillStyle = SIGN_METAL
+      ? (rnd() > 0.45 ? '#e8eef4' : '#ffffff')
+      : (rnd() > 0.45 ? '#ff5500' : '#ffcc33');
     ctx.fill();
   }
 
@@ -514,7 +727,9 @@ function makeSignFlameTex(seed) {
     const sy0 = top + 40 + rnd() * 120;
     const sy1 = sy0 - 25 - rnd() * 70;
     const sw = 5 + rnd() * 16;
-    ctx.fillStyle = s % 2 ? '#ffaa22' : '#1a0000';
+    ctx.fillStyle = SIGN_METAL
+      ? (s % 2 ? '#f4f7fb' : '#121418')
+      : (s % 2 ? '#ffaa22' : '#1a0000');
     ctx.beginPath();
     ctx.moveTo(sx, sy0);
     ctx.lineTo(sx + sw * (0.3 + rnd()), sy0 - (sy0 - sy1) * 0.4);
@@ -568,7 +783,21 @@ function _fireFbm(x, y, seed, oct = 4) {
 function _fireRamp(h, aMul) {
   h = Math.max(0, Math.min(1, h));
   let r, g, b, a;
-  if (AVATAR_BG) {
+  if (SIGN_METAL) {
+    /* White supernova — cool plasma, no orange/red. */
+    if (h < 0.28) {
+      const t = h / 0.28;
+      r = 70 + 90 * t; g = 90 + 90 * t; b = 120 + 90 * t; a = 0.35 + 0.5 * t;
+    } else if (h < 0.62) {
+      const t = (h - 0.28) / 0.34;
+      r = 180 + 55 * t; g = 195 + 45 * t; b = 220 + 30 * t; a = 0.88 + 0.08 * t;
+    } else if (h < 0.88) {
+      const t = (h - 0.62) / 0.26;
+      r = 240 + 15 * t; g = 245 + 10 * t; b = 255; a = 0.98;
+    } else {
+      r = 255; g = 255; b = 255; a = 1;
+    }
+  } else if (AVATAR_BG) {
     if (h < 0.28) {
       const t = h / 0.28;
       r = 120 + 110 * t; g = 18 + 40 * t; b = 4 + 8 * t; a = 0.5 + 0.45 * t;
@@ -1522,13 +1751,20 @@ async function buildFireBomb() {
 
   /* Yellow boom shine — full punch, hard edge so soft fringe never leaves the canvas. */
   {
-    const stickBurst = SIGN_ONLY && !AVATAR_BG;
+    const stickBurst = STICK;
     const burstC = document.createElement('canvas');
     burstC.width = burstC.height = 256;
     const bg = burstC.getContext('2d');
     {
       const grd = bg.createRadialGradient(128, 128, 2, 128, 128, stickBurst ? 118 : 128);
-      if (stickBurst) {
+      if (SIGN_METAL) {
+        grd.addColorStop(0.00, 'rgba(255,255,255,1)');
+        grd.addColorStop(0.12, 'rgba(250,252,255,1)');
+        grd.addColorStop(0.32, 'rgba(220,232,245,0.85)');
+        grd.addColorStop(0.58, 'rgba(160,185,210,0.38)');
+        grd.addColorStop(0.82, 'rgba(80,110,140,0.10)');
+        grd.addColorStop(1.00, 'rgba(0,0,0,0)');
+      } else if (stickBurst) {
         grd.addColorStop(0.00, 'rgba(255,255,230,1)');
         grd.addColorStop(0.12, 'rgba(255,236,90,1)');
         grd.addColorStop(0.32, 'rgba(255,200,40,0.95)');
@@ -1565,7 +1801,7 @@ async function buildFireBomb() {
       toneMapped: false,
       blending: THREE.AdditiveBlending,
       alphaTest: stickBurst ? 0.14 : 0,
-      color: stickBurst ? 0xffe14a : (AVATAR_BG ? 0xff7733 : (SIGN_ONLY ? 0xa8ffcc : 0xffaa44)),
+      color: SIGN_METAL ? 0xffffff : (stickBurst ? 0xffe14a : (AVATAR_BG ? 0xff7733 : (SIGN_ONLY ? 0xa8ffcc : 0xffaa44))),
     }));
     if (stickBurst) {
       screenBurst.position.set(0, 0, 2.4);
@@ -1763,13 +1999,13 @@ function setBoltGeom(bolt, from, to, frameKey, thickScale, skipBoxClamp) {
   const curve = new THREE.CatmullRomCurve3(pts);
   curve.curveType = 'centripetal';
   const thick = SIGN_ONLY
-    ? ((SIGN_ONLY && !AVATAR_BG)
+    ? ((STICK)
       /* Fat cores so bolts survive 100² emoji downscale. */
       ? (0.16 + rnd() * 0.08) * thickScale
       : (0.07 + rnd() * 0.045) * thickScale)
     : (0.16 + rnd() * 0.18) * thickScale;
   /* Glow halo around fat core — still hard enough not to milk the canvas. */
-  const glowMul = (SIGN_ONLY && !AVATAR_BG) ? 2.35 : 2.4;
+  const glowMul = (STICK) ? 2.35 : 2.4;
   bolt.glow.geometry.dispose();
   bolt.core.geometry.dispose();
   bolt.glow.geometry = new THREE.TubeGeometry(curve, SIGN_ONLY ? 18 : 16, thick * glowMul, SIGN_ONLY ? 5 : 4, false);
@@ -1815,7 +2051,25 @@ function faceMat(tex, o = {}) {
   });
 }
 
-function depthMat(tex) {
+function depthMat(tex, metalFace = false) {
+  if (metalFace) {
+    return new THREE.MeshPhysicalMaterial({
+      map: tex,
+      color: 0xb8c0c8,
+      transparent: true,
+      alphaTest: 0.08,
+      depthWrite: true,
+      side: THREE.DoubleSide,
+      roughness: 0.07,
+      metalness: 1.0,
+      clearcoat: 1,
+      clearcoatRoughness: 0.04,
+      envMapIntensity: 1.95,
+      specularIntensity: 1,
+      specularColor: new THREE.Color(0xffffff),
+      toneMapped: false,
+    });
+  }
   if (SIGN_ONLY) {
     /* Forest → deep emerald stack — volume without gray sludge on white BG */
     return new THREE.MeshPhysicalMaterial({
@@ -2020,7 +2274,13 @@ function updateSignShineGlance(t, life, frozen) {
   if (SIGN_ONLY) {
     const ph = t * Math.PI * 2;
     nGlanceU.uShift.value = 46 + (frozen ? 0 : Math.sin(ph) * 8);
-    if (AVATAR_BG) {
+    if (SIGN_METAL) {
+      nGlanceU.uGain.value = frozen
+        ? 1.35
+        : (1.05 + 0.28 * Math.max(0, Math.cos(ph))) * Math.max(0.55, life);
+      nGlanceU.uWidth.value = frozen ? 16 : 14;
+      nGlanceU.uPunch.value = frozen ? 0.18 : 0.10;
+    } else if (AVATAR_BG) {
       nGlanceU.uGain.value = frozen
         ? 1.55
         : (1.15 + 0.22 * Math.max(0, Math.cos(ph))) * Math.max(0.5, life);
@@ -2129,6 +2389,9 @@ function addTextContrastRim(slab, srcImg) {
 }
 
 function makeSignFaceMat(tex) {
+  if (SIGN_METAL && !SIGN_ONLY) {
+    return chromeFaceMat(tex);
+  }
   return new THREE.MeshPhysicalMaterial({
     map: tex,
     transparent: true,
@@ -2145,6 +2408,137 @@ function makeSignFaceMat(tex) {
   });
 }
 
+function hash2(x, y) {
+  const n = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
+  return n - Math.floor(n);
+}
+
+/** PNG silhouette only — albedo is brushed stainless, not the original paint. */
+function makeLiquidSteelFace(src) {
+  const img = src.image || src;
+  const W = img.width || 512;
+  const H = img.height || 512;
+  const c = document.createElement('canvas');
+  c.width = W;
+  c.height = H;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  g.drawImage(img, 0, 0, W, H);
+  const id = g.getImageData(0, 0, W, H);
+  const d = id.data;
+  const nPix = W * H;
+  const dist = new Float32Array(nPix);
+  const INF = 1e6;
+  for (let i = 0; i < nPix; i++) dist[i] = d[i * 4 + 3] > 18 ? INF : 0;
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const i = y * W + x;
+      if (dist[i] === 0) continue;
+      let m = dist[i];
+      if (x) m = Math.min(m, dist[i - 1] + 1);
+      if (y) m = Math.min(m, dist[i - W] + 1);
+      if (x && y) m = Math.min(m, dist[i - W - 1] + 1.414);
+      dist[i] = m;
+    }
+  }
+  for (let y = H - 1; y >= 0; y--) {
+    for (let x = W - 1; x >= 0; x--) {
+      const i = y * W + x;
+      if (dist[i] === 0) continue;
+      let m = dist[i];
+      if (x < W - 1) m = Math.min(m, dist[i + 1] + 1);
+      if (y < H - 1) m = Math.min(m, dist[i + W] + 1);
+      if (x < W - 1 && y < H - 1) m = Math.min(m, dist[i + W + 1] + 1.414);
+      dist[i] = m;
+    }
+  }
+
+  const roughC = document.createElement('canvas');
+  roughC.width = W;
+  roughC.height = H;
+  const rg = roughC.getContext('2d');
+  const rid = rg.createImageData(W, H);
+  const rd = rid.data;
+  const bumpC = document.createElement('canvas');
+  bumpC.width = W;
+  bumpC.height = H;
+  const bg = bumpC.getContext('2d');
+  const bid = bg.createImageData(W, H);
+  const bd = bid.data;
+
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const i = y * W + x;
+      const p = i * 4;
+      const a = d[p + 3];
+      if (a < 12) {
+        d[p] = d[p + 1] = d[p + 2] = 0;
+        d[p + 3] = 0;
+        rd[p] = rd[p + 1] = rd[p + 2] = 255;
+        rd[p + 3] = 255;
+        bd[p] = bd[p + 1] = bd[p + 2] = 128;
+        bd[p + 3] = 255;
+        continue;
+      }
+      const mill = 0.50
+        + 0.06 * Math.sin(y * 0.42 + x * 0.012)
+        + 0.03 * Math.sin(y * 1.6);
+      const grain = (hash2(x * 0.21, y * 0.9) - 0.5) * 0.03;
+      const edge = Math.min(1, dist[i] / 11);
+      const rim = edge < 0.55 ? (0.12 + 0.22 * (edge / 0.55)) : 0;
+      const k = 0.78 + mill * 0.10 + grain + rim;
+      d[p] = Math.min(255, Math.round(186 + 48 * k));
+      d[p + 1] = Math.min(255, Math.round(192 + 46 * k));
+      d[p + 2] = Math.min(255, Math.round(200 + 42 * k));
+      d[p + 3] = a < 28 ? Math.min(255, Math.round(a * 6)) : 255;
+      const r = Math.max(6, Math.min(40, Math.round(10 + 16 * (1 - Math.min(1, edge)))));
+      rd[p] = rd[p + 1] = rd[p + 2] = r;
+      rd[p + 3] = 255;
+      const hgt = Math.max(0, Math.min(255, Math.round(148 + 28 * mill + 50 * rim)));
+      bd[p] = bd[p + 1] = bd[p + 2] = hgt;
+      bd[p + 3] = 255;
+    }
+  }
+  g.putImageData(id, 0, 0);
+  rg.putImageData(rid, 0, 0);
+  bg.putImageData(bid, 0, 0);
+
+  const mk = (canvas, srgb) => {
+    const tex = new THREE.CanvasTexture(canvas);
+    if (srgb) tex.colorSpace = THREE.SRGBColorSpace;
+    tex.minFilter = THREE.LinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+    tex.generateMipmaps = false;
+    tex.anisotropy = 8;
+    tex.needsUpdate = true;
+    return tex;
+  };
+  return { map: mk(c, true), roughnessMap: mk(roughC, false), bumpMap: mk(bumpC, false) };
+}
+
+function chromeFaceMat(tex, extras = {}) {
+  return new THREE.MeshPhysicalMaterial({
+    map: tex,
+    roughnessMap: extras.roughnessMap || null,
+    bumpMap: extras.bumpMap || null,
+    bumpScale: extras.bumpMap ? 0.06 : 0,
+    color: 0xf2f5f8,
+    transparent: true,
+    alphaTest: 0.08,
+    depthWrite: true,
+    side: THREE.DoubleSide,
+    roughness: 0.032,
+    metalness: 1.0,
+    clearcoat: 1,
+    clearcoatRoughness: 0.022,
+    reflectivity: 1,
+    ior: 1.5,
+    envMapIntensity: 2.55,
+    specularIntensity: 1,
+    specularColor: new THREE.Color(0xffffff),
+    toneMapped: false,
+  });
+}
+
 /** Thick slab: exact reference pixels on front, glossy black depth stack behind. */
 function makeSlab(tex, z, opts = {}) {
   const g = new THREE.Group();
@@ -2155,17 +2549,17 @@ function makeSlab(tex, z, opts = {}) {
   geos.push(frontGeo);
   const front = new THREE.Mesh(
     frontGeo,
-    opts.faceMat || faceMat(faceTex),
+    opts.faceMat || (opts.metalFace ? chromeFaceMat(faceTex, opts) : faceMat(faceTex)),
   );
-  const depthSpan = SIGN_ONLY ? 1.35 : DEPTH;
+  const depthSpan = SIGN_ONLY ? 1.35 : (opts.metalFace ? 1.55 : DEPTH);
   front.position.z = depthSpan * 0.5;
   g.add(front);
-  const depthCount = SIGN_ONLY ? 7 : 7;
+  const depthCount = opts.metalFace ? 4 : 7;
   for (let i = 0; i < depthCount; i++) {
     const plateGeo = new THREE.PlaneGeometry(WORLD, WORLD, 14, 14);
     storeGeoBase(plateGeo);
     geos.push(plateGeo);
-    const plate = new THREE.Mesh(plateGeo, depthMat(faceTex));
+    const plate = new THREE.Mesh(plateGeo, depthMat(faceTex, !!opts.metalFace));
     plate.position.z = depthSpan * 0.5 - (i + 1) * (depthSpan / depthCount);
     plate.scale.setScalar(SIGN_ONLY ? 1 : (1.01 + i * 0.005));
     if (SIGN_ONLY) {
@@ -2173,6 +2567,10 @@ function makeSlab(tex, z, opts = {}) {
       plate.material = plate.material.clone();
       /* Smooth green facet ramp — no stepped “debris” look */
       plate.material.color.setRGB(0.0, 0.18 + t * 0.22, 0.08 + t * 0.08);
+    } else if (opts.metalFace) {
+      const t = i / Math.max(1, depthCount - 1);
+      plate.material = plate.material.clone();
+      plate.material.color.setRGB(0.78 - t * 0.16, 0.82 - t * 0.16, 0.88 - t * 0.14);
     }
     g.add(plate);
   }
@@ -2214,6 +2612,17 @@ function track(mesh, opts) {
 }
 
 function blackSideMat() {
+  if (SIGN_METAL) {
+    return new THREE.MeshPhysicalMaterial({
+      color: 0x8a929c,
+      roughness: 0.16,
+      metalness: 1.0,
+      clearcoat: 0.65,
+      clearcoatRoughness: 0.08,
+      envMapIntensity: 1.4,
+      toneMapped: false,
+    });
+  }
   if (SIGN_ONLY) {
     return new THREE.MeshPhysicalMaterial({
       color: 0x0a5c32,
@@ -2281,22 +2690,27 @@ async function addShatterTiles(tex, parentZ, faceColor, count, kind) {
       if (opaque / cells < 0.08) { i++; continue; }
 
       const avg = n
-        ? (SIGN_ONLY
-          ? new THREE.Color().setHSL(0.38, 0.95, 0.35 + 0.35 * ((sr + sg + sb) / (3 * n * 255)))
-          : new THREE.Color(sr / n / 255, sg / n / 255, sb / n / 255))
+        ? (SIGN_METAL
+          ? new THREE.Color().setHSL(0.58, 0.04, 0.52 + 0.22 * ((sr + sg + sb) / (3 * n * 255)))
+          : (SIGN_ONLY
+            ? new THREE.Color().setHSL(0.38, 0.95, 0.35 + 0.35 * ((sr + sg + sb) / (3 * n * 255)))
+            : new THREE.Color(sr / n / 255, sg / n / 255, sb / n / 255)))
         : new THREE.Color(faceColor);
       const w = tileW * (SIGN_ONLY ? (0.55 + 0.35 * (opaque / cells)) : (0.82 + 0.35 * (opaque / cells)));
       const h = tileH * (SIGN_ONLY ? (0.55 + 0.35 * (opaque / cells)) : (0.82 + 0.35 * (opaque / cells)));
       const d = CHUNK_DEPTH * (0.7 + 0.5 * ((i * 13) % 7) / 7);
 
       const face = new THREE.MeshPhysicalMaterial({
-        color: avg,
-        roughness: 0.22,
-        metalness: 0.12,
+        color: SIGN_METAL ? 0xd4dce4 : avg,
+        roughness: SIGN_METAL ? 0.042 : 0.22,
+        metalness: SIGN_METAL ? 1.0 : 0.12,
         clearcoat: 1,
-        clearcoatRoughness: 0.05,
-        emissive: avg,
-        emissiveIntensity: SIGN_ONLY ? 0.45 : 0.25,
+        clearcoatRoughness: SIGN_METAL ? 0.03 : 0.05,
+        envMapIntensity: SIGN_METAL ? 2.1 : 1,
+        emissive: SIGN_METAL ? 0x000000 : avg,
+        emissiveIntensity: SIGN_METAL ? 0 : (SIGN_ONLY ? 0.45 : 0.25),
+        specularIntensity: SIGN_METAL ? 1 : 1,
+        specularColor: new THREE.Color(0xffffff),
         toneMapped: false,
       });
       const side = blackSideMat();
@@ -2393,9 +2807,257 @@ function makeGreenChromeMatcapTex() {
 }
 const greenChromeMatcap = makeGreenChromeMatcapTex();
 
+function makeSteelChromeMatcapTex() {
+  /* Liquid stainless — same family as lighter I/S, cooler Cybertruck steel. */
+  const s = 256;
+  const c = document.createElement('canvas');
+  c.width = s;
+  c.height = s;
+  const g = c.getContext('2d');
+  const sky = g.createLinearGradient(0, 0, 0, s);
+  sky.addColorStop(0.00, '#ffffff');
+  sky.addColorStop(0.14, '#f4f7fb');
+  sky.addColorStop(0.32, '#c8d0da');
+  sky.addColorStop(0.50, '#8e99a6');
+  sky.addColorStop(0.70, '#5a636e');
+  sky.addColorStop(1.00, '#2a3036');
+  g.fillStyle = sky;
+  g.fillRect(0, 0, s, s);
+  const win = g.createRadialGradient(s * 0.34, s * 0.28, 0, s * 0.34, s * 0.28, s * 0.48);
+  win.addColorStop(0.00, '#ffffff');
+  win.addColorStop(0.14, '#ffffff');
+  win.addColorStop(0.38, 'rgba(236,242,248,0.7)');
+  win.addColorStop(1.00, 'rgba(0,0,0,0)');
+  g.fillStyle = win;
+  g.fillRect(0, 0, s, s);
+  const bar = g.createLinearGradient(s * 0.26, 0, s * 0.48, 0);
+  bar.addColorStop(0.00, 'rgba(255,255,255,0)');
+  bar.addColorStop(0.40, 'rgba(255,255,255,0.55)');
+  bar.addColorStop(0.50, '#ffffff');
+  bar.addColorStop(0.60, 'rgba(255,255,255,0.55)');
+  bar.addColorStop(1.00, 'rgba(255,255,255,0)');
+  g.fillStyle = bar;
+  g.fillRect(0, 0, s, s);
+  const crease = g.createLinearGradient(0, s * 0.46, 0, s * 0.54);
+  crease.addColorStop(0.00, 'rgba(0,0,0,0)');
+  crease.addColorStop(0.50, 'rgba(20,24,28,0.18)');
+  crease.addColorStop(1.00, 'rgba(0,0,0,0)');
+  g.fillStyle = crease;
+  g.fillRect(0, 0, s, s);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.needsUpdate = true;
+  return tex;
+}
+const steelChromeMatcap = makeSteelChromeMatcapTex();
+
+function noise2(x, y) {
+  const x0 = Math.floor(x), y0 = Math.floor(y);
+  const fx = x - x0, fy = y - y0;
+  const u = fx * fx * (3 - 2 * fx);
+  const v = fy * fy * (3 - 2 * fy);
+  const a = hash2(x0, y0);
+  const b = hash2(x0 + 1, y0);
+  const c = hash2(x0, y0 + 1);
+  const d = hash2(x0 + 1, y0 + 1);
+  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+}
+
+function fbm2(x, y) {
+  let s = 0, a = 0.5, f = 1, n = 0;
+  for (let i = 0; i < 5; i++) {
+    s += a * noise2(x * f, y * f);
+    n += a;
+    a *= 0.5;
+    f *= 2.03;
+  }
+  return s / n;
+}
+
+function makeWornSteelPackTex() {
+  /* R mill, G scuff/patina, B hairline cracks. Object-space on the extruded N. */
+  const S = 1024;
+  const c = document.createElement('canvas');
+  c.width = c.height = S;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  const id = g.createImageData(S, S);
+  const d = id.data;
+  for (let y = 0; y < S; y++) {
+    for (let x = 0; x < S; x++) {
+      const p = (y * S + x) * 4;
+      const mill = 0.52
+        + 0.14 * Math.sin(y * 0.42 + x * 0.012)
+        + 0.06 * Math.sin(y * 1.85 + x * 0.05)
+        + (hash2(x * 0.17, y * 0.91) - 0.5) * 0.07;
+      const u = x * 0.82 + y * 0.38;
+      const v = x * -0.11 + y * 0.05;
+      let scuff = 0;
+      scuff += Math.max(0, fbm2(u * 0.018, v * 0.09) - 0.58) * 2.4;
+      scuff += Math.max(0, fbm2(u * 0.045 + 12.4, v * 0.22) - 0.66) * 1.6;
+      const u2 = x * 0.22 - y * 0.92;
+      scuff += Math.max(0, fbm2(u2 * 0.028 + 40, x * 0.01) - 0.7) * 1.3;
+      scuff += Math.max(0, fbm2(x * 0.011, y * 0.011) - 0.62) * 0.9;
+      scuff = Math.max(0, Math.min(1, scuff));
+      d[p] = Math.max(0, Math.min(255, mill * 255));
+      d[p + 1] = scuff * 255;
+      d[p + 2] = 0;
+      d[p + 3] = 255;
+    }
+  }
+  g.putImageData(id, 0, 0);
+
+  const ck = document.createElement('canvas');
+  ck.width = ck.height = S;
+  const kg = ck.getContext('2d');
+  kg.fillStyle = '#000';
+  kg.fillRect(0, 0, S, S);
+  kg.strokeStyle = '#fff';
+  kg.lineCap = 'round';
+  kg.lineJoin = 'round';
+  const rnd = (a) => hash2(a * 1.7, a * 4.1);
+  for (let i = 0; i < 34; i++) {
+    let x = rnd(i * 3.1) * S;
+    let y = rnd(i * 5.7 + 2) * S;
+    let ang = rnd(i * 8.2) * Math.PI * 2;
+    kg.beginPath();
+    kg.moveTo(x, y);
+    const segs = 10 + ((rnd(i * 9.4) * 22) | 0);
+    kg.lineWidth = 0.45 + rnd(i * 2.2) * 1.15;
+    for (let s = 0; s < segs; s++) {
+      ang += (rnd(i * 20 + s * 3.3) - 0.5) * 1.05;
+      const len = 5 + rnd(i + s * 1.8) * 18;
+      x += Math.cos(ang) * len;
+      y += Math.sin(ang) * len;
+      kg.lineTo(x, y);
+      if (rnd(i * 11 + s) > 0.78) {
+        const bx = x + Math.cos(ang + 0.9) * (8 + rnd(s) * 14);
+        const by = y + Math.sin(ang + 0.9) * (8 + rnd(s) * 14);
+        kg.lineTo(bx, by);
+        kg.moveTo(x, y);
+      }
+    }
+    kg.stroke();
+  }
+  kg.fillStyle = '#fff';
+  for (let i = 0; i < 220; i++) {
+    const x = rnd(i * 13.3 + 1) * S;
+    const y = rnd(i * 17.1 + 4) * S;
+    const r = 0.4 + rnd(i * 2.9) * 1.6;
+    kg.beginPath();
+    kg.arc(x, y, r, 0, Math.PI * 2);
+    kg.fill();
+  }
+  const cd = kg.getImageData(0, 0, S, S).data;
+  const out = g.getImageData(0, 0, S, S);
+  const od = out.data;
+  for (let i = 0; i < S * S; i++) {
+    const crack = cd[i * 4] / 255;
+    od[i * 4 + 2] = Math.min(255, crack * 255);
+    if (crack > 0.08) {
+      od[i * 4] = Math.max(0, od[i * 4] * (1 - crack * 0.55));
+      od[i * 4 + 1] = Math.min(255, od[i * 4 + 1] + crack * 40);
+    }
+  }
+  g.putImageData(out, 0, 0);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.NoColorSpace;
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.generateMipmaps = true;
+  tex.anisotropy = 8;
+  tex.needsUpdate = true;
+  return tex;
+}
+const wornSteelPack = METAL_WORN ? makeWornSteelPackTex() : null;
+
 function makeSvgSignFaceMat(x0 = 0) {
+  if (SIGN_METAL) {
+    return new THREE.ShaderMaterial({
+      uniforms: {
+        matcap: { value: steelChromeMatcap },
+        wearMap: { value: wornSteelPack },
+        uWorn: { value: METAL_WORN ? 1 : 0 },
+        uShift: nGlanceU.uShift,
+        uGain: nGlanceU.uGain,
+        uWidth: nGlanceU.uWidth,
+        uPunch: nGlanceU.uPunch,
+        uX0: { value: x0 },
+      },
+      vertexShader: `
+        uniform float uX0;
+        varying vec3 vViewPosition;
+        varying vec3 vNormal;
+        varying float vX;
+        varying vec2 vUv;
+        void main() {
+          vX = position.x + uX0;
+          vUv = uv;
+          vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+          vViewPosition = -mvPosition.xyz;
+          vNormal = normalize(normalMatrix * normal);
+          gl_Position = projectionMatrix * mvPosition;
+        }
+      `,
+      fragmentShader: `
+        uniform sampler2D matcap;
+        uniform sampler2D wearMap;
+        uniform float uWorn;
+        uniform float uShift;
+        uniform float uGain;
+        uniform float uWidth;
+        uniform float uPunch;
+        varying vec3 vViewPosition;
+        varying vec3 vNormal;
+        varying float vX;
+        varying vec2 vUv;
+        void main() {
+          vec3 viewDir = normalize(vViewPosition);
+          vec3 normal = normalize(vNormal);
+          float mill = 0.65;
+          float scuff = 0.0;
+          float crack = 0.0;
+          if (uWorn > 0.5) {
+            vec3 wear = texture2D(wearMap, vUv * vec2(1.15, 1.15) + vec2(0.04, 0.02)).rgb;
+            mill = wear.r;
+            scuff = wear.g;
+            crack = wear.b;
+            float bump = crack * 1.8 + scuff * 0.45;
+            normal = normalize(normal + vec3(dFdx(bump), dFdy(bump), 0.0) * 3.2);
+          }
+          vec3 x = normalize(vec3(viewDir.z, 0.0, -viewDir.x));
+          vec3 y = cross(viewDir, x);
+          vec2 uv = vec2(dot(x, normal), dot(y, normal)) * 0.495 + 0.5;
+          vec3 col = texture2D(matcap, uv).rgb;
+          col = min(vec3(1.0), col * (1.22 + uPunch * 0.28) + 0.05);
+          if (uWorn > 0.5) {
+            vec3 oxide = vec3(0.38, 0.40, 0.43) * (0.72 + mill * 0.5);
+            vec3 scratch = vec3(0.82, 0.86, 0.90);
+            col = mix(col, col * oxide * 1.45, scuff * 0.62);
+            col = mix(col, col * scratch, scuff * scuff * 0.28);
+            col *= 1.0 - crack * 0.82;
+            col = mix(col, vec3(0.07, 0.08, 0.09), crack * 0.72);
+            float edgeHi = crack * (1.0 - scuff) * 0.18;
+            col += vec3(0.55, 0.58, 0.62) * edgeHi;
+          }
+          float d = abs(vX - uShift) / max(uWidth, 0.001);
+          float core = 1.0 - smoothstep(0.08, 0.22, d);
+          float halo = 1.0 - smoothstep(0.20, 0.58, d);
+          float a = max(core * 1.2, halo * 0.48) * uGain;
+          if (uWorn > 0.5) a *= (1.0 - crack * 0.88) * mix(1.0, 0.52, scuff);
+          col = mix(col, vec3(1.0), clamp(a, 0.0, 0.88));
+          float fres = pow(1.0 - abs(dot(normal, viewDir)), 2.4);
+          col = mix(col, vec3(0.58, 0.62, 0.68), fres * 0.22);
+          gl_FragColor = vec4(col, 1.0);
+        }
+      `,
+      toneMapped: false,
+      side: THREE.FrontSide,
+    });
+  }
   /* Sticker/emoji: saturated emerald body + hot glance band so chrome reads on white + dark. */
-  const stick = SIGN_ONLY && !AVATAR_BG;
+  const stick = STICK;
   const tint = stick
     ? 'vec3(0.06, 0.72, 0.28)'
     : (SIGN_ONLY ? 'vec3(0.26, 1.08, 0.50)' : 'vec3(0.22, 1.06, 0.48)');
@@ -2474,14 +3136,37 @@ function makeSvgSignFaceMat(x0 = 0) {
 }
 
 function makeSvgSignSideMat() {
+  if (SIGN_METAL) {
+    return new THREE.MeshPhysicalMaterial({
+      color: METAL_WORN ? 0x9aa3ac : 0xc5ccd4,
+      metalness: 1.0,
+      roughness: METAL_WORN ? 0.22 : 0.07,
+      clearcoat: METAL_WORN ? 0.55 : 1.0,
+      clearcoatRoughness: METAL_WORN ? 0.18 : 0.05,
+      envMapIntensity: METAL_WORN ? 1.35 : 1.75,
+      specularIntensity: 1,
+      specularColor: new THREE.Color(0xffffff),
+      toneMapped: false,
+      side: THREE.DoubleSide,
+    });
+  }
   return new THREE.MeshMatcapMaterial({
     matcap: greenChromeMatcap,
-    color: (SIGN_ONLY && !AVATAR_BG) ? 0x1a6a28 : 0x3a8c34,
+    color: (STICK) ? 0x1a6a28 : 0x3a8c34,
     toneMapped: false,
   });
 }
 
 function makeSvgSignRimMat() {
+  if (SIGN_METAL) {
+    return new THREE.MeshPhysicalMaterial({
+      color: METAL_WORN ? 0x7e868e : 0x9aa3ad,
+      metalness: 1.0,
+      roughness: METAL_WORN ? 0.28 : 0.12,
+      envMapIntensity: METAL_WORN ? 1.15 : 1.4,
+      toneMapped: false,
+    });
+  }
   return new THREE.MeshMatcapMaterial({
     matcap: greenChromeMatcap,
     color: 0x2e7428,
@@ -2578,9 +3263,9 @@ function buildSvgSign() {
     const geo = new THREE.ExtrudeGeometry(shape, {
       depth: SVG_N_DEPTH,
       bevelEnabled: true,
-      bevelThickness: SIGN_ONLY ? 0.38 : 0.34,
-      bevelSize: SIGN_ONLY ? 0.30 : 0.26,
-      bevelSegments: SIGN_ONLY ? 8 : 5,
+      bevelThickness: SIGN_METAL ? 0.16 : (SIGN_ONLY ? 0.38 : 0.34),
+      bevelSize: SIGN_METAL ? 0.10 : (SIGN_ONLY ? 0.30 : 0.26),
+      bevelSegments: SIGN_METAL ? 3 : (SIGN_ONLY ? 8 : 5),
       curveSegments: SIGN_ONLY ? 28 : 20,
       steps: 1,
     });
@@ -2905,8 +3590,18 @@ async function build() {
     buildSvgSign();
   } else {
     for (const s of specs) {
-      const tex = await loadTex(`./layers_exact/${s.file}?v=${Date.now()}`);
-      const slab = makeSlab(tex, s.z);
+      if (AVATAR_FULL && s.kind === 'boom') continue;
+      let tex = await loadTex(`./layers_exact/${s.file}?v=${Date.now()}`);
+      let steel = null;
+      if (AVATAR_FULL && (s.kind === 'n' || s.kind === 'text')) {
+        steel = makeLiquidSteelFace(tex);
+        tex = steel.map;
+      }
+      const slab = makeSlab(tex, s.z, {
+        metalFace: !!steel,
+        roughnessMap: steel ? steel.roughnessMap : null,
+        bumpMap: steel ? steel.bumpMap : null,
+      });
       slab.userData.kind = s.kind;
       if (s.kind === 'n') {
         brand.n = slab;
@@ -2915,7 +3610,7 @@ async function build() {
       } else if (s.kind === 'text') {
         brand.text = slab;
         brand.tWholes.push(slab);
-        addTextContrastRim(slab, tex.image);
+        if (!AVATAR_FULL) addTextContrastRim(slab, tex.image);
         await addShatterTiles(tex, s.z, 0xffffff, 16, 'tChunk');
       } else {
         track(slab, {
@@ -3102,27 +3797,27 @@ function signFxCap(surge) {
   const viewHalf = Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) * camera.position.z;
   const s = Math.max(1e-6, root.scale.x);
   /* Sticker: FX fills ~canvas, hard-capped just inside Android corners. */
-  const pieceMul = AVATAR_BG ? 0.72 : 0.68;
-  const canvasMul = AVATAR_BG ? 0.88 : 0.90;
+  const pieceMul = AVATAR ? 0.72 : 0.68;
+  const canvasMul = AVATAR ? 0.88 : 0.90;
   const pieceMax = (root.userData.burstLocalMax || 8) * pieceMul;
   const canvasMax = (viewHalf * canvasMul) / s;
   const k = Math.max(0, Math.min(1, surge || 0));
   const punch = k * k * (2 - k);
-  return pieceMax + (canvasMax - pieceMax) * punch * (AVATAR_BG ? 1 : 0.88);
+  return pieceMax + (canvasMax - pieceMax) * punch * (AVATAR ? 1 : 0.88);
 }
 
 function compactSignBurst() {
   if (!SIGN_ONLY) return;
   const viewHalf = Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) * camera.position.z;
   /* Sticker: shard sphere ~canvas-sized, still inside rounded square. */
-  const worldMax = viewHalf * (AVATAR_BG ? 0.68 : 0.78);
+  const worldMax = viewHalf * (AVATAR ? 0.68 : 0.78);
   const s = Math.max(1e-6, root.scale.x);
   const localMax = worldMax / s;
   root.userData.burstLocalMax = localMax;
   const chunks = pieces.filter((p) => p.kind === 'nChunk' && p.sphere);
   let maxR = signSphereR;
   for (const p of chunks) maxR = Math.max(maxR, p.sphere.length());
-  const k = maxR > 1e-6 ? Math.min(1, (localMax * (AVATAR_BG ? 0.78 : 0.70)) / maxR) : 1;
+  const k = maxR > 1e-6 ? Math.min(1, (localMax * (AVATAR ? 0.78 : 0.70)) / maxR) : 1;
   for (const p of chunks) p.sphere.multiplyScalar(k);
   signSphereR *= k;
 }
@@ -3138,7 +3833,7 @@ function containRoot() {
   }
   /* Boom plates are full WORLD quads — hide so they cannot shrink the glyph fit */
   const boomHidden = [];
-  if (SIGN_ONLY) {
+  if (SIGN_ONLY || AVATAR_FULL) {
     for (const p of pieces) {
       if (p.kind !== 'boom') continue;
       boomHidden.push({ mesh: p.mesh, vis: p.mesh.visible });
@@ -3150,17 +3845,51 @@ function containRoot() {
   root.updateMatrixWorld(true);
 
   const viewSpan = 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5)) * camera.position.z;
-  if (SIGN_ONLY && brand.n) {
+  if (AVATAR_FULL && brand.n) {
+    const viewHalf = viewSpan * 0.5;
+    const circleR = viewHalf * 0.70;
+    const fitTarget = new THREE.Group();
+    fitTarget.add(brand.n);
+    if (brand.text) fitTarget.add(brand.text);
+    root.add(fitTarget);
+    let lo = 0.15;
+    let hi = 8;
+    for (let i = 0; i < 22; i++) {
+      const mid = (lo + hi) * 0.5;
+      root.scale.setScalar(mid);
+      root.position.set(0, 0, 0);
+      root.updateMatrixWorld(true);
+      const box = new THREE.Box3().setFromObject(fitTarget);
+      const c = box.getCenter(new THREE.Vector3());
+      root.position.x -= c.x;
+      root.position.y -= c.y;
+      root.updateMatrixWorld(true);
+      const box2 = new THREE.Box3().setFromObject(fitTarget);
+      if (aabbFitsCircle(box2, circleR)) lo = mid;
+      else hi = mid;
+    }
+    root.scale.setScalar(lo);
+    root.position.set(0, 0, 0);
+    root.updateMatrixWorld(true);
+    const box3 = new THREE.Box3().setFromObject(fitTarget);
+    const c3 = box3.getCenter(new THREE.Vector3());
+    root.position.x -= c3.x;
+    root.position.y -= c3.y;
+    /* Re-parent N/text onto root — the fit group was only for measuring. */
+    root.add(brand.n);
+    if (brand.text) root.add(brand.text);
+    fitTarget.removeFromParent();
+  } else if (SIGN_ONLY && brand.n) {
     brand.n.rotation.set(SIGN_REST_RX, SIGN_REST_RY, SIGN_REST_RZ);
     brand.n.updateMatrixWorld(true);
     const viewHalf = viewSpan * 0.5;
     /* Sticker/emoji: Android 12+ ~22% rounded square. Avatar: true circle crop. */
-    const edgeIndent = AVATAR_BG ? 0.10 : 0.12;
+    const edgeIndent = AVATAR ? 0.10 : 0.12;
     const A = viewHalf * (1 - edgeIndent);
-    const CR = viewHalf * 2 * (AVATAR_BG ? 0.18 : 0.22);
+    const CR = viewHalf * 2 * (AVATAR ? 0.18 : 0.22);
     /* Voice-call stack: neighbor sits under our LEFT edge — keep jade pad there.
      * Slightly smaller + optical right bias so the bright N doesn’t invade. */
-    const circleR = viewHalf * (AVATAR_BG ? 0.58 : 0.70);
+    const circleR = viewHalf * (AVATAR ? 0.58 : 0.70);
     let lo = 0.2;
     let hi = 12;
     for (let i = 0; i < 22; i++) {
@@ -3174,7 +3903,7 @@ function containRoot() {
       root.position.y -= c.y;
       root.updateMatrixWorld(true);
       const box2 = new THREE.Box3().setFromObject(brand.n);
-      const ok = AVATAR_BG
+      const ok = AVATAR
         ? aabbFitsCircle(box2, circleR)
         : aabbFitsRoundRect(box2, A, CR);
       if (ok) lo = mid;
@@ -3187,7 +3916,7 @@ function containRoot() {
     const c3 = box3.getCenter(new THREE.Vector3());
     root.position.x -= c3.x;
     root.position.y -= c3.y;
-    if (AVATAR_BG) {
+    if (AVATAR) {
       root.position.x += viewHalf * 0.09;
       root.position.y += viewHalf * 0.055;
     }
@@ -3258,13 +3987,17 @@ function applyFrame(fr) {
     if (hero) {
       /* Telegram thumb: N faces camera, slight 3D, no wobble. */
       n.position.set(rp.x, rp.y + 0.04, rp.z + 0.08);
-      n.rotation.set(0.05, 0.07, 0);
+      n.rotation.set(AVATAR_FULL ? 0.10 : 0.05, AVATAR_FULL ? 0.20 : 0.07, 0);
       n.scale.setScalar(brand.nScale * 1.02);
-    } else if (AVATAR_BG || SIGN_ONLY) {
+    } else if (AVATAR_FULL) {
+      n.position.set(rp.x, rp.y, rp.z);
+      n.rotation.set(0.08, 0.20 + Math.sin(ph) * 0.10 * life, 0);
+      n.scale.setScalar(brand.nScale);
+    } else if (AVATAR || SIGN_ONLY) {
       /* Stable rest — any micro-wobble desyncs from shards and reads as a ghost duplicate. */
       n.position.set(rp.x, rp.y, rp.z);
       n.rotation.set(SIGN_REST_RX, SIGN_REST_RY, SIGN_REST_RZ);
-      const shinePulse = 1 + reassembleBoom * (AVATAR_BG ? 0.14 : 0.08) * damp;
+      const shinePulse = 1 + reassembleBoom * (AVATAR ? 0.14 : 0.08) * damp;
       n.scale.setScalar(brand.nScale * shinePulse);
     } else {
       /* Shine phase: gentle turn so green facets catch light */
@@ -3288,8 +4021,12 @@ function applyFrame(fr) {
     if (hero) {
       /* Max wordmark read: frontal, slightly larger, lifted into the avatar circle. */
       tx.position.set(rp.x, rp.y + 0.18, rp.z + 0.42);
-      tx.rotation.set(0.02, -0.04, 0);
-      tx.scale.setScalar(brand.tScale * 1.14);
+      tx.rotation.set(AVATAR_FULL ? 0.10 : 0.02, AVATAR_FULL ? 0.20 : -0.04, 0);
+      tx.scale.setScalar(brand.tScale * (AVATAR_FULL ? 1.06 : 1.14));
+    } else if (AVATAR_FULL) {
+      tx.position.set(rp.x, rp.y, rp.z);
+      tx.rotation.set(0.08, 0.20 + Math.sin(ph) * 0.10 * life, 0);
+      tx.scale.setScalar(brand.tScale);
     } else {
       tx.position.set(
         rp.x + Math.cos(ph * 1.9) * 0.09 * life,
@@ -3362,7 +4099,7 @@ function applyFrame(fr) {
         p.restRot.z + tumble * 0.35,
       );
       p.mesh.scale.setScalar(p.restScale * (0.97 + 0.03 * rebuild));
-      if (SIGN_ONLY) clampLocalXY(p.mesh.position, (root.userData.burstLocalMax || 8) * (AVATAR_BG ? 0.88 : 0.86));
+      if (SIGN_ONLY) clampLocalXY(p.mesh.position, (root.userData.burstLocalMax || 8) * (AVATAR ? 0.88 : 0.86));
       continue;
     }
     const e = trap(t, p.delay, 0.16 + p.delay, 0.52, 0.9);
@@ -3434,7 +4171,7 @@ function applyFrame(fr) {
       continue;
     }
     if (SIGN_ONLY) {
-      clampLocalXY(p.mesh.position, (root.userData.burstLocalMax || 8) * (AVATAR_BG ? 0.82 : 0.82));
+      clampLocalXY(p.mesh.position, (root.userData.burstLocalMax || 8) * (AVATAR ? 0.82 : 0.82));
     } else if (!hero) {
       clampLocalBox(p.mesh.position, (root.userData.canvasCap || 8) * 0.9);
     }
@@ -3450,7 +4187,7 @@ function applyFrame(fr) {
       - 0.04 * Math.max(0, (t - 0.55) / 0.35))
     : (1 - 0.14 * Math.max(boomAmt, destroy) - 0.04 * fill);
   const containSafe = SIGN_ONLY
-    ? (AVATAR_BG
+    ? (AVATAR
       ? (1 - 0.08 * sphereAmt - 0.03 * boomFlash + 0.06 * reassembleBoom)
       /* Sticker: tiny tuck during boom — explosion still fills canvas via FX caps. */
       : (1 - 0.06 * sphereAmt - 0.03 * boomFlash - 0.02 * reassembleBoom))
@@ -3496,28 +4233,37 @@ function applyFrame(fr) {
   }
   if (SIGN_ONLY) {
     /* Keep FX just in front of the N — sticker: milder Z punch so boom stays on-canvas. */
-    const zPunch = !AVATAR_BG
+    const zPunch = !AVATAR
       ? (reassembleBoom > 0.02 ? (1.2 + 2.2 * reassembleBoom) : 0)
       : (reassembleBoom > 0.02 ? (3.2 + 7.5 * reassembleBoom) : 0);
     fx.position.set(0, 0, zPunch);
     fx.rotation.set(0, 0, 0);
   }
 
-  if (SIGN_ONLY) {
-    if (AVATAR_BG) {
-      keyLight.intensity = frozen ? 4.0 : (3.7 + (4.0 - 3.7) * settle);
-      fillLight.intensity = frozen ? 1.9 : (1.75 + (1.9 - 1.75) * settle);
-      rimLight.intensity = frozen ? 2.2 : (2.4 + (2.2 - 2.4) * settle);
-      ambLight.intensity = frozen ? 0.72 : (0.68 + (0.72 - 0.68) * settle);
-      scene.environmentIntensity = frozen ? 1.9 : (1.75 + (1.9 - 1.75) * settle);
-    } else {
-      /* Sticker: harder key/rim, low fill so faces stay emerald not mint-wash. */
-      keyLight.intensity = frozen ? 4.4 : (3.9 + (4.4 - 3.9) * settle);
-      fillLight.intensity = frozen ? 0.85 : (0.75 + (0.85 - 0.75) * settle);
-      rimLight.intensity = frozen ? 3.4 : (3.0 + (3.4 - 3.0) * settle);
-      ambLight.intensity = frozen ? 0.36 : (0.32 + (0.36 - 0.32) * settle);
-      scene.environmentIntensity = frozen ? 1.45 : (1.25 + (1.45 - 1.25) * settle);
+  if (SIGN_METAL && (SIGN_ONLY || AVATAR_FULL)) {
+    fillLight.color.setHex(0xffffff);
+    keyLight.intensity = frozen ? 3.4 : (3.1 + (3.4 - 3.1) * settle);
+    fillLight.intensity = frozen ? 1.15 : (1.0 + (1.15 - 1.0) * settle);
+    rimLight.intensity = frozen ? 2.6 : (2.4 + (2.6 - 2.4) * settle);
+    ambLight.intensity = frozen ? 0.42 : (0.38 + (0.42 - 0.38) * settle);
+    if (scene.environment) {
+      const hi = AVATAR_FULL ? 2.35 : 1.65;
+      const lo = AVATAR_FULL ? 2.15 : 1.5;
+      scene.environmentIntensity = frozen ? hi : (lo + (hi - lo) * settle);
     }
+  } else if (SIGN_ONLY && AVATAR_BG) {
+    keyLight.intensity = frozen ? 4.0 : (3.7 + (4.0 - 3.7) * settle);
+    fillLight.intensity = frozen ? 1.9 : (1.75 + (1.9 - 1.75) * settle);
+    rimLight.intensity = frozen ? 2.2 : (2.4 + (2.2 - 2.4) * settle);
+    ambLight.intensity = frozen ? 0.72 : (0.68 + (0.72 - 0.68) * settle);
+    scene.environmentIntensity = frozen ? 1.9 : (1.75 + (1.9 - 1.75) * settle);
+  } else if (SIGN_ONLY) {
+    /* Sticker: harder key/rim, low fill so faces stay emerald not mint-wash. */
+    keyLight.intensity = frozen ? 4.4 : (3.9 + (4.4 - 3.9) * settle);
+    fillLight.intensity = frozen ? 0.85 : (0.75 + (0.85 - 0.75) * settle);
+    rimLight.intensity = frozen ? 3.4 : (3.0 + (3.4 - 3.0) * settle);
+    ambLight.intensity = frozen ? 0.36 : (0.32 + (0.36 - 0.32) * settle);
+    scene.environmentIntensity = frozen ? 1.45 : (1.25 + (1.45 - 1.25) * settle);
   } else if (hero) {
     /* Harder key/rim, cooler fill off the white wordmark, no orange fire wash. */
     keyLight.intensity = 3.35;
@@ -3532,19 +4278,25 @@ function applyFrame(fr) {
     rimLight.intensity = 1.1;
     ambLight.intensity = 0.7;
   }
-  if (SIGN_ONLY && shineSweep) {
+  if ((SIGN_ONLY || AVATAR_FULL) && shineSweep) {
     const ph = t * Math.PI * 2;
-    shineSweep.position.set(7.2 + Math.sin(ph) * 1.4 * damp, 7.6, 13.5);
-    const shineFrz = AVATAR_BG ? 6.5 : 7.8;
-    const shineLive = AVATAR_BG ? 5.0 : 6.2;
-    shineSweep.intensity = (frozen ? shineFrz : (shineLive + (shineFrz - shineLive) * settle)) * (frozen ? 1 : (life * damp + settle));
+    const shineDamp = SIGN_ONLY ? damp : 1;
+    shineSweep.position.set(7.2 + Math.sin(ph) * 1.4 * shineDamp, 7.6, 13.5);
+    const shineFrz = SIGN_METAL ? 7.2 : (AVATAR_BG ? 6.5 : 7.8);
+    const shineLive = SIGN_METAL ? 5.6 : (AVATAR_BG ? 5.0 : 6.2);
+    shineSweep.intensity = AVATAR_FULL
+      ? (hero ? shineFrz : shineLive + 1.2 * life)
+      : (frozen ? shineFrz : (shineLive + (shineFrz - shineLive) * settle)) * (frozen ? 1 : (life * damp + settle));
   }
-  if (SIGN_ONLY && shineKick) {
+  if ((SIGN_ONLY || AVATAR_FULL) && shineKick) {
     const ph = t * Math.PI * 2;
-    const kickFrz = AVATAR_BG ? 4.8 : 6.0;
-    const kickLive = AVATAR_BG ? 3.8 : 4.8;
-    shineKick.intensity = (frozen ? kickFrz : (kickLive + (kickFrz - kickLive) * settle)) * (frozen ? 1 : (life * damp + settle));
-    shineKick.position.set(-1.1 + Math.sin(ph) * 0.4 * damp, 2.3, 6.2);
+    const kickDamp = SIGN_ONLY ? damp : 1;
+    const kickFrz = SIGN_METAL ? 5.4 : (AVATAR_BG ? 4.8 : 6.0);
+    const kickLive = SIGN_METAL ? 4.2 : (AVATAR_BG ? 3.8 : 4.8);
+    shineKick.intensity = AVATAR_FULL
+      ? (hero ? kickFrz : kickLive + 0.8 * life)
+      : (frozen ? kickFrz : (kickLive + (kickFrz - kickLive) * settle)) * (frozen ? 1 : (life * damp + settle));
+    shineKick.position.set(-1.1 + Math.sin(ph) * 0.4 * kickDamp, 2.3, 6.2);
   }
   updateSignShineGlance(frozen ? 0 : t * damp, frozen ? 1 : (life * damp + settle), frozen || settle > 0.85);
 
@@ -3566,19 +4318,23 @@ function applyFrame(fr) {
   fireLight2.intensity = SIGN_ONLY
     ? ((reassembleBoom > coreFlash ? 20 : 11) * boomFlash)
     : (hero ? 0 : (0.8 + 3.5 * blast + 2.5 * tear + 2 * fill));
-  fireLight.color.setHex(SIGN_ONLY
-    ? (reassembleBoom > coreFlash
-      ? (AVATAR_BG ? 0xff6a22 : 0xfff6c8)
-      : 0xff2a08)
-    : 0xff5511);
-  fireLight2.color.setHex(SIGN_ONLY
-    ? (reassembleBoom > coreFlash
-      ? (AVATAR_BG ? 0xff9944 : 0xffffff)
-      : 0xffd060)
-    : 0xffcc44);
+  fireLight.color.setHex(SIGN_METAL
+    ? 0xffffff
+    : (SIGN_ONLY
+      ? (reassembleBoom > coreFlash
+        ? (AVATAR_BG ? 0xff6a22 : 0xfff6c8)
+        : 0xff2a08)
+      : 0xff5511));
+  fireLight2.color.setHex(SIGN_METAL
+    ? 0xf4f8ff
+    : (SIGN_ONLY
+      ? (reassembleBoom > coreFlash
+        ? (AVATAR_BG ? 0xff9944 : 0xffffff)
+        : 0xffd060)
+      : 0xffcc44));
   if (SIGN_ONLY && reassembleBoom > 0.02) {
     const lc = logoBoomRootOrigin();
-    const lift = (AVATAR_BG ? 1.05 : 1.45) * reassembleBoom;
+    const lift = (AVATAR ? 1.05 : 1.45) * reassembleBoom;
     fireLight.position.set(lc.x, lc.y + lift, lc.z + 1.5 + reassembleBoom * 7);
     fireLight2.position.set(lc.x + 0.55, lc.y + 0.45 + lift, lc.z + 2.5 + reassembleBoom * 6);
   } else {
@@ -3603,7 +4359,7 @@ function applyFrame(fr) {
   const frontBoomOn = SIGN_ONLY && reassembleBoom > 0.02;
   /* Lift second boom slightly so it reads above the mark center. */
   const secondBoomLift = frontBoomOn
-    ? (AVATAR_BG ? 1.05 : 1.45) * reassembleBoom
+    ? (AVATAR ? 1.05 : 1.45) * reassembleBoom
     : 0;
   const boomN0 = frontBoomOn ? logoBoomFxOrigin().clone() : null;
   if (boomN0 && secondBoomLift > 0) boomN0.y += secondBoomLift;
@@ -3651,7 +4407,7 @@ function applyFrame(fr) {
     }
     const R = signSphereR || 12.5;
     const cap = SIGN_ONLY ? (root.userData.fxCap || 8) : (root.userData.canvasCap || 8);
-    const stickFit = SIGN_ONLY && !AVATAR_BG;
+    const stickFit = STICK;
     const epic = SIGN_ONLY && reassembleBoom > 0.02
       ? (stickFit ? (1.15 + 0.7 * reassembleBoom) : (1.45 + 1.2 * reassembleBoom))
       : 1;
@@ -3676,7 +4432,7 @@ function applyFrame(fr) {
     }
     if (SIGN_ONLY && reassembleBoom > 0.02) {
       /* Sticker: avoid stacking FX-group Z + mesh Z (that blows past the canvas). */
-      f.mesh.position.z = !AVATAR_BG
+      f.mesh.position.z = !AVATAR
         ? Math.max(1.2, Math.abs(f.mesh.position.z)) + 1.1 * reassembleBoom
         : Math.max(2.2, Math.abs(f.mesh.position.z)) + 3.6 * reassembleBoom;
       f.mesh.material.depthTest = false;
@@ -3811,7 +4567,7 @@ function applyFrame(fr) {
         bolt.core.visible = false;
         continue;
       }
-      const stickFit = !AVATAR_BG;
+      const stickFit = !AVATAR;
       const cap = root.userData.fxCap || (root.userData.burstLocalMax || 8) * (stickFit ? 0.70 : 0.72);
       const strike = SIGN_BOLT_STRIKES[isPrimary ? activeSlot : secondary];
       {
@@ -3926,7 +4682,7 @@ function applyFrame(fr) {
         continue;
       }
       const R = signSphereR || 12.5;
-      const stickFit = !AVATAR_BG;
+      const stickFit = !AVATAR;
       const cap = root.userData.fxCap || (root.userData.burstLocalMax || 8) * (stickFit ? 0.70 : 0.72);
       let mid;
       let tip;
@@ -3990,9 +4746,11 @@ function applyFrame(fr) {
     bolt.glow.visible = true;
     bolt.core.visible = true;
     if (SIGN_ONLY) {
-      const pal = AVATAR_BG
+      const pal = SIGN_METAL
+        ? [0xffffff, 0xf2f6fb, 0xd8e4f0, 0xc8d4e0, 0xffffff, 0xe8eef4, 0xb8c8d8, 0xffffff]
+        : (AVATAR_BG
         ? [0xff5510, 0xff8833, 0xff6622, 0xffffff, 0xff9944, 0xff4418, 0xffaa55, 0xff7730]
-        : [0xffee33, 0xfff8e0, 0xff66cc, 0xffffff, 0xffaa44, 0xff9933, 0xffdd88, 0xfff0c8];
+        : [0xffee33, 0xfff8e0, 0xff66cc, 0xffffff, 0xffaa44, 0xff9933, 0xffdd88, 0xfff0c8]);
       bolt.glowMat.blending = THREE.NormalBlending;
       bolt.coreMat.blending = THREE.NormalBlending;
       bolt.glowMat.color.setHex(pal[(frameKey * 5 + bi * 11) % pal.length]);
@@ -4013,7 +4771,7 @@ function applyFrame(fr) {
 
   /* Yellow explosion shine — big, but hard-capped to FX/canvas safe radius. */
   if (screenBurst) {
-    const stickFit = SIGN_ONLY && !AVATAR_BG;
+    const stickFit = STICK;
     const punch = SIGN_ONLY
       ? Math.max(
         coreFlash * trap(t, 0.32, 0.38, 0.48, 0.56) * (stickFit ? 0.75 : 0.35),
@@ -4029,7 +4787,7 @@ function applyFrame(fr) {
         screenBurst.position.set(0, lift * 0.45, 2.0 + reassembleBoom * 1.2);
         clampFxPoint(screenBurst.position, cap * 0.35, 0.18);
         screenBurst.material.opacity = Math.min(1, 0.55 + punch * 0.55);
-        screenBurst.material.color.setHex(second ? 0xfff066 : 0xffcc33);
+        screenBurst.material.color.setHex(SIGN_METAL ? 0xffffff : (second ? 0xfff066 : 0xffcc33));
         /* Diameter stays inside canvas: scale ≤ ~1.7× FX cap. */
         const want = (second ? 1.55 : 0.85) + punch * (second ? 1.45 : 0.75);
         const s = Math.min(want, cap * 1.70);
@@ -4041,9 +4799,11 @@ function applyFrame(fr) {
         );
         /* Avatar: red-ember flash; non-avatar stick path handled above. */
         screenBurst.material.color.setHex(
-          AVATAR_BG
+          SIGN_METAL
+            ? 0xffffff
+            : (AVATAR_BG
             ? (second ? 0xff7722 : 0xff5510)
-            : (second ? 0xffffff : 0xffcc88),
+            : (second ? 0xffffff : 0xffcc88)),
         );
         const s = (second ? 2.4 : 1.2) + punch * (second ? 2.8 : 1.1);
         screenBurst.scale.set(s, s, 1);
@@ -4063,7 +4823,7 @@ function applyFrame(fr) {
 
   for (const cb of camBolts) {
     /* Camera bolts clip the sticker canvas bottom — avatar keeps them. */
-    if (!SIGN_ONLY || boomFlash < 0.25 || !AVATAR_BG) {
+    if (!SIGN_ONLY || boomFlash < 0.25 || !AVATAR) {
       cb.glowMat.opacity = 0;
       cb.coreMat.opacity = 0;
       cb.glow.visible = false;
@@ -4084,7 +4844,7 @@ function applyFrame(fr) {
       continue;
     }
     const strike = SIGN_BOLT_STRIKES[(cb.slot | 0) % SIGN_BOLT_STRIKES.length];
-    const stickFit = !AVATAR_BG;
+    const stickFit = !AVATAR;
     const ang = strike.ang + (rnd() - 0.5) * 0.45;
     const start = (0.35 + rnd() * 0.45) * (stickFit ? 0.85 : 1);
     const span = (4.8 + rnd() * 2.4) * (stickFit ? 0.72 : 1);
@@ -4116,7 +4876,7 @@ function applyFrame(fr) {
     cb.coreMat.opacity = Math.min(1, boomFlash * 3.0) * flick;
   }
 
-  if (AVATAR_BG) {
+  if (AVATAR) {
     const bgT = frozen ? 0 : t * damp;
     const bgPulse = frozen
       ? 0.25
@@ -4129,7 +4889,7 @@ function applyFrame(fr) {
         reassembleBoom,
         0.25 + 0.25 * Math.sin(bgT * Math.PI * 2),
       );
-    paintAvatarBackground(bgT, Math.min(1, bgPulse), frozen ? 0 : reassembleBoom);
+    paintAvatarBackground(bgT, Math.min(1, bgPulse), frozen ? 0 : (SIGN_ONLY ? reassembleBoom : boomAmt));
   }
 
   renderer.clear(true, true, true);
